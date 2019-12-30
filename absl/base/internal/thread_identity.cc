@@ -105,11 +105,11 @@ void SetCurrentThreadIdentity(
                   reclaimer);
   pthread_setspecific(thread_identity_pthread_key,
                       reinterpret_cast<void*>(identity));
-  CurrentThreadIdentityIfPresent() = identity;
+  CurrentThreadIdentityIfPresent(true, identity);
 #elif ABSL_THREAD_IDENTITY_MODE == ABSL_THREAD_IDENTITY_MODE_USE_CPP11
   thread_local std::unique_ptr<ThreadIdentity, ThreadIdentityReclaimerFunction>
       holder(identity, reclaimer);
-  CurrentThreadIdentityIfPresent() = identity;
+  CurrentThreadIdentityIfPresent(true, identity);
 #else
 #error Unimplemented ABSL_THREAD_IDENTITY_MODE
 #endif
@@ -118,22 +118,25 @@ void SetCurrentThreadIdentity(
 void ClearCurrentThreadIdentity() {
 #if ABSL_THREAD_IDENTITY_MODE == ABSL_THREAD_IDENTITY_MODE_USE_TLS || \
     ABSL_THREAD_IDENTITY_MODE == ABSL_THREAD_IDENTITY_MODE_USE_CPP11
-  CurrentThreadIdentityIfPresent() = nullptr;
+  CurrentThreadIdentityIfPresent(true, nullptr);
 #elif ABSL_THREAD_IDENTITY_MODE == \
-      ABSL_THREAD_IDENTITY_MODE_USE_POSIX_SETSPECIFIC
+    ABSL_THREAD_IDENTITY_MODE_USE_POSIX_SETSPECIFIC
   // pthread_setspecific expected to clear value on destruction
   assert(CurrentThreadIdentityIfPresent() == nullptr);
 #endif
 }
 
 #if ABSL_THREAD_IDENTITY_MODE == ABSL_THREAD_IDENTITY_MODE_USE_POSIX_SETSPECIFIC
-ThreadIdentity*& CurrentThreadIdentityIfPresent() {
+ThreadIdentity* CurrentThreadIdentityIfPresent(bool update,
+                                               ThreadIdentity* value) {
   bool initialized = pthread_key_initialized.load(std::memory_order_acquire);
-  if (!initialized) {
+  if (!initialized && !update) {
     return nullptr;
   }
-  return reinterpret_cast<ThreadIdentity*>(
+  ThreadIdentity* thread_identity_ptr = reinterpret_cast<ThreadIdentity*>(
       pthread_getspecific(thread_identity_pthread_key));
+  if (update) thread_identity_ptr = value;
+  return thread_identity_ptr;
 }
 #endif
 
