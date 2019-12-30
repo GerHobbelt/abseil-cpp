@@ -45,10 +45,11 @@ ABSL_PER_THREAD_TLS_KEYWORD absl::base_internal::ExponentialBiased
 #endif
 
 }  // namespace
-
+/*
 #if ABSL_PER_THREAD_TLS == 1
 ABSL_PER_THREAD_TLS_KEYWORD int64_t global_next_sample = 0;
 #endif  // ABSL_PER_THREAD_TLS == 1
+*/
 
 
 HashtablezSampler& HashtablezSampler::Global() {

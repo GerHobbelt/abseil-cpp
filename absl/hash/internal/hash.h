@@ -38,6 +38,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/hash_export.h"
 #include "absl/base/internal/endian.h"
 #include "absl/base/port.h"
 #include "absl/container/fixed_array.h"
@@ -851,7 +852,7 @@ class CityHashState : public HashStateBase<CityHashState> {
   ABSL_ATTRIBUTE_ALWAYS_INLINE static uint64_t Seed() {
     return static_cast<uint64_t>(reinterpret_cast<uintptr_t>(kSeed));
   }
-  static const void* const kSeed;
+  HASH_EXPORT static const void* const kSeed;
 
   uint64_t state_;
 };

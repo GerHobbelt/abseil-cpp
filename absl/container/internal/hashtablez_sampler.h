@@ -181,17 +181,20 @@ class HashtablezInfoHandle {
 };
 
 #if ABSL_PER_THREAD_TLS == 1
-extern ABSL_PER_THREAD_TLS_KEYWORD int64_t global_next_sample;
+inline int64_t& global_next_sample() {
+  thread_local int64_t sample;
+  return sample;
+}
 #endif  // ABSL_PER_THREAD_TLS
 
 // Returns an RAII sampling handle that manages registration and unregistation
 // with the global sampler.
 inline HashtablezInfoHandle Sample() {
 #if ABSL_PER_THREAD_TLS == 1
-  if (ABSL_PREDICT_TRUE(--global_next_sample > 0)) {
+  if (ABSL_PREDICT_TRUE(--global_next_sample() > 0)) {
     return HashtablezInfoHandle(nullptr);
   }
-  return HashtablezInfoHandle(SampleSlow(&global_next_sample));
+  return HashtablezInfoHandle(SampleSlow(&global_next_sample()));
 #else
   return HashtablezInfoHandle(nullptr);
 #endif  // !ABSL_PER_THREAD_TLS
