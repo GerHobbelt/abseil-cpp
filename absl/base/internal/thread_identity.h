@@ -169,7 +169,7 @@ struct ThreadIdentity {
 //
 // New ThreadIdentity objects can be constructed and associated with a thread
 // by calling GetOrCreateCurrentThreadIdentity() in per-thread-sem.h.
-ThreadIdentity* CurrentThreadIdentityIfPresent();
+ThreadIdentity*& CurrentThreadIdentityIfPresent();
 
 using ThreadIdentityReclaimerFunction = void (*)(void*);
 
@@ -223,10 +223,19 @@ void ClearCurrentThreadIdentity();
 
 #if ABSL_THREAD_IDENTITY_MODE == ABSL_THREAD_IDENTITY_MODE_USE_TLS || \
     ABSL_THREAD_IDENTITY_MODE == ABSL_THREAD_IDENTITY_MODE_USE_CPP11
-
-ABSL_CONST_INIT BASE_EXPORT thread_local ThreadIdentity* thread_identity_ptr;
-
-inline ThreadIdentity* CurrentThreadIdentityIfPresent() {
+/*
+#if ABSL_PER_THREAD_TLS
+ABSL_CONST_INIT extern ABSL_PER_THREAD_TLS_KEYWORD ThreadIdentity*
+    thread_identity_ptr;
+#elif defined(ABSL_HAVE_THREAD_LOCAL)
+ABSL_CONST_INIT extern thread_local ThreadIdentity*
+    thread_identity_ptr;
+#else
+#error Thread-local storage not detected on this platform
+#endif
+*/
+inline ThreadIdentity*& CurrentThreadIdentityIfPresent() {
+  thread_local ThreadIdentity* thread_identity_ptr = nullptr;
   return thread_identity_ptr;
 }
 

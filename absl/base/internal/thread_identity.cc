@@ -56,13 +56,15 @@ void AllocateThreadIdentityKey(ThreadIdentityReclaimerFunction reclaimer) {
 #ifdef __GNUC__
 __attribute__((visibility("protected")))
 #endif  // __GNUC__
-#if ABSL_PER_THREAD_TLS
+/*#if ABSL_PER_THREAD_TLS
 // Prefer __thread to thread_local as benchmarks indicate it is a bit faster.
 ABSL_PER_THREAD_TLS_KEYWORD ThreadIdentity* thread_identity_ptr = nullptr;
 #elif defined(ABSL_HAVE_THREAD_LOCAL)
 thread_local ThreadIdentity* thread_identity_ptr = nullptr;
 #endif  // ABSL_PER_THREAD_TLS
+        */
 #endif  // TLS or CPP11
+
 
 void SetCurrentThreadIdentity(
     ThreadIdentity* identity, ThreadIdentityReclaimerFunction reclaimer) {
@@ -103,11 +105,11 @@ void SetCurrentThreadIdentity(
                   reclaimer);
   pthread_setspecific(thread_identity_pthread_key,
                       reinterpret_cast<void*>(identity));
-  thread_identity_ptr = identity;
+  CurrentThreadIdentityIfPresent() = identity;
 #elif ABSL_THREAD_IDENTITY_MODE == ABSL_THREAD_IDENTITY_MODE_USE_CPP11
   thread_local std::unique_ptr<ThreadIdentity, ThreadIdentityReclaimerFunction>
       holder(identity, reclaimer);
-  thread_identity_ptr = identity;
+  CurrentThreadIdentityIfPresent() = identity;
 #else
 #error Unimplemented ABSL_THREAD_IDENTITY_MODE
 #endif
@@ -116,7 +118,7 @@ void SetCurrentThreadIdentity(
 void ClearCurrentThreadIdentity() {
 #if ABSL_THREAD_IDENTITY_MODE == ABSL_THREAD_IDENTITY_MODE_USE_TLS || \
     ABSL_THREAD_IDENTITY_MODE == ABSL_THREAD_IDENTITY_MODE_USE_CPP11
-  thread_identity_ptr = nullptr;
+  CurrentThreadIdentityIfPresent() = nullptr;
 #elif ABSL_THREAD_IDENTITY_MODE == \
       ABSL_THREAD_IDENTITY_MODE_USE_POSIX_SETSPECIFIC
   // pthread_setspecific expected to clear value on destruction

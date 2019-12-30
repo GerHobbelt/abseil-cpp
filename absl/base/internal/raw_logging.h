@@ -21,6 +21,7 @@
 
 #include <string>
 
+#include "absl/raw_logging_internal_export.h"
 #include "absl/base/attributes.h"
 #include "absl/base/internal/atomic_hook.h"
 #include "absl/base/log_severity.h"
@@ -168,7 +169,8 @@ using InternalLogFunction = void (*)(absl::LogSeverity severity,
                                      const char* file, int line,
                                      const std::string& message);
 
-extern base_internal::AtomicHook<InternalLogFunction> internal_log_function;
+RAW_LOGGING_INTERNAL_EXPORT extern base_internal::AtomicHook<InternalLogFunction>
+    internal_log_function;
 
 void RegisterInternalLogFunction(InternalLogFunction func);
 

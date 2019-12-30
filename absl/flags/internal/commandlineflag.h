@@ -18,6 +18,7 @@
 
 #include <memory>
 
+#include "absl/flags_handle_export.h"
 #include "absl/base/macros.h"
 #include "absl/flags/marshalling.h"
 #include "absl/types/optional.h"
@@ -61,7 +62,7 @@ enum ValueSource {
   kProgrammaticChange,
 };
 
-extern const char kStrippedFlagHelp[];
+FLAGS_HANDLE_EXPORT extern const char kStrippedFlagHelp[];
 
 // The per-type function
 template <typename T>
