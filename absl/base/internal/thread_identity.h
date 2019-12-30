@@ -20,6 +20,8 @@
 #ifndef ABSL_BASE_INTERNAL_THREAD_IDENTITY_H_
 #define ABSL_BASE_INTERNAL_THREAD_IDENTITY_H_
 
+#include "absl/base_export.h"
+
 #ifndef _WIN32
 #include <pthread.h>
 // Defines __GOOGLE_GRTE_VERSION__ (via glibc-specific features.h) when
@@ -60,8 +62,8 @@ struct PerThreadSynch {
     return reinterpret_cast<ThreadIdentity*>(this);
   }
 
-  PerThreadSynch *next;  // Circular waiter queue; initialized to 0.
-  PerThreadSynch *skip;  // If non-zero, all entries in Mutex queue
+  PerThreadSynch* next;  // Circular waiter queue; initialized to 0.
+  PerThreadSynch* skip;  // If non-zero, all entries in Mutex queue
                          // up to and including "skip" have same
                          // condition as this, and will be woken later
   bool may_skip;         // if false while on mutex queue, a mutex unlocker
@@ -79,7 +81,7 @@ struct PerThreadSynch {
   // special case is Fer(), which calls Enqueue() on another thread,
   // but with an identical SynchWaitParams pointer, thus leaving the
   // pointer unchanged.
-  SynchWaitParams *waitp;
+  SynchWaitParams* waitp;
 
   bool suppress_fatal_errors;  // If true, try to proceed even in the face of
                                // broken invariants.  This is used within fatal
@@ -87,8 +89,8 @@ struct PerThreadSynch {
                                // debug logging information being output
                                // successfully.
 
-  intptr_t readers;     // Number of readers in mutex.
-  int priority;         // Priority of thread (updated every so often).
+  intptr_t readers;  // Number of readers in mutex.
+  int priority;      // Priority of thread (updated every so often).
 
   // When priority will next be read (cycles).
   int64_t next_priority_read_cycles;
@@ -104,10 +106,7 @@ struct PerThreadSynch {
   //
   // Transitions from kAvailable to kQueued require no barrier, they
   // are externally ordered by the Mutex.
-  enum State {
-    kAvailable,
-    kQueued
-  };
+  enum State { kAvailable, kQueued };
   std::atomic<State> state;
 
   bool maybe_unlocking;  // Valid at head of Mutex waiter queue;
@@ -131,7 +130,7 @@ struct PerThreadSynch {
 
   // Locks held; used during deadlock detection.
   // Allocated in Synch_GetAllLocks() and freed in ReclaimThreadIdentity().
-  SynchLocksHeld *all_locks;
+  SynchLocksHeld* all_locks;
 };
 
 struct ThreadIdentity {
@@ -226,10 +225,11 @@ void ClearCurrentThreadIdentity();
     ABSL_THREAD_IDENTITY_MODE == ABSL_THREAD_IDENTITY_MODE_USE_CPP11
 
 #if ABSL_PER_THREAD_TLS
-ABSL_CONST_INIT extern ABSL_PER_THREAD_TLS_KEYWORD ThreadIdentity*
+ABSL_CONST_INIT BASE_EXPORT extern ABSL_PER_THREAD_TLS_KEYWORD ThreadIdentity*
     thread_identity_ptr;
 #elif defined(ABSL_HAVE_THREAD_LOCAL)
-ABSL_CONST_INIT extern thread_local ThreadIdentity* thread_identity_ptr;
+ABSL_CONST_INIT BASE_EXPORT extern thread_local ThreadIdentity*
+    thread_identity_ptr;
 #else
 #error Thread-local storage not detected on this platform
 #endif

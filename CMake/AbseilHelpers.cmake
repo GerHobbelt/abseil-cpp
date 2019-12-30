@@ -17,6 +17,7 @@
 include(CMakeParseArguments)
 include(AbseilConfigureCopts)
 include(AbseilInstallDirs)
+include(GenerateExportHeader)
 
 # The IDE folder for Abseil that will be used if Abseil is included in a CMake
 # project that sets
@@ -108,6 +109,12 @@ function(absl_cc_library)
       # -DBUILD_SHARED_LIBS=ON during initial configuration to build shared
       # libraries instead.
       add_library(${_NAME} "")
+      generate_export_header(${_NAME}
+        EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/absl/${_NAME}_export.h
+      )
+      install(FILES ${PROJECT_BINARY_DIR}/absl/${_NAME}_export.h
+        DESTINATION ${ABSL_INSTALL_INCLUDEDIR}
+      )
       target_sources(${_NAME} PRIVATE ${ABSL_CC_LIB_SRCS} ${ABSL_CC_LIB_HDRS})
       target_include_directories(${_NAME}
         PUBLIC
