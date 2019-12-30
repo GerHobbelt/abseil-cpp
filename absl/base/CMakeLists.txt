@@ -566,31 +566,31 @@ absl_cc_test(
     gmock_main
 )
 
-absl_cc_library(
-  NAME
-    scoped_set_env
-  SRCS
-    "internal/scoped_set_env.cc"
-  HDRS
-    "internal/scoped_set_env.h"
-  COPTS
-    ${ABSL_DEFAULT_COPTS}
-  DEPS
-    absl::config
-    absl::raw_logging_internal
-)
+#absl_cc_library(
+#  NAME
+#    scoped_set_env
+#  SRCS
+#    "internal/scoped_set_env.cc"
+#  HDRS
+#    "internal/scoped_set_env.h"
+#  COPTS
+#    ${ABSL_DEFAULT_COPTS}
+#  DEPS
+#    absl::config
+#    absl::raw_logging_internal
+#)
 
-absl_cc_test(
-  NAME
-    scoped_set_env_test
-  SRCS
-    "internal/scoped_set_env_test.cc"
-  COPTS
-    ${ABSL_TEST_COPTS}
-  DEPS
-    absl::scoped_set_env
-    gtest_main
-)
+#absl_cc_test(
+#  NAME
+#    scoped_set_env_test
+#  SRCS
+#    "internal/scoped_set_env_test.cc"
+#  COPTS
+#    ${ABSL_TEST_COPTS}
+#  DEPS
+#    absl::scoped_set_env
+#    gtest_main
+#)
 
 absl_cc_test(
   NAME
