@@ -235,8 +235,8 @@ ABSL_CONST_INIT extern thread_local ThreadIdentity*
 #error Thread-local storage not detected on this platform
 #endif
 */
-inline ThreadIdentity* CurrentThreadIdentityIfPresent(
-    bool update = false, ThreadIdentity* value = nullptr) {
+inline ThreadIdentity* CurrentThreadIdentityIfPresent(bool update,
+                                                      ThreadIdentity* value) {
   thread_local ThreadIdentity* thread_identity_ptr = nullptr;
   if (update) thread_identity_ptr = value;
   return thread_identity_ptr;
