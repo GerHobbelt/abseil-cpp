@@ -32,6 +32,15 @@ cmake_policy(SET CMP0048 NEW)
 
 project(absl CXX)
 
+if(APPLE)
+    set(OS_RPATH "@executable_path")
+else()
+    set(OS_RPATH "$ORIGIN")
+endif()
+set(CMAKE_MACOSX_RPATH ON)
+set(CMAKE_INSTALL_RPATH "${OS_RPATH}")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
+
 # when absl is included as subproject (i.e. using add_subdirectory(abseil-cpp))
 # in the source tree of a project that uses it, install rules are disabled.
 if(NOT "^${CMAKE_SOURCE_DIR}$" STREQUAL "^${PROJECT_SOURCE_DIR}$")
