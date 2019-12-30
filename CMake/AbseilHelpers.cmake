@@ -113,7 +113,7 @@ function(absl_cc_library)
         EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/absl/${_NAME}_export.h
       )
       install(FILES ${PROJECT_BINARY_DIR}/absl/${_NAME}_export.h
-        DESTINATION ${ABSL_INSTALL_INCLUDEDIR}
+        DESTINATION ${ABSL_INSTALL_INCLUDEDIR}/absl
       )
       target_sources(${_NAME} PRIVATE ${ABSL_CC_LIB_SRCS} ${ABSL_CC_LIB_HDRS})
       target_include_directories(${_NAME}
