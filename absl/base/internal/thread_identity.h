@@ -224,15 +224,7 @@ void ClearCurrentThreadIdentity();
 #if ABSL_THREAD_IDENTITY_MODE == ABSL_THREAD_IDENTITY_MODE_USE_TLS || \
     ABSL_THREAD_IDENTITY_MODE == ABSL_THREAD_IDENTITY_MODE_USE_CPP11
 
-#if ABSL_PER_THREAD_TLS
-ABSL_CONST_INIT BASE_EXPORT static ABSL_PER_THREAD_TLS_KEYWORD ThreadIdentity*
-    thread_identity_ptr;
-#elif defined(ABSL_HAVE_THREAD_LOCAL)
-ABSL_CONST_INIT BASE_EXPORT static thread_local ThreadIdentity*
-    thread_identity_ptr;
-#else
-#error Thread-local storage not detected on this platform
-#endif
+ABSL_CONST_INIT BASE_EXPORT thread_local ThreadIdentity* thread_identity_ptr;
 
 inline ThreadIdentity* CurrentThreadIdentityIfPresent() {
   return thread_identity_ptr;
