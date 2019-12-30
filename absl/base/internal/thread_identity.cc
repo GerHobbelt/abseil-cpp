@@ -127,7 +127,7 @@ void ClearCurrentThreadIdentity() {
 }
 
 #if ABSL_THREAD_IDENTITY_MODE == ABSL_THREAD_IDENTITY_MODE_USE_POSIX_SETSPECIFIC
-ThreadIdentity* CurrentThreadIdentityIfPresent() {
+ThreadIdentity*& CurrentThreadIdentityIfPresent() {
   bool initialized = pthread_key_initialized.load(std::memory_order_acquire);
   if (!initialized) {
     return nullptr;
