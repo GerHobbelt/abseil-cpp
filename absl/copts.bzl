@@ -5,6 +5,7 @@ opts will be linked together, and in some cases headers compiled with and
 without these options will be part of the same program.
 """
 GCC_FLAGS = [
+    "-std=c++14",
     "-Wall",
     "-Wextra",
     "-Wcast-qual",
