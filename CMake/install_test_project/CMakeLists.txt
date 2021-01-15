@@ -18,7 +18,7 @@
 cmake_minimum_required(VERSION 3.5)
 project(absl_cmake_testing CXX)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 20)
 
 add_executable(simple simple.cc)
 
