@@ -242,6 +242,9 @@ Cflags: -I\${includedir}${PC_CFLAGS}\n")
     )
     target_compile_options(${_NAME}
       PRIVATE ${ABSL_CC_LIB_COPTS})
+    if(MSVC)
+      target_compile_options(${_NAME} PUBLIC "/Zc:__cplusplus")
+    endif()
     target_compile_definitions(${_NAME} PUBLIC ${ABSL_CC_LIB_DEFINES})
 
     # Add all Abseil targets to a a folder in the IDE for organization.
@@ -381,6 +384,9 @@ function(absl_cc_test)
   target_compile_options(${_NAME}
     PRIVATE ${ABSL_CC_TEST_COPTS}
   )
+  if(MSVC)
+    target_compile_options(${_NAME} PRIVATE "/Zc:__cplusplus")
+  endif()
 
   target_link_libraries(${_NAME}
     PUBLIC ${ABSL_CC_TEST_DEPS}
