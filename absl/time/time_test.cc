@@ -18,6 +18,9 @@
 #include <winsock2.h>  // for timeval
 #endif
 
+#undef min
+#undef max
+
 #include <chrono>  // NOLINT(build/c++11)
 #include <cstring>
 #include <ctime>

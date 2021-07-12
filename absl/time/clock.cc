@@ -21,6 +21,9 @@
 #include <windows.h>
 #endif
 
+#undef min
+#undef max
+
 #include <algorithm>
 #include <atomic>
 #include <cerrno>

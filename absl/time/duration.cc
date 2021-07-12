@@ -53,6 +53,9 @@
 #include <winsock2.h>  // for timeval
 #endif
 
+#undef min
+#undef max
+
 #include <algorithm>
 #include <cassert>
 #include <cctype>
