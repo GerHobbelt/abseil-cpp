@@ -342,7 +342,11 @@ struct GroupSse2Impl {
   }
 
   // Returns a bitmask representing the positions of slots that match hash.
-  BitMask<uint32_t, kWidth> Match(h2_t hash) const {
+  BitMask<uint32_t, kWidth> Match(h2_t hash) const
+#if __has_feature(undefined_behavior_sanitizer)
+  __attribute__(( no_sanitize( "implicit-integer-sign-change" ) ))
+#endif
+  {
     auto match = _mm_set1_epi8(hash);
     return BitMask<uint32_t, kWidth>(
         _mm_movemask_epi8(_mm_cmpeq_epi8(match, ctrl)));
@@ -1784,7 +1788,11 @@ class raw_hash_set {
 
   // Sets the control byte, and if `i < Group::kWidth`, set the cloned byte at
   // the end too.
-  void set_ctrl(size_t i, ctrl_t h) {
+  void set_ctrl(size_t i, ctrl_t h)
+#if __has_feature(undefined_behavior_sanitizer)
+  __attribute__(( no_sanitize( "unsigned-integer-overflow" ) ))
+#endif
+  {
     assert(i < capacity_);
 
     if (IsFull(h)) {
