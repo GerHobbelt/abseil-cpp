@@ -95,6 +95,7 @@ absl_cc_library(
     "internal/stdcpp_waiter.cc"
     "internal/waiter_base.cc"
     "internal/win32_waiter.cc"
+    "internal/win32_xp_waiter.cc"
     "notification.cc"
     "mutex.cc"
   COPTS
