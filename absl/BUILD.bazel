@@ -146,6 +146,7 @@ cc_library(
         "//absl/base:dynamic_annotations",
         "//absl/base:malloc_internal",
         "//absl/cleanup",
+        "//absl/container:btree",
         "//absl/container:fixed_array",
         "//absl/container:flat_hash_map",
         "//absl/container:flat_hash_set",
