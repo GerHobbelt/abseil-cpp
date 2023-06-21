@@ -1,0 +1,1 @@
+../../../../internal//strip.h
