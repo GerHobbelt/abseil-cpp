@@ -1,3 +1,5 @@
+xcuserdata/
+.DS_Store
 # Ignore all bazel-* symlinks.
 /bazel-*
 # Ignore Bazel verbose explanations
@@ -13,3 +15,7 @@ CMakeLists.txt.user
 # Ignore generated python artifacts
 *.pyc
 copts/__pycache__/
+#Xcode/SwiftPM
+xcuserdata/
+.DS_Store
+
