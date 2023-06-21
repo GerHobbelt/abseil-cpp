@@ -120,7 +120,6 @@ absl_cc_library(
   NAME
     strings_internal
   HDRS
-    "internal/escaping.cc"
     "internal/escaping.h"
     "internal/ostringstream.h"
     "internal/resize_uninitialized.h"
@@ -128,6 +127,7 @@ absl_cc_library(
   SRCS
     "internal/ostringstream.cc"
     "internal/utf8.cc"
+    "internal/escaping.cc"
   COPTS
     ${ABSL_DEFAULT_COPTS}
   DEPS
