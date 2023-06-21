@@ -75,7 +75,7 @@ ABSL_NAMESPACE_BEGIN
 template <typename T>
 using Flag = flags_internal::Flag<T>;
 #else
-#include "absl/flags/internal/flag_msvc.inc"
+#include "absl/flags/internal/flag_msvc_inc.h"
 #endif
 
 // GetFlag()

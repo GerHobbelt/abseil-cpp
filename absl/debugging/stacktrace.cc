@@ -47,15 +47,15 @@
 #else
 # error Cannot calculate stack trace: will need to write for your environment
 
-# include "absl/debugging/internal/stacktrace_aarch64-inl.inc"
-# include "absl/debugging/internal/stacktrace_arm-inl.inc"
-# include "absl/debugging/internal/stacktrace_emscripten-inl.inc"
-# include "absl/debugging/internal/stacktrace_generic-inl.inc"
-# include "absl/debugging/internal/stacktrace_powerpc-inl.inc"
-# include "absl/debugging/internal/stacktrace_riscv-inl.inc"
-# include "absl/debugging/internal/stacktrace_unimplemented-inl.inc"
-# include "absl/debugging/internal/stacktrace_win32-inl.inc"
-# include "absl/debugging/internal/stacktrace_x86-inl.inc"
+# include "absl/debugging/internal/stacktrace_aarch64-inl_inc.h"
+# include "absl/debugging/internal/stacktrace_arm-inl_inc.h"
+# include "absl/debugging/internal/stacktrace_emscripten-inl_inc.h"
+# include "absl/debugging/internal/stacktrace_generic-inl_inc.h"
+# include "absl/debugging/internal/stacktrace_powerpc-inl_inc.h"
+# include "absl/debugging/internal/stacktrace_riscv-inl_inc.h"
+# include "absl/debugging/internal/stacktrace_unimplemented-inl_inc.h"
+# include "absl/debugging/internal/stacktrace_win32-inl_inc.h"
+# include "absl/debugging/internal/stacktrace_x86-inl_inc.h"
 #endif
 
 namespace absl {

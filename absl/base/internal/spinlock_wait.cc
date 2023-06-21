@@ -22,13 +22,13 @@
 #include "absl/base/internal/spinlock_wait.h"
 
 #if defined(_WIN32)
-#include "absl/base/internal/spinlock_win32.inc"
+#include "absl/base/internal/spinlock_win32_inc.h"
 #elif defined(__linux__)
-#include "absl/base/internal/spinlock_linux.inc"
+#include "absl/base/internal/spinlock_linux_inc.h"
 #elif defined(__akaros__)
-#include "absl/base/internal/spinlock_akaros.inc"
+#include "absl/base/internal/spinlock_akaros_inc.h"
 #else
-#include "absl/base/internal/spinlock_posix.inc"
+#include "absl/base/internal/spinlock_posix_inc.h"
 #endif
 
 namespace absl {

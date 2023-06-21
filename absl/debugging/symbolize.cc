@@ -29,15 +29,15 @@
 #endif
 
 #if defined(ABSL_INTERNAL_HAVE_ELF_SYMBOLIZE)
-#include "absl/debugging/symbolize_elf.inc"
+#include "absl/debugging/symbolize_elf_inc.h"
 #elif defined(ABSL_INTERNAL_HAVE_SYMBOLIZE_WIN32)
 // The Windows Symbolizer only works if PDB files containing the debug info
 // are available to the program at runtime.
-#include "absl/debugging/symbolize_win32.inc"
+#include "absl/debugging/symbolize_win32_inc.h"
 #elif defined(__APPLE__)
-#include "absl/debugging/symbolize_darwin.inc"
+#include "absl/debugging/symbolize_darwin_inc.h"
 #elif defined(ABSL_INTERNAL_HAVE_SYMBOLIZE_WASM)
-#include "absl/debugging/symbolize_emscripten.inc"
+#include "absl/debugging/symbolize_emscripten_inc.h"
 #else
-#include "absl/debugging/symbolize_unimplemented.inc"
+#include "absl/debugging/symbolize_unimplemented_inc.h"
 #endif

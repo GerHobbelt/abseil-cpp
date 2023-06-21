@@ -60,9 +60,9 @@ ABSL_NAMESPACE_END
 #endif
 
 #if defined(__APPLE__) || defined(_WIN32)
-#include "absl/time/internal/get_current_time_chrono.inc"
+#include "absl/time/internal/get_current_time_chrono_inc.h"
 #else
-#include "absl/time/internal/get_current_time_posix.inc"
+#include "absl/time/internal/get_current_time_posix_inc.h"
 #endif
 
 // Allows override by test.
