@@ -38,7 +38,7 @@
 // targeted for Windows XP and later.
 // Note: The Windows SDK added windows.globalization.h file for Windows 10, but
 // MinGW did not add it until NTDDI_WIN10_NI (SDK version 10.0.22621.0).
-#if ((defined(_WIN32_WINNT_WIN10) && !defined(__MINGW32__)) ||        \
+#if ((defined(_WIN32_WINNT_WIN10) && defined(NTDDI_WIN10) && !defined(__MINGW32__)) ||        \
      (defined(NTDDI_WIN10_NI) && NTDDI_VERSION >= NTDDI_WIN10_NI)) && \
     (_WIN32_WINNT >= _WIN32_WINNT_WINXP)
 #define USE_WIN32_LOCAL_TIME_ZONE
