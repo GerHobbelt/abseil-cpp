@@ -1,11 +1,10 @@
-#
-# Copyright 2019 The Abseil Authors.
+# Copyright 2021 The Abseil Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#    https://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,15 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# A simple CMakeLists.txt for testing cmake installation
+absl_cc_library(
+  NAME
+    sample_recorder
+  HDRS
+    "internal/sample_recorder.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::base
+    absl::synchronization
+)
 
-cmake_minimum_required(VERSION 3.5)
-project(absl_cmake_testing CXX)
+absl_cc_test(
+  NAME
+    sample_recorder_test
+  SRCS
+    "internal/sample_recorder_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::sample_recorder
+    absl::time
+    GTest::gmock_main
+)
 
-set(CMAKE_CXX_STANDARD 20)
-
-add_executable(simple simple.cc)
-
-find_package(absl REQUIRED)
-
-target_link_libraries(simple absl::strings absl::config)
