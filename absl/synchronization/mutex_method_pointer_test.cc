@@ -115,6 +115,7 @@ TEST(MutexMethodPointerTest, ConditionWithVirtualInheritanceMethod) {
 }
 #endif  // #ifdef _MSC_VER
 
+#ifndef _LIBCPP_VERSION
 TEST(MutexMethodPointerTest, ConditionWithIncompleteClassMethod) {
   using IncompleteClassMethodPointer = void (IncompleteClass::*)();
 
@@ -134,5 +135,6 @@ TEST(MutexMethodPointerTest, ConditionWithIncompleteClassMethod) {
                 "The pointer to a method of an incomplete class is too big.");
 #endif
 }
+#endif
 
 }  // namespace

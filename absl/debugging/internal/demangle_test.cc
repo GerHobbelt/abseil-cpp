@@ -2017,6 +2017,7 @@ TEST(DemangleRegression, DeeplyNestedArrayType) {
   TestOnInput(data.c_str());
 }
 
+#ifdef ABSL_INTERNAL_HAS_RTTI
 struct Base {
   virtual ~Base() = default;
 };
@@ -2035,6 +2036,7 @@ TEST(DemangleStringTest, SupportsSymbolNameReturnedByTypeId) {
               ContainsRegex(
                   "absl.*debugging_internal.*anonymous namespace.*::Derived"));
 }
+#endif // ABSL_INTERNAL_HAS_RTTI
 
 }  // namespace
 }  // namespace debugging_internal

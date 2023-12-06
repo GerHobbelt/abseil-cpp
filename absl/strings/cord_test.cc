@@ -1542,6 +1542,7 @@ TEST_P(CordTest, CompareAfterAssign) {
   EXPECT_FALSE(a < b);
 }
 
+#ifndef _LIBCPP_CHAR_TRAITS_REMOVE_BASE_SPECIALIZATION
 // Test CompareTo() and ComparePrefix() against string and substring
 // comparison methods from basic_string.
 static void TestCompare(const absl::Cord& c, const absl::Cord& d,
@@ -1592,6 +1593,7 @@ TEST_P(CordTest, CompareRandomComparisons) {
                 coin_flip(rng) ? d : absl::Cord(std::string(d)), &rng);
   }
 }
+#endif
 
 template <typename T1, typename T2>
 void CompareOperators() {
