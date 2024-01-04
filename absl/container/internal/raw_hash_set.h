@@ -1358,6 +1358,7 @@ inline void ResetCtrl(CommonFields& common, size_t slot_size) {
 //
 // Unlike setting it directly, this function will perform bounds checks and
 // mirror the value to the cloned tail if necessary.
+[[ clang::no_sanitize( "integer" ) ]]
 inline void SetCtrl(const CommonFields& common, size_t i, ctrl_t h,
                     size_t slot_size) {
   const size_t capacity = common.capacity();
