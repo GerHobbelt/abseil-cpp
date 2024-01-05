@@ -1112,6 +1112,7 @@ class ABSL_DLL MixingHashState : public HashStateBase<MixingHashState> {
                                  (significant2 << ((len - 1) * 8)));
   }
 
+  [[ clang::no_sanitize( "integer" ) ]]
   ABSL_ATTRIBUTE_ALWAYS_INLINE static uint64_t Mix(uint64_t state, uint64_t v) {
     // Though the 128-bit product on AArch64 needs two instructions, it is
     // still a good balance between speed and hash quality.
@@ -1195,6 +1196,7 @@ inline uint64_t MixingHashState::CombineContiguousImpl(
 }
 
 // Overload of MixingHashState::CombineContiguousImpl()
+[[ clang::no_sanitize( "integer" ) ]]
 inline uint64_t MixingHashState::CombineContiguousImpl(
     uint64_t state, const unsigned char* first, size_t len,
     std::integral_constant<int, 8> /* sizeof_size_t */) {

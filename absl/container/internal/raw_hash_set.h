@@ -243,6 +243,7 @@ using GenerationType = uint8_t;
 // initialize an array of this value.
 constexpr GenerationType SentinelEmptyGeneration() { return 0; }
 
+[[ clang::no_sanitize( "integer" ) ]]
 constexpr GenerationType NextGeneration(GenerationType generation) {
   return ++generation == SentinelEmptyGeneration() ? ++generation : generation;
 }
