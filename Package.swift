@@ -99,6 +99,7 @@ let package = Package(
 				"absl/random/gaussian_distribution.cc",
 				"absl/random/seed_gen_exception.cc",
 				"absl/random/seed_sequences.cc",
+				"absl/random/internal/distribution_test_util.cc",
 				"absl/random/internal/seed_material.cc",
 				"absl/random/internal/pool_urbg.cc",
 				"absl/random/internal/randen_round_keys.cc",
