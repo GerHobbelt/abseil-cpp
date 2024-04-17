@@ -152,7 +152,7 @@
     <ClCompile Include="..\absl\flags\commandlineflag.cc">
       <Filter>Source Files\flags</Filter>
     </ClCompile>
-    <ClCompile Include="..\absl\flags\internal\commandlineflag.cc">
+    <ClCompile Include="..\absl\flags\internal\commandlineflag-internal.cc">
       <Filter>Source Files\flags</Filter>
     </ClCompile>
     <ClCompile Include="..\absl\flags\internal\flag.cc">
@@ -164,7 +164,7 @@
     <ClCompile Include="..\absl\flags\internal\program_name.cc">
       <Filter>Source Files\flags</Filter>
     </ClCompile>
-    <ClCompile Include="..\absl\flags\internal\usage.cc">
+    <ClCompile Include="..\absl\flags\internal\usage-internal.cc">
       <Filter>Source Files\flags</Filter>
     </ClCompile>
     <ClCompile Include="..\absl\flags\marshalling.cc">
@@ -209,7 +209,7 @@
     <ClCompile Include="..\absl\log\internal\fnmatch.cc">
       <Filter>Source Files\log</Filter>
     </ClCompile>
-    <ClCompile Include="..\absl\log\internal\globals.cc">
+    <ClCompile Include="..\absl\log\internal\globals-internal.cc">
       <Filter>Source Files\log</Filter>
     </ClCompile>
     <ClCompile Include="..\absl\log\internal\log_message.cc">
@@ -347,7 +347,7 @@
     <ClCompile Include="..\absl\strings\internal\damerau_levenshtein_distance.cc">
       <Filter>Source Files\strings</Filter>
     </ClCompile>
-    <ClCompile Include="..\absl\strings\internal\escaping.cc">
+    <ClCompile Include="..\absl\strings\internal\escaping-internal.cc">
       <Filter>Source Files\strings</Filter>
     </ClCompile>
     <ClCompile Include="..\absl\strings\internal\memutil.cc">
