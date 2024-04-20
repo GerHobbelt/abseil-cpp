@@ -37,7 +37,7 @@
 #include <intrin.h>
 #endif
 
-#if defined(__x86_64__) || defined(_M_X64)
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 #if ABSL_HAVE_BUILTIN(__cpuid)
 // MSVC-equivalent __cpuid intrinsic declaration for clang-like compilers
 // for non-Windows build environments.
@@ -52,13 +52,13 @@ static void __cpuid(int cpu_info[4], int info_type) {
                    : "a"(info_type), "c"(0));
 }
 #endif  // !defined(_WIN32) && !defined(_WIN64)
-#endif  // defined(__x86_64__) || defined(_M_X64)
+#endif  // defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
 namespace crc_internal {
 
-#if defined(__x86_64__) || defined(_M_X64)
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 
 namespace {
 
