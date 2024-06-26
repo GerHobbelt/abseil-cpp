@@ -197,6 +197,10 @@
 #ifndef ABSL_LOG_LOG_H_
 #define ABSL_LOG_LOG_H_
 
+#if defined(_WIN32) && defined(ERROR)
+#undef ERROR
+#endif
+
 #include "absl/log/internal/log_impl.h"
 
 // LOG()
