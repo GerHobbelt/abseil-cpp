@@ -1,4 +1,0 @@
-[submodule "ext/googletest"]
-	path = ext/googletest
-	url = ../googletest.git
-	branch = master
