@@ -303,6 +303,48 @@ TEST(Demangle, LambdaRequiresRequiresExpressionContainingTwoRequirements) {
   EXPECT_STREQ(tmp, "$_0::operator()<>()");
 }
 
+TEST(Demangle, LambdaWithExplicitTypeArgument) {
+  char tmp[100];
+
+  // Source:
+  //
+  // template <class T> T f(T t) {
+  //   return []<class U>(U u) { return u + u; }(t);
+  // }
+  //
+  // template int f<int>(int);
+  //
+  // Full LLVM demangling of the lambda call operator:
+  //
+  // auto int f<int>(int)::'lambda'<typename $T>(int)::
+  // operator()<int>(int) const
+  ASSERT_TRUE(Demangle("_ZZ1fIiET_S0_ENKUlTyS0_E_clIiEEDaS0_",
+                       tmp, sizeof(tmp)));
+  EXPECT_STREQ(tmp, "f<>()::{lambda()#1}::operator()<>()");
+}
+
+TEST(Demangle, LambdaWithExplicitPackArgument) {
+  char tmp[100];
+
+  // Source:
+  //
+  // template <class T> T h(T t) {
+  //   return []<class... U>(U... u) {
+  //     return ((u + u) + ... + 0);
+  //   }(t);
+  // }
+  //
+  // template int h<int>(int);
+  //
+  // Full LLVM demangling of the lambda call operator:
+  //
+  // auto int f<int>(int)::'lambda'<typename ...$T>($T...)::
+  // operator()<int>($T...) const
+  ASSERT_TRUE(Demangle("_ZZ1fIiET_S0_ENKUlTpTyDpT_E_clIJiEEEDaS2_",
+                       tmp, sizeof(tmp)));
+  EXPECT_STREQ(tmp, "f<>()::{lambda()#1}::operator()<>()");
+}
+
 // Test corner cases of boundary conditions.
 TEST(Demangle, CornerCases) {
   char tmp[10];
@@ -375,6 +417,26 @@ TEST(Demangle, LiteralOfGlobalNamespaceEnumType) {
   EXPECT_STREQ("f<>()", tmp);
 }
 
+TEST(Demangle, NullptrLiterals) {
+  char tmp[80];
+
+  // void f<nullptr>()
+  EXPECT_TRUE(Demangle("_Z1fILDnEEvv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+
+  // also void f<nullptr>()
+  EXPECT_TRUE(Demangle("_Z1fILDn0EEvv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+}
+
+TEST(Demangle, StringLiterals) {
+  char tmp[80];
+
+  // void f<"<char const [42]>">()
+  EXPECT_TRUE(Demangle("_Z1fILA42_KcEEvv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+}
+
 // Test the GNU abi_tag extension.
 TEST(Demangle, AbiTags) {
   char tmp[80];
@@ -405,6 +467,14 @@ TEST(Demangle, ThisPointerInDependentSignature) {
   // decltype(g<int>(this)) S::f<int>()
   EXPECT_TRUE(Demangle("_ZN1S1fIiEEDTcl1gIT_EfpTEEv", tmp, sizeof(tmp)));
   EXPECT_STREQ("S::f<>()", tmp);
+}
+
+TEST(Demangle, DependentMemberOperatorCall) {
+  char tmp[80];
+
+  // decltype(fp.operator()()) f<C>(C)
+  EXPECT_TRUE(Demangle("_Z1fI1CEDTcldtfp_onclEET_", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
 }
 
 // Test subobject-address template parameters.
@@ -539,6 +609,26 @@ TEST(Demangle, DirectListInitialization) {
   EXPECT_TRUE(Demangle("_Z1jI1AEDTtlT_di1adXLi1ELi3ELi42EEEv",
                        tmp, sizeof(tmp)));
   EXPECT_STREQ("j<>()", tmp);
+}
+
+TEST(Demangle, ReferenceQualifiedFunctionTypes) {
+  char tmp[80];
+
+  // void f(void (*)() const &, int)
+  EXPECT_TRUE(Demangle("_Z1fPKFvvREi", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f()", tmp);
+
+  // void f(void (*)() &&, int)
+  EXPECT_TRUE(Demangle("_Z1fPFvvOEi", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f()", tmp);
+
+  // void f(void (*)(int&) &, int)
+  EXPECT_TRUE(Demangle("_Z1fPFvRiREi", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f()", tmp);
+
+  // void f(void (*)(S&&) &&, int)
+  EXPECT_TRUE(Demangle("_Z1fPFvO1SOEi", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f()", tmp);
 }
 
 // Test one Rust symbol to exercise Demangle's delegation path.  Rust demangling

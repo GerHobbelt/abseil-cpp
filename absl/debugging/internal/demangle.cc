@@ -861,7 +861,11 @@ static bool ParseLocalSourceName(State *state) {
 // <unnamed-type-name> ::= Ut [<(nonnegative) number>] _
 //                     ::= <closure-type-name>
 // <closure-type-name> ::= Ul <lambda-sig> E [<(nonnegative) number>] _
-// <lambda-sig>        ::= <(parameter) type>+
+// <lambda-sig>        ::= <template-param-decl>* <(parameter) type>+
+//
+// For <template-param-decl>* in <lambda-sig> see:
+//
+// https://github.com/itanium-cxx-abi/cxx-abi/issues/31
 static bool ParseUnnamedTypeName(State *state) {
   ComplexityGuard guard(state);
   if (guard.IsTooComplex()) return false;
@@ -884,6 +888,7 @@ static bool ParseUnnamedTypeName(State *state) {
   // Closure type.
   which = -1;
   if (ParseTwoCharToken(state, "Ul") && DisableAppend(state) &&
+      ZeroOrMore(ParseTemplateParamDecl, state) &&
       OneOrMore(ParseType, state) && RestoreAppend(state, copy.append) &&
       ParseOneCharToken(state, 'E') && Optional(ParseNumber(state, &which)) &&
       which <= std::numeric_limits<int>::max() - 2 &&  // Don't overflow.
@@ -1386,19 +1391,30 @@ static bool ParseExceptionSpec(State *state) {
   return false;
 }
 
-// <function-type> ::= [exception-spec] F [Y] <bare-function-type> [O] E
+// <function-type> ::=
+//     [exception-spec] F [Y] <bare-function-type> [<ref-qualifier>] E
+//
+// <ref-qualifier> ::= R | O
 static bool ParseFunctionType(State *state) {
   ComplexityGuard guard(state);
   if (guard.IsTooComplex()) return false;
   ParseState copy = state->parse_state;
-  if (Optional(ParseExceptionSpec(state)) && ParseOneCharToken(state, 'F') &&
-      Optional(ParseOneCharToken(state, 'Y')) && ParseBareFunctionType(state) &&
-      Optional(ParseOneCharToken(state, 'O')) &&
-      ParseOneCharToken(state, 'E')) {
-    return true;
+  Optional(ParseExceptionSpec(state));
+  if (!ParseOneCharToken(state, 'F')) {
+    state->parse_state = copy;
+    return false;
   }
-  state->parse_state = copy;
-  return false;
+  Optional(ParseOneCharToken(state, 'Y'));
+  if (!ParseBareFunctionType(state)) {
+    state->parse_state = copy;
+    return false;
+  }
+  Optional(ParseCharClass(state, "RO"));
+  if (!ParseOneCharToken(state, 'E')) {
+    state->parse_state = copy;
+    return false;
+  }
+  return true;
 }
 
 // <bare-function-type> ::= <(signature) type>+
@@ -1956,8 +1972,10 @@ static bool ParseExpression(State *state) {
   state->parse_state = copy;
 
   // Object and pointer member access expressions.
+  //
+  // <expression> ::= (dt | pt) <expression> <unresolved-name>
   if ((ParseTwoCharToken(state, "dt") || ParseTwoCharToken(state, "pt")) &&
-      ParseExpression(state) && ParseType(state)) {
+      ParseExpression(state) && ParseUnresolvedName(state)) {
     return true;
   }
   state->parse_state = copy;
@@ -2038,10 +2056,35 @@ static bool ParseExprPrimary(State *state) {
     return false;
   }
 
-  // The merged cast production.
-  if (ParseOneCharToken(state, 'L') && ParseType(state) &&
-      ParseExprCastValueAndTrailingE(state)) {
-    return true;
+  if (ParseOneCharToken(state, 'L')) {
+    // There are two special cases in which a literal may or must contain a type
+    // without a value.  The first is that both LDnE and LDn0E are valid
+    // encodings of nullptr, used in different situations.  Recognize LDnE here,
+    // leaving LDn0E to be recognized by the general logic afterward.
+    if (ParseThreeCharToken(state, "DnE")) return true;
+
+    // The second special case is a string literal, currently mangled in C++98
+    // style as LA<length + 1>_KcE.  This is inadequate to support C++11 and
+    // later versions, and the discussion of this problem has not converged.
+    //
+    // https://github.com/itanium-cxx-abi/cxx-abi/issues/64
+    //
+    // For now the bare-type mangling is what's used in practice, so we
+    // recognize this form and only this form if an array type appears here.
+    // Someday we'll probably have to accept a new form of value mangling in
+    // LA...E constructs.  (Note also that C++20 allows a wide range of
+    // class-type objects as template arguments, so someday their values will be
+    // mangled and we'll have to recognize them here too.)
+    if (RemainingInput(state)[0] == 'A' /* an array type follows */) {
+      if (ParseType(state) && ParseOneCharToken(state, 'E')) return true;
+      state->parse_state = copy;
+      return false;
+    }
+
+    // The merged cast production.
+    if (ParseType(state) && ParseExprCastValueAndTrailingE(state)) {
+      return true;
+    }
   }
   state->parse_state = copy;
 
