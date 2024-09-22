@@ -1142,6 +1142,23 @@ struct full_soo_tag_t {};
 // This allows us to work around an uninitialized memory warning when
 // constructing begin() iterators in empty hashtables.
 union MaybeInitializedPtr {
+  void* get() const {
+    // Suppress erroneous uninitialized memory errors on GCC. GCC thinks that
+    // the call to slot_array() in find_or_prepare_insert() is reading
+    // uninitialized memory, but slot_array is only called there when the table
+    // is non-empty and this memory is initialized when the table is non-empty.
+#if !defined(__clang__) && defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#pragma GCC diagnostic ignored "-Wuninitialized"
+#endif
+    return p;
+#if !defined(__clang__) && defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+  }
+  void set(void* ptr) { p = ptr; }
+
   void* p;
 };
 
@@ -1214,7 +1231,7 @@ class CommonFields : public CommonFieldsGenerationInfo {
   }
 
   // Note: we can't use slots() because Qt defines "slots" as a macro.
-  void* slot_array() const { return heap_or_soo_.heap.slot_array.p; }
+  void* slot_array() const { return heap_or_soo_.heap.slot_array.get(); }
   MaybeInitializedPtr slots_union() const {
     // Suppress erroneous uninitialized memory errors on GCC.
 #if !defined(__clang__) && defined(__GNUC__)
@@ -1226,7 +1243,7 @@ class CommonFields : public CommonFieldsGenerationInfo {
 #pragma GCC diagnostic pop
 #endif
   }
-  void set_slots(void* s) { heap_or_soo_.heap.slot_array.p = s; }
+  void set_slots(void* s) { heap_or_soo_.heap.slot_array.set(s); }
 
   // The number of filled slots.
   size_t size() const { return size_ >> HasInfozShift(); }
@@ -1910,7 +1927,7 @@ class HashSetResizeHelper {
   }
   void* old_slots() const {
     assert(!was_soo_);
-    return old_heap_or_soo_.heap.slot_array.p;
+    return old_heap_or_soo_.heap.slot_array.get();
   }
   size_t old_capacity() const { return old_capacity_; }
 
@@ -2309,11 +2326,6 @@ class raw_hash_set {
            sizeof(slot_type) <= sizeof(HeapOrSoo) &&
            alignof(slot_type) <= alignof(HeapOrSoo);
   }
-  // TODO(b/289225379): this is used for pretty printing in GDB/LLDB, but if we
-  // use this instead of SooEnabled(), then we get compile errors in some OSS
-  // compilers due to incomplete mapped_type in flat_hash_map. We need to
-  // resolve this before launching SOO.
-  // constexpr static bool kSooEnabled = SooEnabled();
 
   // Whether `size` fits in the SOO capacity of this table.
   bool fits_in_soo(size_t size) const {
@@ -2444,7 +2456,7 @@ class raw_hash_set {
              const GenerationType* generation_ptr)
         : HashSetIteratorGenerationInfo(generation_ptr),
           ctrl_(ctrl),
-          slot_(to_slot(slot.p)) {
+          slot_(to_slot(slot.get())) {
       // This assumption helps the compiler know that any non-end iterator is
       // not equal to any end iterator.
       ABSL_ASSUME(ctrl != nullptr);
@@ -2803,9 +2815,9 @@ class raw_hash_set {
     const size_t cap = common().capacity();
     // Use local variables because compiler complains about using functions in
     // assume.
-    ABSL_ATTRIBUTE_UNUSED static constexpr bool kSooEnabled = SooEnabled();
-    ABSL_ATTRIBUTE_UNUSED static constexpr size_t kSooCapacity = SooCapacity();
-    ABSL_ASSUME(!kSooEnabled || cap >= kSooCapacity);
+    ABSL_ATTRIBUTE_UNUSED static constexpr bool kEnabled = SooEnabled();
+    ABSL_ATTRIBUTE_UNUSED static constexpr size_t kCapacity = SooCapacity();
+    ABSL_ASSUME(!kEnabled || cap >= kCapacity);
     return cap;
   }
   size_t max_size() const { return (std::numeric_limits<size_t>::max)(); }
@@ -3945,19 +3957,7 @@ class raw_hash_set {
   }
   slot_type* slot_array() const {
     assert(!is_soo());
-    // Suppress erroneous uninitialized memory errors on GCC. GCC thinks that
-    // the call to slot_array() in find_or_prepare_insert() is reading
-    // uninitialized memory, but slot_array is only called there when the table
-    // is non-empty and this memory is initialized when the table is non-empty.
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#pragma GCC diagnostic ignored "-Wuninitialized"
-#endif
     return static_cast<slot_type*>(common().slot_array());
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
   }
   slot_type* soo_slot() {
     assert(is_soo());

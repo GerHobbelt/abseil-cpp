@@ -24,6 +24,15 @@
 #include <TargetConditionals.h>
 #endif
 
+#include "absl/base/config.h"
+
+// For feature testing and determining which headers can be included.
+#if ABSL_INTERNAL_CPLUSPLUS_LANG >= 202002L
+#include <version>
+#else
+#include <ciso646>
+#endif
+
 #include <cmath>
 #include <cstddef>
 #include <cstring>
@@ -36,7 +45,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/config.h"
 #include "absl/base/internal/unaligned_access.h"
 #include "absl/base/port.h"
 #include "absl/hash/internal/city.h"
@@ -69,7 +77,7 @@
 #include <bitset>
 #endif
 
-#if ABSL_INTERNAL_CPLUSPLUS_LANG >= 201703L && \
+#if defined(__cpp_lib_filesystem) && __cpp_lib_filesystem >= 201703L && \
     !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
 #include <filesystem>  // NOLINT
 #endif
