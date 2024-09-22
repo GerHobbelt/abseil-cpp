@@ -209,15 +209,16 @@ TEST(Demangle, SingleArgTemplateBuiltinType) {
   EXPECT_STREQ(tmp, "foo<>()");
 }
 
-TEST(Demangle, FailsOnTwoArgTemplateBuiltinType) {
+TEST(Demangle, TwoArgTemplateBuiltinType) {
   char tmp[100];
 
   // template <typename T, typename U>
   // __my_builtin_type<T, U> foo();
   //
   // foo<int, char>();
-  ASSERT_FALSE(
+  ASSERT_TRUE(
       Demangle("_Z3fooIicEu17__my_builtin_typeIT_T0_Ev", tmp, sizeof(tmp)));
+  EXPECT_STREQ(tmp, "foo<>()");
 }
 
 TEST(Demangle, TypeNestedUnderTemplatedBuiltinType) {
@@ -640,6 +641,140 @@ TEST(Demangle, StringLiterals) {
   EXPECT_STREQ("f<>()", tmp);
 }
 
+TEST(Demangle, ComplexFloatingPointLiterals) {
+  char tmp[80];
+
+  // Source (use g++ -fext-numeric-literals to compile):
+  //
+  // using C = double _Complex;
+  // template <class T> void f(char (&)[sizeof(C{sizeof(T)} + 4.0j)]) {}
+  // template void f<int>(char (&)[sizeof(C{sizeof(int)} + 4.0j)]);
+  //
+  // GNU demangling:
+  //
+  // void f<int>(char (&) [sizeof (double _Complex{sizeof (int)}+
+  // ((double _Complex)0000000000000000_4010000000000000))])
+  EXPECT_TRUE(Demangle(
+      "_Z1fIiEvRAszpltlCdstT_ELS0_0000000000000000_4010000000000000E_c",
+      tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+}
+
+TEST(Demangle, Float128) {
+  char tmp[80];
+
+  // S::operator _Float128() const
+  EXPECT_TRUE(Demangle("_ZNK1ScvDF128_Ev", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::operator _Float128()", tmp);
+}
+
+TEST(Demangle, Float128x) {
+  char tmp[80];
+
+  // S::operator _Float128x() const
+  EXPECT_TRUE(Demangle("_ZNK1ScvDF128xEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::operator _Float128x()", tmp);
+}
+
+TEST(Demangle, Bfloat16) {
+  char tmp[80];
+
+  // S::operator std::bfloat16_t() const
+  EXPECT_TRUE(Demangle("_ZNK1ScvDF16bEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::operator std::bfloat16_t()", tmp);
+}
+
+TEST(Demangle, SimpleSignedBitInt) {
+  char tmp[80];
+
+  // S::operator _BitInt(256)() const
+  EXPECT_TRUE(Demangle("_ZNK1ScvDB256_Ev", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::operator _BitInt(256)()", tmp);
+}
+
+TEST(Demangle, SimpleUnsignedBitInt) {
+  char tmp[80];
+
+  // S::operator unsigned _BitInt(256)() const
+  EXPECT_TRUE(Demangle("_ZNK1ScvDU256_Ev", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::operator unsigned _BitInt(256)()", tmp);
+}
+
+TEST(Demangle, DependentBitInt) {
+  char tmp[80];
+
+  // S::operator _BitInt(256)<256>() const
+  EXPECT_TRUE(Demangle("_ZNK1ScvDBT__ILi256EEEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::operator _BitInt(?)<>()", tmp);
+}
+
+TEST(Demangle, ConversionToPointerType) {
+  char tmp[80];
+
+  // S::operator int*() const
+  EXPECT_TRUE(Demangle("_ZNK1ScvPiEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::operator int*()", tmp);
+}
+
+TEST(Demangle, ConversionToLvalueReferenceType) {
+  char tmp[80];
+
+  // S::operator int&() const
+  EXPECT_TRUE(Demangle("_ZNK1ScvRiEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::operator int&()", tmp);
+}
+
+TEST(Demangle, ConversionToRvalueReferenceType) {
+  char tmp[80];
+
+  // S::operator int&&() const
+  EXPECT_TRUE(Demangle("_ZNK1ScvOiEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::operator int&&()", tmp);
+}
+
+TEST(Demangle, ConversionToComplexFloatingPointType) {
+  char tmp[80];
+
+  // S::operator float _Complex() const
+  EXPECT_TRUE(Demangle("_ZNK1ScvCfEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::operator float _Complex()", tmp);
+}
+
+TEST(Demangle, ConversionToImaginaryFloatingPointType) {
+  char tmp[80];
+
+  // S::operator float _Imaginary() const
+  EXPECT_TRUE(Demangle("_ZNK1ScvGfEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::operator float _Imaginary()", tmp);
+}
+
+TEST(Demangle, ConversionToPointerToCvQualifiedType) {
+  char tmp[80];
+
+  // S::operator int const volatile restrict*() const
+  EXPECT_TRUE(Demangle("_ZNK1ScvPrVKiEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::operator int const volatile restrict*()", tmp);
+}
+
+TEST(Demangle, ConversionToLayeredPointerType) {
+  char tmp[80];
+
+  // S::operator int const* const*() const
+  EXPECT_TRUE(Demangle("_ZNK1ScvPKPKiEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::operator int const* const*()", tmp);
+}
+
+TEST(Demangle, ConversionToTypeWithExtendedQualifier) {
+  char tmp[80];
+
+  // S::operator int const AS128*() const
+  //
+  // Because our scan of easy type constructors stops at the extended qualifier,
+  // the demangling preserves the * but loses the const.
+  EXPECT_TRUE(Demangle("_ZNK1ScvPU5AS128KiEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::operator int*()", tmp);
+}
+
 TEST(Demangle, GlobalInitializers) {
   char tmp[80];
 
@@ -757,6 +892,55 @@ TEST(Demangle, GnuVectorSizeIsADependentOperatorExpression) {
   // void f<32>(int vector[2 * 32])
   EXPECT_TRUE(Demangle("_Z1fILi32EEvDvmlLi2ET__i", tmp, sizeof(tmp)));
   EXPECT_STREQ("f<>()", tmp);
+}
+
+TEST(Demangle, SimpleAddressSpace) {
+  char tmp[80];
+
+  // Source:
+  //
+  // void f(const int __attribute__((address_space(128)))*) {}
+  //
+  // LLVM demangling:
+  //
+  // f(int const AS128*)
+  //
+  // Itanium ABI 5.1.5.1, "Qualified types", notes that address_space is mangled
+  // nonuniformly as a legacy exception: the number is part of the source-name
+  // if nondependent but is an expression in template-args if dependent.  Thus
+  // it is a convenient test case for both forms.
+  EXPECT_TRUE(Demangle("_Z1fPU5AS128Ki", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f()", tmp);
+}
+
+TEST(Demangle, DependentAddressSpace) {
+  char tmp[80];
+
+  // Source:
+  //
+  // template <int n> void f (const int __attribute__((address_space(n)))*) {}
+  // template void f<128>(const int __attribute__((address_space(128)))*);
+  //
+  // LLVM demangling:
+  //
+  // void f<128>(int AS<128>*)
+  EXPECT_TRUE(Demangle("_Z1fILi128EEvPU2ASIT_Ei", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+}
+
+TEST(Demangle, TransactionSafeEntryPoint) {
+  char tmp[80];
+
+  EXPECT_TRUE(Demangle("_ZGTt1fv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("transaction clone for f()", tmp);
+}
+
+TEST(Demangle, TransactionSafeFunctionType) {
+  char tmp[80];
+
+  // GNU demangling: f(void (*)() transaction_safe)
+  EXPECT_TRUE(Demangle("_Z1fPDxFvvE", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f()", tmp);
 }
 
 TEST(Demangle, EnableIfAttributeOnGlobalFunction) {
@@ -1069,6 +1253,14 @@ TEST(Demangle, Spaceship) {
   // decltype(fp <=> fp0) g<S>(S, S)
   EXPECT_TRUE(Demangle("_Z1gI1SEDTssfp_fp0_ET_S2_", tmp, sizeof(tmp)));
   EXPECT_STREQ("g<>()", tmp);
+}
+
+TEST(Demangle, CoAwait) {
+  char tmp[80];
+
+  // ns::Awaitable::operator co_await() const
+  EXPECT_TRUE(Demangle("_ZNK2ns9AwaitableawEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("ns::Awaitable::operator co_await()", tmp);
 }
 
 TEST(Demangle, VendorExtendedExpressions) {
