@@ -1,3 +1,166 @@
+# Abseil with Zombie Linear Probing
+
+WARNING: If using ABSL_ZOMBIE option, you need to reserve space to use the hashmap.
+```
+h.reserve(1196)
+```
+
+## Important Files and Functions
+
+The relevant files needed are
+
+* absl/container/internal/raw_hash_set.h
+* absl/container/internal/raw_hash_set.cc
+* absl/container/internal/raw_hash_set_test.cc
+
+The important functions here are
+
+```C++
+absl_raw_hash_set.h::find_or_prepare_insert
+absl_raw_hash_set.h::prepare_insert
+absl_raw_hash_set.h::rehash_and_grow_if_necessary
+```
+
+
+## List of Preprocessor Flags
+
+Load Factor = items / capacity
+
+True Load Factor = (items + tombstones)/capacity
+
+1. ABSL_LINEAR_PROBING
+	1. Uses a linear probing function. Used in `raw_hash_set.h::probe_seq (Line 326)`
+2. ABSL_ZOMBIE
+	1. `raw_hash_set.h::CapacityToGrowth()`   Increases the max true load factor at which a rebuild should trigger. . The default max true load factor is 7/8, but with `ABSL_ZOMBIE` by the preprocessor symbol `ABSL_MAX_TRUE_LOAD_FACTOR`. The default value of `ABSL_MAX_TRUE_LOAD_FACTOR` is  0.975
+3. ABSL_ZOMBIE_GRAVEYARD
+	1. Requires ABSL_LINEAR_PROBING
+	2. After clearing all tombstones, runs `raw_hash_set.h::RedistributeTombstones` or `raw_hash_set.h::RedistributeTombstonesInRange` (See `raw_hash_set.h::rehash_and_grow_if_necessary` and `raw_hash_set.h::prepare_insert`)
+4. ABSL_ZOMBIE_DEAMORTIZED
+	1. Rebuilds and redistributes tombstones in a deamortized fashion
+	2. See `raw_hash_set.h::prepare_insert()`
+5. ABSL_ZOMBIE_REBUILD_REHASH_CLUSTER
+	1. Requires ABSL_LINEAR_PROBING
+	2. When used with ABSL_ZOMBIE_DEAMORTIZED, will clear from empty slot to empty slot
+	3. When not used with ABSL_ZOMBIE_DEAMORTIZED, will find consecutive clusters, rebuild that cluster until the entire hash table is rehashed.
+6. ABSL_ZOMBIE_REBUILD_PUSH_TOMBSTONES
+	1. Requires ABSL_LINEAR_PROBING
+        2. Will rebuild by pushing tombstones.	
+	3. (Does not work with deamortized, not implemented)
+
+## ABSL Variants
+
+Each of the variants here are also defined in [CMakeLists.txt](https://github.com/saltsystemslab/GRHT/blob/master/CMakeLists.txt#L70) of the GRHT project.
+
+1. ABSL (-DABSL_ZOMBIE)
+	1. Quadratic Probing. 
+	2. Rebuild by rehashing the entire hash table when true load factor is greater than 0.975
+2. ABSL_LINEAR_PROBING (-DABSL_ZOMBIE -DABSL_LINEAR_PROBING)
+	1. Linear Probing. 
+	2. Rebuild by rehashing the entire hash table when true load factor is greater than 0.975
+3. ABSL_LINEAR_REHASH_CLUSTER (-DABSL_ZOMBIE -DABSL_LINEAR_PROBING -DABSL_ZOMBIE_REBUILD_REHASH_CLUSTER)
+	1. Linear Probing
+	2. Rebuilds whole hash table by **scanning for clusters, rehashing that cluster** when true load factor is greater than 0.975
+4. ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED (-DABSL_ZOMBIE -DABSL_LINEAR_PROBING -DABSL_ZOMBIE_REBUILD_REHASH_CLUSTER -DABSL_ZOMBIE_DEAMORTIZED)
+	1. Linear Probing
+	2. Rebuilds in a deamortized fashion
+	3. Does not insert tombstones
+6. . ABSL_LINEAR_REHASH_CLUSTER_GRAVEYARD_DEAMORTIZED (DABSL_ZOMBIE -DABSL_LINEAR_PROBING -DABSL_ZOMBIE_GRAVEYARD -DABSL_ZOMBIE_REBUILD_REHASH_CLUSTER -DABSL_ZOMBIE_DEAMORTIZED) 
+	1. Linear Probing
+	2. Rebuilds in a deamortized fashion, while also inserting tombstones
+	3. Inserts tombstones every 4.x, (x=1/(1-load factor)) distance.
+
+
+### Running Correctness Tests
+
+Install bazel via [bazelisk](https://github.com/bazelbuild/bazelisk?tab=readme-ov-file#installation)
+
+```bash
+# Set the required preprocessor flag variants in absl/container/BUILD.bazel in targets raw_hash_set_zombie_test and raw_hash_set_zombie_variant
+
+bazel build //absl/container:raw_hash_set_zombie_test --compilation_mode=dbg
+
+gdb --args bazel-bin/absl/container/raw_hash_set_zombie_test --gtest_filter=Table.ChurnTestSmall
+
+bazel-bin/absl/container/raw_hash_set_zombie_test --gtest_filter=Table.ChurnTestSmall
+
+```
+
+## Raw Notes
+
+```c++
+// absl/container/flat_hash_map.h
+flat_hash_map<K, V, Hash, Eq, Allocator>: 
+	raw_hash_map<FlatHashMapPolicy<K,V,Hash,Eq,Allocator>
+
+
+// absl/container/internal/raw_hash_map.h
+class raw_hash_map : public raw_hash_set<Policy, Hash, Eq, Alloc> 
+
+// absl/container/internal/raw_hash_set.h
+// An open-addressing
+// hashtable with quadratic probing.
+// IMPLEMENTATION DETAILS
+//
+// # Table Layout
+//
+// A raw_hash_set's backing array consists of control bytes followed by slots
+// that may or may not contain objects.
+//
+// The layout of the backing array, for `capacity` slots, is thus, as a
+// pseudo-struct:
+//
+//   struct BackingArray {
+//     // Sampling handler. This field isn't present when the sampling is
+//     // disabled or this allocation hasn't been selected for sampling.
+//     HashtablezInfoHandle infoz_;
+//     // The number of elements we can insert before growing the capacity.
+//     size_t growth_left;
+//     // Control bytes for the "real" slots.
+//     ctrl_t ctrl[capacity];
+//     // Always `ctrl_t::kSentinel`. This is used by iterators to find when to
+//     // stop and serves no other purpose.
+//     ctrl_t sentinel;
+//     // A copy of the first `kWidth - 1` elements of `ctrl`. This is used so
+//     // that if a probe sequence picks a value near the end of `ctrl`,
+//     // `Group` will have valid control bytes to look at.
+//     ctrl_t clones[kWidth - 1];
+//     // The actual slot data.
+//     slot_type slots[capacity];
+//   };
+//
+
+//raw_hash_set:467
+// The values here are selected for maximum performance. See the static asserts
+// below for details.
+
+// A `ctrl_t` is a single control byte, which can have one of four
+// states: empty, deleted, full (which has an associated seven-bit h2_t value)
+// and the sentinel. They have the following bit patterns:
+//
+//      empty: 1 0 0 0 0 0 0 0
+//    deleted: 1 1 1 1 1 1 1 0
+//       full: 0 h h h h h h h  // h represents the hash bits.
+//   sentinel: 1 1 1 1 1 1 1 1
+//
+// These values are specifically tuned for SSE-flavored SIMD.
+// The static_asserts below detail the source of these choices.
+//
+// We use an enum class so that when strict aliasing is enabled, the compiler
+// knows ctrl_t doesn't alias other types.
+
+
+// Vectorized Instruction implementation
+// raw_hash_set:617
+struct GroupSse2Impl {
+}
+
+
+// Insert Code
+// First find
+```
+
+
+
 # Abseil - C++ Common Libraries
 
 The repository contains the Abseil C++ library code. Abseil is an open-source

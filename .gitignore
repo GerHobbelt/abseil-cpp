@@ -133,3 +133,9 @@ CMakeLists.txt.user
 # Ignore generated python artifacts
 *.pyc
 copts/__pycache__/
+debug/*
+build/*
+debug_*/*
+MODULE.bazel
+MODULE.bazel.lock
+out.txt

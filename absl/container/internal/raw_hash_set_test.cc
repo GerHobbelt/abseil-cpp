@@ -70,6 +70,14 @@ struct RawHashSetTestOnlyAccess {
   static size_t CountTombstones(const C& c) {
     return c.common().TombstonesCount();
   }
+  template <typename C>
+  static void DropDeletesWithoutResizeAndRedistributeTombstones(C& c, size_t tombstone_dist) {
+    c.drop_deletes_without_resize_and_redistribute(tombstone_dist);
+  }
+  template <typename C>
+  static void DropDeletesWithoutResize(C& c) {
+    c.drop_deletes_without_resize();
+  }
 };
 
 namespace {
@@ -127,6 +135,22 @@ TEST(Util, GrowthAndCapacity) {
   }
 }
 
+#ifdef ABSL_ZOMBIE
+TEST(Util, probe_seq) {
+  probe_seq<16> seq(0, 127);
+  auto gen = [&]() {
+    size_t res = seq.offset();
+    seq.next();
+    return res;
+  };
+  std::vector<size_t> offsets(8);
+  std::generate_n(offsets.begin(), 8, gen);
+  EXPECT_THAT(offsets, ElementsAre(0, 16, 32, 48, 64, 80, 96, 112));
+  seq = probe_seq<16>(128, 127);
+  std::generate_n(offsets.begin(), 8, gen);
+  EXPECT_THAT(offsets, ElementsAre(0, 16, 32, 48, 64, 80, 96, 112));
+}
+#else
 TEST(Util, probe_seq) {
   probe_seq<16> seq(0, 127);
   auto gen = [&]() {
@@ -141,6 +165,7 @@ TEST(Util, probe_seq) {
   std::generate_n(offsets.begin(), 8, gen);
   EXPECT_THAT(offsets, ElementsAre(0, 16, 48, 96, 32, 112, 80, 64));
 }
+#endif
 
 TEST(BitMask, Smoke) {
   EXPECT_FALSE((BitMask<uint8_t, 8>(0)));
@@ -298,6 +323,7 @@ TEST(Batch, DropDeletes) {
         << i << " " << static_cast<int>(pattern[i % pattern.size()]);
   }
 }
+
 
 TEST(Group, CountLeadingEmptyOrDeleted) {
   const std::vector<ctrl_t> empty_examples = {ctrl_t::kEmpty, ctrl_t::kDeleted};
@@ -1040,7 +1066,84 @@ struct Modulo1000Hash {
 
 struct Modulo1000HashTable
     : public raw_hash_set<IntPolicy, Modulo1000Hash, std::equal_to<int>,
-                          std::allocator<int>> {};
+                          std::allocator<int>> {
+};
+
+TEST(Table, ChurnTestSmall) {
+  const size_t hashTableCap = (1<<10)-1;
+  const size_t hashTableSize = (hashTableCap*95)/100;
+
+  size_t seed = time(NULL);
+  printf("SEED: %ld\n", seed);
+  IntTable t;
+  t.reserveFixed(hashTableCap);
+
+  std::set<uint64_t> s;
+  uint64_t arr[hashTableSize];
+  for(uint64_t i=0; i<hashTableSize; i++) {
+    //fprintf(fp, "%d %ld\n", INS, i*2);
+    arr[i] = i*2;
+    t.insert(arr[i]);
+    s.insert(arr[i]);
+  }
+
+  int arr_index = 0;
+  for(int churn_round=0; churn_round < 6000; churn_round++) {
+    // printf("cycle: %ld %ld items\n", churn_round, s.size());
+    for(uint64_t i =0; i<(hashTableCap * 2)/100; i++) {
+      //fprintf(fp, "%d %ld\n", DEL, arr[(arr_index+i)]);
+      t.erase(arr[(arr_index+i) % hashTableSize]);
+      s.erase(arr[(arr_index+i) % hashTableSize]);
+      // printf("ERASING: %d\n", arr[(arr_index+i)%hashTableSize]);
+    }
+
+    for(uint64_t i =0; i<(hashTableCap * 2)/100; i++) {
+      arr[(arr_index+i) % hashTableSize] = rand(); 
+      //fprintf(fp, "%d %ld\n", INS, arr[(arr_index+i)]);
+      t.insert(arr[(arr_index+i) % hashTableSize]);
+      s.insert(arr[(arr_index+i) % hashTableSize]);
+      // printf("INSERTING: %d\n", arr[(arr_index+i)%hashTableSize]);
+    }
+
+    for (auto item : s) {
+      assert(t.find(item) != t.end());
+    }
+    for (auto item : t) {
+      assert(s.find(item) != s.end());
+    }
+    // printf("%d %d %d %d\n", t.capacity(), t.size(), RawHashSetTestOnlyAccess::CountTombstones(t), t.growth_left());
+    arr_index += (hashTableCap*2)/100;
+  }
+}
+
+TEST(Table, ChurnTest) {
+  int hashTableCap = (1<<20)-1;
+  int hashTableSize = (hashTableCap*95)/100;
+
+  IntTable t;
+  t.reserve(hashTableCap/2);
+  uint64_t arr[hashTableSize];
+  for(uint64_t i=0; i<hashTableSize; i++) {
+    arr[i] = rand();
+    t.insert(arr[i]);
+  }
+
+  int arr_index = 0;
+  for(int churn_round=0; churn_round < 100; churn_round++) {
+    for(uint64_t i =0; i<(hashTableCap)/100; i++) {
+      t.erase(arr[(arr_index+i) % hashTableSize]);
+    }
+
+    for(uint64_t i =0; i<(hashTableCap)/100; i++) {
+      arr[(arr_index+i) % hashTableSize] = random(); 
+      t.insert(arr[(arr_index+i) % hashTableSize]);
+    }
+    printf("%lu %lu %lu %lu\n", t.capacity(), t.size(), RawHashSetTestOnlyAccess::CountTombstones(t), t.growth_left());
+    arr_index += (hashTableCap*1)/100;
+  }
+}
+
+
 
 // Test that rehash with no resize happen in case of many deleted slots.
 TEST(Table, RehashWithNoResize) {
