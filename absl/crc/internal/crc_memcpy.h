@@ -21,6 +21,13 @@
 #include "absl/base/config.h"
 #include "absl/crc/crc32c.h"
 
+// Defined if the class AcceleratedCrcMemcpyEngine exists.
+#if defined(__x86_64__) && defined(__SSE4_2__)
+#define ABSL_INTERNAL_HAVE_X86_64_ACCELERATED_CRC_MEMCPY_ENGINE 1
+#elif defined(_MSC_VER) && defined(__AVX__)
+#define ABSL_INTERNAL_HAVE_X86_64_ACCELERATED_CRC_MEMCPY_ENGINE 1
+#endif
+
 namespace absl {
 ABSL_NAMESPACE_BEGIN
 namespace crc_internal {
@@ -40,7 +47,7 @@ class CrcMemcpy {
  public:
   static crc32c_t CrcAndCopy(void* __restrict dst, const void* __restrict src,
                              std::size_t length,
-                             crc32c_t initial_crc = ToCrc32c(0),
+                             crc32c_t initial_crc = crc32c_t{0},
                              bool non_temporal = false) {
     static const ArchSpecificEngines engines = GetArchSpecificEngines();
     auto* engine = non_temporal ? engines.non_temporal : engines.temporal;
@@ -100,7 +107,7 @@ class CrcNonTemporalMemcpyAVXEngine : public CrcMemcpyEngine {
 // the generic fallback version.
 inline crc32c_t Crc32CAndCopy(void* __restrict dst, const void* __restrict src,
                               std::size_t length,
-                              crc32c_t initial_crc = ToCrc32c(0),
+                              crc32c_t initial_crc = crc32c_t{0},
                               bool non_temporal = false) {
   return CrcMemcpy::CrcAndCopy(dst, src, length, initial_crc, non_temporal);
 }

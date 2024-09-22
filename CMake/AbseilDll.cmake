@@ -100,6 +100,8 @@ set(ABSL_INTERNAL_DLL_FILES
   "crc/internal/crc32_x86_arm_combined_simd.h"
   "crc/internal/crc.cc"
   "crc/internal/crc.h"
+  "crc/internal/crc_cord_state.cc"
+  "crc/internal/crc_cord_state.h"
   "crc/internal/crc_internal.h"
   "crc/internal/crc_x86_arm_combined.cc"
   "crc/internal/crc_memcpy_fallback.cc"
@@ -295,6 +297,7 @@ set(ABSL_INTERNAL_DLL_FILES
   "strings/internal/str_format/bind.cc"
   "strings/internal/str_format/bind.h"
   "strings/internal/str_format/checker.h"
+  "strings/internal/str_format/constexpr_parser.h"
   "strings/internal/str_format/extension.cc"
   "strings/internal/str_format/extension.h"
   "strings/internal/str_format/float_conversion.cc"
@@ -404,9 +407,9 @@ set(ABSL_INTERNAL_DLL_TARGETS
   "cord"
   "core_headers"
   "counting_allocator"
-  "crc_cpu_detect",
-  "crc_internal",
-  "crc32c",
+  "crc_cpu_detect"
+  "crc_internal"
+  "crc32c"
   "debugging"
   "debugging_internal"
   "demangle_internal"
@@ -439,8 +442,8 @@ set(ABSL_INTERNAL_DLL_TARGETS
   "node_hash_map"
   "node_hash_set"
   "node_slot_policy"
-  "non_temporal_arm_intrinsics",
-  "non_temporal_memcpy",
+  "non_temporal_arm_intrinsics"
+  "non_temporal_memcpy"
   "numeric"
   "optional"
   "periodic_sampler"
@@ -598,6 +601,33 @@ function(absl_make_dll)
     PRIVATE
       ${ABSL_DEFAULT_COPTS}
   )
+
+  foreach(cflag ${ABSL_CC_LIB_COPTS})
+    if(${cflag} MATCHES "^(-Wno|/wd)")
+      # These flags are needed to suppress warnings that might fire in our headers.
+      set(PC_CFLAGS "${PC_CFLAGS} ${cflag}")
+    elseif(${cflag} MATCHES "^(-W|/w[1234eo])")
+      # Don't impose our warnings on others.
+    else()
+      set(PC_CFLAGS "${PC_CFLAGS} ${cflag}")
+    endif()
+  endforeach()
+  string(REPLACE ";" " " PC_LINKOPTS "${ABSL_CC_LIB_LINKOPTS}")
+
+  FILE(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/lib/pkgconfig/abseil_dll.pc" CONTENT "\
+prefix=${CMAKE_INSTALL_PREFIX}\n\
+exec_prefix=\${prefix}\n\
+libdir=${CMAKE_INSTALL_FULL_LIBDIR}\n\
+includedir=${CMAKE_INSTALL_FULL_INCLUDEDIR}\n\
+\n\
+Name: abseil_dll\n\
+Description: Abseil DLL library\n\
+URL: https://abseil.io/\n\
+Version: ${absl_VERSION}\n\
+Libs: -L\${libdir} ${PC_LINKOPTS} $<$<NOT:$<BOOL:${ABSL_CC_LIB_IS_INTERFACE}>>:-labseil_dll>\n\
+Cflags: -I\${includedir}${PC_CFLAGS}\n")
+  INSTALL(FILES "${CMAKE_BINARY_DIR}/lib/pkgconfig/abseil_dll.pc"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 
   target_compile_definitions(
     abseil_dll

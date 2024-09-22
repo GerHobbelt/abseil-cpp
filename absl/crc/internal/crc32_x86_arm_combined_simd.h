@@ -25,14 +25,23 @@
 // We define a translation layer for both x86 and ARM for the ease of use and
 // most performance gains.
 
-// We need CRC (part of sse4.2) and PCLMULQDQ instructions.
-#if defined(__SSE4_2__) && defined(__PCLMUL__)
+// This implementation requires 64-bit CRC instructions (part of SSE 4.2) and
+// PCLMULQDQ instructions. 32-bit builds with SSE 4.2 do exist, so the
+// __x86_64__ condition is necessary.
+#if defined(__x86_64__) && defined(__SSE4_2__) && defined(__PCLMUL__)
 
 #include <x86intrin.h>
 #define ABSL_CRC_INTERNAL_HAVE_X86_SIMD
 
+#elif defined(_MSC_VER) && defined(__AVX__)
+
+// MSVC AVX (/arch:AVX) implies SSE 4.2 and PCLMULQDQ.
+#include <intrin.h>
+#define ABSL_CRC_INTERNAL_HAVE_X86_SIMD
+
 #elif defined(__aarch64__) && defined(__LITTLE_ENDIAN__) && \
-    defined(__ARM_FEATURE_CRC32) && defined(__ARM_NEON)
+    defined(__ARM_FEATURE_CRC32) && defined(ABSL_INTERNAL_HAVE_ARM_NEON) &&  \
+    defined(__ARM_FEATURE_CRYPTO)
 
 #include <arm_acle.h>
 #include <arm_neon.h>
@@ -123,7 +132,7 @@ inline uint32_t CRC32_u32(uint32_t crc, uint32_t v) {
 }
 
 inline uint32_t CRC32_u64(uint32_t crc, uint64_t v) {
-  return _mm_crc32_u64(crc, v);
+  return static_cast<uint32_t>(_mm_crc32_u64(crc, v));
 }
 
 inline V128 V128_Load(const V128* src) { return _mm_load_si128(src); }
@@ -151,7 +160,7 @@ inline V128 V128_Xor(const V128 l, const V128 r) { return _mm_xor_si128(l, r); }
 inline V128 V128_And(const V128 l, const V128 r) { return _mm_and_si128(l, r); }
 
 inline V128 V128_From2x64(const uint64_t l, const uint64_t r) {
-  return _mm_set_epi64x(l, r);
+  return _mm_set_epi64x(static_cast<int64_t>(l), static_cast<int64_t>(r));
 }
 
 template <int imm>
@@ -248,7 +257,7 @@ inline int64_t V128_Low64(const V128 l) {
 }
 
 inline V128 V128_ShiftLeft64(const V128 l, const V128 r) {
-  return vshlq_u64(l, r);
+  return vshlq_u64(l, vreinterpretq_s64_u64(r));
 }
 
 #endif

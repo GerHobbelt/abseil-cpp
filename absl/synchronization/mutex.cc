@@ -54,6 +54,7 @@
 #include "absl/base/internal/sysinfo.h"
 #include "absl/base/internal/thread_identity.h"
 #include "absl/base/internal/tsan_mutex_interface.h"
+#include "absl/base/optimization.h"
 #include "absl/base/port.h"
 #include "absl/debugging/stacktrace.h"
 #include "absl/debugging/symbolize.h"
@@ -591,10 +592,15 @@ static SynchLocksHeld *Synch_GetAllLocks() {
 void Mutex::IncrementSynchSem(Mutex *mu, PerThreadSynch *w) {
   if (mu) {
     ABSL_TSAN_MUTEX_PRE_DIVERT(mu, 0);
-  }
-  PerThreadSem::Post(w->thread_identity());
-  if (mu) {
+    // We miss synchronization around passing PerThreadSynch between threads
+    // since it happens inside of the Mutex code, so we need to ignore all
+    // accesses to the object.
+    ABSL_ANNOTATE_IGNORE_READS_AND_WRITES_BEGIN();
+    PerThreadSem::Post(w->thread_identity());
+    ABSL_ANNOTATE_IGNORE_READS_AND_WRITES_END();
     ABSL_TSAN_MUTEX_POST_DIVERT(mu, 0);
+  } else {
+    PerThreadSem::Post(w->thread_identity());
   }
 }
 
@@ -1149,7 +1155,7 @@ void Mutex::TryRemove(PerThreadSynch *s) {
 // if the wait extends past the absolute time specified, even if "s" is still
 // on the mutex queue.  In this case, remove "s" from the queue and return
 // true, otherwise return false.
-ABSL_XRAY_LOG_ARGS(1) void Mutex::Block(PerThreadSynch *s) {
+void Mutex::Block(PerThreadSynch *s) {
   while (s->state.load(std::memory_order_acquire) == PerThreadSynch::kQueued) {
     if (!DecrementSynchSem(this, s, s->waitp->timeout)) {
       // After a timeout, we go into a spin loop until we remove ourselves
@@ -1498,7 +1504,7 @@ static bool TryAcquireWithSpinning(std::atomic<intptr_t>* mu) {
   return false;
 }
 
-ABSL_XRAY_LOG_ARGS(1) void Mutex::Lock() {
+void Mutex::Lock() {
   ABSL_TSAN_MUTEX_PRE_LOCK(this, 0);
   GraphId id = DebugOnlyDeadlockCheck(this);
   intptr_t v = mu_.load(std::memory_order_relaxed);
@@ -1516,7 +1522,7 @@ ABSL_XRAY_LOG_ARGS(1) void Mutex::Lock() {
   ABSL_TSAN_MUTEX_POST_LOCK(this, 0, 0);
 }
 
-ABSL_XRAY_LOG_ARGS(1) void Mutex::ReaderLock() {
+void Mutex::ReaderLock() {
   ABSL_TSAN_MUTEX_PRE_LOCK(this, __tsan_mutex_read_lock);
   GraphId id = DebugOnlyDeadlockCheck(this);
   intptr_t v = mu_.load(std::memory_order_relaxed);
@@ -1629,7 +1635,7 @@ bool Mutex::AwaitCommon(const Condition &cond, KernelTimeout t) {
   return res;
 }
 
-ABSL_XRAY_LOG_ARGS(1) bool Mutex::TryLock() {
+bool Mutex::TryLock() {
   ABSL_TSAN_MUTEX_PRE_LOCK(this, __tsan_mutex_try_lock);
   intptr_t v = mu_.load(std::memory_order_relaxed);
   if ((v & (kMuWriter | kMuReader | kMuEvent)) == 0 &&  // try fast acquire
@@ -1658,7 +1664,7 @@ ABSL_XRAY_LOG_ARGS(1) bool Mutex::TryLock() {
   return false;
 }
 
-ABSL_XRAY_LOG_ARGS(1) bool Mutex::ReaderTryLock() {
+bool Mutex::ReaderTryLock() {
   ABSL_TSAN_MUTEX_PRE_LOCK(this,
                            __tsan_mutex_read_lock | __tsan_mutex_try_lock);
   intptr_t v = mu_.load(std::memory_order_relaxed);
@@ -1704,7 +1710,7 @@ ABSL_XRAY_LOG_ARGS(1) bool Mutex::ReaderTryLock() {
   return false;
 }
 
-ABSL_XRAY_LOG_ARGS(1) void Mutex::Unlock() {
+void Mutex::Unlock() {
   ABSL_TSAN_MUTEX_PRE_UNLOCK(this, 0);
   DebugOnlyLockLeave(this);
   intptr_t v = mu_.load(std::memory_order_relaxed);
@@ -1756,7 +1762,7 @@ static bool ExactlyOneReader(intptr_t v) {
   return (v & kMuMultipleWaitersMask) == 0;
 }
 
-ABSL_XRAY_LOG_ARGS(1) void Mutex::ReaderUnlock() {
+void Mutex::ReaderUnlock() {
   ABSL_TSAN_MUTEX_PRE_UNLOCK(this, __tsan_mutex_read_lock);
   DebugOnlyLockLeave(this);
   intptr_t v = mu_.load(std::memory_order_relaxed);
@@ -1786,7 +1792,7 @@ static intptr_t ClearDesignatedWakerMask(int flag) {
     case 1:  // blocked; turn off the designated waker bit
       return ~static_cast<intptr_t>(kMuDesig);
   }
-  ABSL_INTERNAL_UNREACHABLE;
+  ABSL_UNREACHABLE();
 }
 
 // Conditionally ignores the existence of waiting writers if a reader that has
@@ -1800,7 +1806,7 @@ static intptr_t IgnoreWaitingWritersMask(int flag) {
     case 1:  // blocked; pretend there are no waiting writers
       return ~static_cast<intptr_t>(kMuWrWait);
   }
-  ABSL_INTERNAL_UNREACHABLE;
+  ABSL_UNREACHABLE();
 }
 
 // Internal version of LockWhen().  See LockSlowWithDeadline()
@@ -2782,8 +2788,7 @@ static bool Dereference(void *arg) {
   return *(static_cast<bool *>(arg));
 }
 
-Condition::Condition() = default;  // null constructor, used for kTrue only
-const Condition Condition::kTrue;
+ABSL_CONST_INIT const Condition Condition::kTrue;
 
 Condition::Condition(bool (*func)(void *), void *arg)
     : eval_(&CallVoidPtrFunction),
@@ -2823,7 +2828,7 @@ bool Condition::GuaranteedEqual(const Condition *a, const Condition *b) {
   }
   // Check equality of the representative fields.
   return a->eval_ == b->eval_ && a->arg_ == b->arg_ &&
-         !memcmp(a->callback_, b->callback_, sizeof(ConservativeMethodPointer));
+         !memcmp(a->callback_, b->callback_, sizeof(a->callback_));
 }
 
 ABSL_NAMESPACE_END

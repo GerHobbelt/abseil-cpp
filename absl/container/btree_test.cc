@@ -2123,6 +2123,79 @@ TEST(Btree, ExtractMultiMapEquivalentKeys) {
   }
 }
 
+TEST(Btree, ExtractAndGetNextSet) {
+  absl::btree_set<int> src = {1, 2, 3, 4, 5};
+  auto it = src.find(3);
+  auto extracted_and_next = src.extract_and_get_next(it);
+  EXPECT_THAT(src, ElementsAre(1, 2, 4, 5));
+  EXPECT_EQ(extracted_and_next.node.value(), 3);
+  EXPECT_EQ(*extracted_and_next.next, 4);
+}
+
+TEST(Btree, ExtractAndGetNextMultiSet) {
+  absl::btree_multiset<int> src = {1, 2, 3, 4, 5};
+  auto it = src.find(3);
+  auto extracted_and_next = src.extract_and_get_next(it);
+  EXPECT_THAT(src, ElementsAre(1, 2, 4, 5));
+  EXPECT_EQ(extracted_and_next.node.value(), 3);
+  EXPECT_EQ(*extracted_and_next.next, 4);
+}
+
+TEST(Btree, ExtractAndGetNextMap) {
+  absl::btree_map<int, int> src = {{1, 2}, {3, 4}, {5, 6}};
+  auto it = src.find(3);
+  auto extracted_and_next = src.extract_and_get_next(it);
+  EXPECT_THAT(src, ElementsAre(Pair(1, 2), Pair(5, 6)));
+  EXPECT_EQ(extracted_and_next.node.key(), 3);
+  EXPECT_EQ(extracted_and_next.node.mapped(), 4);
+  EXPECT_THAT(*extracted_and_next.next, Pair(5, 6));
+}
+
+TEST(Btree, ExtractAndGetNextMultiMap) {
+  absl::btree_multimap<int, int> src = {{1, 2}, {3, 4}, {5, 6}};
+  auto it = src.find(3);
+  auto extracted_and_next = src.extract_and_get_next(it);
+  EXPECT_THAT(src, ElementsAre(Pair(1, 2), Pair(5, 6)));
+  EXPECT_EQ(extracted_and_next.node.key(), 3);
+  EXPECT_EQ(extracted_and_next.node.mapped(), 4);
+  EXPECT_THAT(*extracted_and_next.next, Pair(5, 6));
+}
+
+TEST(Btree, ExtractAndGetNextEndIter) {
+  absl::btree_set<int> src = {1, 2, 3, 4, 5};
+  auto it = src.find(5);
+  auto extracted_and_next = src.extract_and_get_next(it);
+  EXPECT_THAT(src, ElementsAre(1, 2, 3, 4));
+  EXPECT_EQ(extracted_and_next.node.value(), 5);
+  EXPECT_EQ(extracted_and_next.next, src.end());
+}
+
+TEST(Btree, ExtractDoesntCauseExtraMoves) {
+#ifdef _MSC_VER
+  GTEST_SKIP() << "This test fails on MSVC.";
+#endif
+
+  using Set = absl::btree_set<MovableOnlyInstance>;
+  std::array<std::function<void(Set &)>, 3> extracters = {
+      [](Set &s) { auto node = s.extract(s.begin()); },
+      [](Set &s) { auto ret = s.extract_and_get_next(s.begin()); },
+      [](Set &s) { auto node = s.extract(MovableOnlyInstance(0)); }};
+
+  InstanceTracker tracker;
+  for (int i = 0; i < 3; ++i) {
+    Set s;
+    s.insert(MovableOnlyInstance(0));
+    tracker.ResetCopiesMovesSwaps();
+
+    extracters[i](s);
+    // We expect to see exactly 1 move: from the original slot into the
+    // extracted node.
+    EXPECT_EQ(tracker.copies(), 0) << i;
+    EXPECT_EQ(tracker.moves(), 1) << i;
+    EXPECT_EQ(tracker.swaps(), 0) << i;
+  }
+}
+
 // For multisets, insert with hint also affects correctness because we need to
 // insert immediately before the hint if possible.
 struct InsertMultiHintData {
@@ -3094,6 +3167,14 @@ TEST(Btree, InvalidIteratorUse) {
     set.erase(1);
     EXPECT_DEATH(*it, "invalidated iterator");
   }
+  {
+    absl::btree_set<int> set;
+    for (int i = 0; i < 10; ++i) set.insert(i);
+    auto it = set.insert(20).first;
+    set.insert(30);
+    EXPECT_DEATH(void(it == set.begin()), "invalidated iterator");
+    EXPECT_DEATH(void(set.begin() == it), "invalidated iterator");
+  }
 }
 #endif
 
@@ -3356,6 +3437,31 @@ TEST(Btree, DereferencingEndIterator) {
   absl::btree_set<int> set;
   for (int i = 0; i < 1000; ++i) set.insert(i);
   EXPECT_DEATH(*set.end(), R"regex(Dereferencing end\(\) iterator)regex");
+}
+
+TEST(Btree, InvalidIteratorComparison) {
+  if (!IsAssertEnabled()) GTEST_SKIP() << "Assertions not enabled.";
+
+  absl::btree_set<int> set1, set2;
+  for (int i = 0; i < 1000; ++i) {
+    set1.insert(i);
+    set2.insert(i);
+  }
+
+  constexpr const char *kValueInitDeathMessage =
+      "Comparing default-constructed iterator with .*non-default-constructed "
+      "iterator";
+  typename absl::btree_set<int>::iterator iter1, iter2;
+  EXPECT_EQ(iter1, iter2);
+  EXPECT_DEATH(void(set1.begin() == iter1), kValueInitDeathMessage);
+  EXPECT_DEATH(void(iter1 == set1.begin()), kValueInitDeathMessage);
+
+  constexpr const char *kDifferentContainerDeathMessage =
+      "Comparing iterators from different containers";
+  iter1 = set1.begin();
+  iter2 = set2.begin();
+  EXPECT_DEATH(void(iter1 == iter2), kDifferentContainerDeathMessage);
+  EXPECT_DEATH(void(iter2 == iter1), kDifferentContainerDeathMessage);
 }
 
 }  // namespace

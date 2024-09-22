@@ -729,7 +729,7 @@ class Condition {
       : Condition(obj, static_cast<bool (T::*)() const>(&T::operator())) {}
 
   // A Condition that always returns `true`.
-  static const Condition kTrue;
+  ABSL_CONST_INIT static const Condition kTrue;
 
   // Evaluates the condition.
   bool Eval() const;
@@ -751,27 +751,25 @@ class Condition {
   // multiple inheritance are bigger than those of classes with single
   // inheritance. Other variations also exist.
 
-  // A good way to allocate enough space for *any* pointer in these ABIs is to
-  // employ a class declaration with no definition. Because the inheritance
-  // structure is not available for this declaration, the compiler must
-  // assume, conservatively, that its method pointers have the largest possible
-  // size.
-  class OpaqueClass;
-  using ConservativeMethodPointer = bool (OpaqueClass::*)();
-  static_assert(sizeof(bool(OpaqueClass::*)()) >= sizeof(bool (*)(void *)),
-                "Unsupported platform.");
-
+#ifndef _MSC_VER
   // Allocation for a function pointer or method pointer.
   // The {0} initializer ensures that all unused bytes of this buffer are
   // always zeroed out.  This is necessary, because GuaranteedEqual() compares
   // all of the bytes, unaware of which bytes are relevant to a given `eval_`.
-  char callback_[sizeof(ConservativeMethodPointer)] = {0};
+  using MethodPtr = bool (Condition::*)();
+  char callback_[sizeof(MethodPtr)] = {0};
+#else
+  // It is well known that the larget MSVC pointer-to-member is 24 bytes. This
+  // may be the largest known pointer-to-member of any platform. For this
+  // reason we will allocate 24 bytes for MSVC platform toolchains.
+  char callback_[24] = {0};
+#endif
 
   // Function with which to evaluate callbacks and/or arguments.
-  bool (*eval_)(const Condition*);
+  bool (*eval_)(const Condition*) = nullptr;
 
   // Either an argument for a function call or an object for a method call.
-  void *arg_;
+  void *arg_ = nullptr;
 
   // Various functions eval_ can point to:
   static bool CallVoidPtrFunction(const Condition*);
@@ -792,7 +790,8 @@ class Condition {
     std::memcpy(callback, callback_, sizeof(*callback));
   }
 
-  Condition();        // null constructor used only to create kTrue
+  // Used only to create kTrue.
+  constexpr Condition() = default;
 };
 
 // -----------------------------------------------------------------------------
@@ -1034,10 +1033,11 @@ inline Condition::Condition(const T *object,
 // measured by //absl/base/internal/cycleclock.h, and which may not
 // be real "cycle" counts.)
 //
-// Calls to this function do not race or block, but there is no ordering
-// guaranteed between calls to this function and call to the provided hook.
-// In particular, the previously registered hook may still be called for some
-// time after this function returns.
+// There is no ordering guarantee between when the hook is registered and when
+// callbacks will begin.  Only a single profiler can be installed in a running
+// binary; if this function is called a second time with a different function
+// pointer, the value is ignored (and will cause an assertion failure in debug
+// mode.)
 void RegisterMutexProfiler(void (*fn)(int64_t wait_cycles));
 
 // Register a hook for Mutex tracing.
@@ -1050,12 +1050,10 @@ void RegisterMutexProfiler(void (*fn)(int64_t wait_cycles));
 //
 // The only event name currently sent is "slow release".
 //
-// This has the same memory ordering concerns as RegisterMutexProfiler() above.
+// This has the same ordering and single-use limitations as
+// RegisterMutexProfiler() above.
 void RegisterMutexTracer(void (*fn)(const char *msg, const void *obj,
                                     int64_t wait_cycles));
-
-// TODO(gfalcon): Combine RegisterMutexProfiler() and RegisterMutexTracer()
-// into a single interface, since they are only ever called in pairs.
 
 // Register a hook for CondVar tracing.
 //
@@ -1067,7 +1065,8 @@ void RegisterMutexTracer(void (*fn)(const char *msg, const void *obj,
 // Events that can be sent are "Wait", "Unwait", "Signal wakeup", and
 // "SignalAll wakeup".
 //
-// This has the same memory ordering concerns as RegisterMutexProfiler() above.
+// This has the same ordering and single-use limitations as
+// RegisterMutexProfiler() above.
 void RegisterCondVarTracer(void (*fn)(const char *msg, const void *cv));
 
 // Register a hook for symbolizing stack traces in deadlock detector reports.
@@ -1077,7 +1076,8 @@ void RegisterCondVarTracer(void (*fn)(const char *msg, const void *cv));
 // false if symbolizing failed, or true if a NUL-terminated symbol was written
 // to 'out.'
 //
-// This has the same memory ordering concerns as RegisterMutexProfiler() above.
+// This has the same ordering and single-use limitations as
+// RegisterMutexProfiler() above.
 //
 // DEPRECATED: The default symbolizer function is absl::Symbolize() and the
 // ability to register a different hook for symbolizing stack traces will be

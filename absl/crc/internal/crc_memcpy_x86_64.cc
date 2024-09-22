@@ -38,24 +38,28 @@
 // using 3 CRCs over fixed-size blocks where the zero-extensions required for
 // CRC32C::Concat can be precomputed.
 
+#ifdef __SSE4_2__
+#include <immintrin.h>
+#endif
+
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
+
+#include <array>
 #include <cstddef>
 #include <cstdint>
-
-#include "absl/crc/crc32c.h"
-#include "absl/strings/string_view.h"
-
-#ifdef __SSE4_2__
-
-#include <emmintrin.h>
-#include <x86intrin.h>
-
 #include <type_traits>
 
 #include "absl/base/dynamic_annotations.h"
 #include "absl/base/internal/prefetch.h"
 #include "absl/base/optimization.h"
+#include "absl/crc/crc32c.h"
 #include "absl/crc/internal/cpu_detect.h"
 #include "absl/crc/internal/crc_memcpy.h"
+#include "absl/strings/string_view.h"
+
+#ifdef ABSL_INTERNAL_HAVE_X86_64_ACCELERATED_CRC_MEMCPY_ENGINE
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
@@ -75,25 +79,24 @@ inline crc32c_t ShortCrcCopy(char* dst, const char* src, std::size_t length,
     ++src;
     ++dst;
   }
-  return ToCrc32c(crc_uint32);
+  return crc32c_t{crc_uint32};
 }
 
-constexpr int kIntLoadsPerVec = sizeof(__m128i) / sizeof(uint64_t);
+constexpr size_t kIntLoadsPerVec = sizeof(__m128i) / sizeof(uint64_t);
 
 // Common function for copying the tails of multiple large regions.
-template <int vec_regions, int int_regions>
+template <size_t vec_regions, size_t int_regions>
 inline void LargeTailCopy(crc32c_t* crcs, char** dst, const char** src,
                           size_t region_size, size_t copy_rounds) {
-  __m128i data[vec_regions];
-  uint64_t int_data[kIntLoadsPerVec * int_regions];
+  std::array<__m128i, vec_regions> data;
+  std::array<uint64_t, kIntLoadsPerVec * int_regions> int_data;
 
   while (copy_rounds > 0) {
-#pragma unroll_completely
-    for (int i = 0; i < vec_regions; i++) {
-      int region = i;
+    for (size_t i = 0; i < vec_regions; i++) {
+      size_t region = i;
 
       auto* vsrc =
-          reinterpret_cast<const __m128i_u*>(*src + region_size * region);
+          reinterpret_cast<const __m128i*>(*src + region_size * region);
       auto* vdst = reinterpret_cast<__m128i*>(*dst + region_size * region);
 
       // Load the blocks, unaligned
@@ -103,27 +106,27 @@ inline void LargeTailCopy(crc32c_t* crcs, char** dst, const char** src,
       _mm_store_si128(vdst, data[i]);
 
       // Compute the running CRC
-      crcs[region] = ToCrc32c(_mm_crc32_u64(static_cast<uint32_t>(crcs[region]),
-                                            _mm_extract_epi64(data[i], 0)));
-      crcs[region] = ToCrc32c(_mm_crc32_u64(static_cast<uint32_t>(crcs[region]),
-                                            _mm_extract_epi64(data[i], 1)));
+      crcs[region] = crc32c_t{static_cast<uint32_t>(
+          _mm_crc32_u64(static_cast<uint32_t>(crcs[region]),
+                        static_cast<uint64_t>(_mm_extract_epi64(data[i], 0))))};
+      crcs[region] = crc32c_t{static_cast<uint32_t>(
+          _mm_crc32_u64(static_cast<uint32_t>(crcs[region]),
+                        static_cast<uint64_t>(_mm_extract_epi64(data[i], 1))))};
     }
 
-#pragma unroll_completely
-    for (int i = 0; i < int_regions; i++) {
-      int region = vec_regions + i;
+    for (size_t i = 0; i < int_regions; i++) {
+      size_t region = vec_regions + i;
 
       auto* usrc =
           reinterpret_cast<const uint64_t*>(*src + region_size * region);
       auto* udst = reinterpret_cast<uint64_t*>(*dst + region_size * region);
 
-#pragma unroll_completely
-      for (int j = 0; j < kIntLoadsPerVec; j++) {
-        int data_index = i * kIntLoadsPerVec + j;
+      for (size_t j = 0; j < kIntLoadsPerVec; j++) {
+        size_t data_index = i * kIntLoadsPerVec + j;
 
         int_data[data_index] = *(usrc + j);
-        crcs[region] = ToCrc32c(_mm_crc32_u64(
-            static_cast<uint32_t>(crcs[region]), int_data[data_index]));
+        crcs[region] = crc32c_t{static_cast<uint32_t>(_mm_crc32_u64(
+            static_cast<uint32_t>(crcs[region]), int_data[data_index]))};
 
         *(udst + j) = int_data[data_index];
       }
@@ -138,7 +141,7 @@ inline void LargeTailCopy(crc32c_t* crcs, char** dst, const char** src,
 
 }  // namespace
 
-template <int vec_regions, int int_regions>
+template <size_t vec_regions, size_t int_regions>
 class AcceleratedCrcMemcpyEngine : public CrcMemcpyEngine {
  public:
   AcceleratedCrcMemcpyEngine() = default;
@@ -150,12 +153,12 @@ class AcceleratedCrcMemcpyEngine : public CrcMemcpyEngine {
                    std::size_t length, crc32c_t initial_crc) const override;
 };
 
-template <int vec_regions, int int_regions>
+template <size_t vec_regions, size_t int_regions>
 crc32c_t AcceleratedCrcMemcpyEngine<vec_regions, int_regions>::Compute(
     void* __restrict dst, const void* __restrict src, std::size_t length,
     crc32c_t initial_crc) const {
   constexpr std::size_t kRegions = vec_regions + int_regions;
-  constexpr crc32c_t kCrcDataXor = crc32c_t{0xffffffff};
+  constexpr uint32_t kCrcDataXor = uint32_t{0xffffffff};
   constexpr std::size_t kBlockSize = sizeof(__m128i);
   constexpr std::size_t kCopyRoundSize = kRegions * kBlockSize;
 
@@ -191,7 +194,7 @@ crc32c_t AcceleratedCrcMemcpyEngine<vec_regions, int_regions>::Compute(
   // Start work on the CRC: undo the XOR from the previous calculation or set up
   // the initial value of the CRC.
   // initial_crc ^= kCrcDataXor;
-  initial_crc = initial_crc ^ kCrcDataXor;
+  initial_crc = crc32c_t{static_cast<uint32_t>(initial_crc) ^ kCrcDataXor};
 
   // Do an initial alignment copy, so we can use aligned store instructions to
   // the destination pointer.  We align the destination pointer because the
@@ -219,27 +222,26 @@ crc32c_t AcceleratedCrcMemcpyEngine<vec_regions, int_regions>::Compute(
   // Initialize CRCs for kRegions regions.
   crc32c_t crcs[kRegions];
   crcs[0] = initial_crc;
-  for (int i = 1; i < kRegions; i++) {
-    crcs[i] = kCrcDataXor;
+  for (size_t i = 1; i < kRegions; i++) {
+    crcs[i] = crc32c_t{kCrcDataXor};
   }
 
   // Find the number of rounds to copy and the region size.  Also compute the
   // tail size here.
-  int64_t copy_rounds = length / kCopyRoundSize;
+  size_t copy_rounds = length / kCopyRoundSize;
 
   // Find the size of each region and the size of the tail.
   const std::size_t region_size = copy_rounds * kBlockSize;
   const std::size_t tail_size = length - (kRegions * region_size);
 
   // Holding registers for data in each region.
-  __m128i vec_data[vec_regions];
-  uint64_t int_data[int_regions * kIntLoadsPerVec];
+  std::array<__m128i, vec_regions> vec_data;
+  std::array<uint64_t, int_regions * kIntLoadsPerVec> int_data;
 
   // Main loop.
   while (copy_rounds > kBlocksPerCacheLine) {
     // Prefetch kPrefetchAhead bytes ahead of each pointer.
-#pragma unroll_completely
-    for (int i = 0; i < kRegions; i++) {
+    for (size_t i = 0; i < kRegions; i++) {
       absl::base_internal::PrefetchT0(src_bytes + kPrefetchAhead +
                                       region_size * i);
       absl::base_internal::PrefetchT0(dst_bytes + kPrefetchAhead +
@@ -247,55 +249,51 @@ crc32c_t AcceleratedCrcMemcpyEngine<vec_regions, int_regions>::Compute(
     }
 
     // Load and store data, computing CRC on the way.
-#pragma unroll_completely
-    for (int i = 0; i < kBlocksPerCacheLine; i++) {
+    for (size_t i = 0; i < kBlocksPerCacheLine; i++) {
       // Copy and CRC the data for the CRC regions.
-#pragma unroll_completely
-      for (int j = 0; j < vec_regions; j++) {
+      for (size_t j = 0; j < vec_regions; j++) {
         // Cycle which regions get vector load/store and integer load/store, to
         // engage prefetching logic around vector load/stores and save issue
         // slots by using the integer registers.
-        int region = (j + i) % kRegions;
+        size_t region = (j + i) % kRegions;
 
-        auto* src = reinterpret_cast<const __m128i_u*>(src_bytes +
-                                                       region_size * region);
-        auto* dst =
+        auto* vsrc =
+            reinterpret_cast<const __m128i*>(src_bytes + region_size * region);
+        auto* vdst =
             reinterpret_cast<__m128i*>(dst_bytes + region_size * region);
 
         // Load and CRC data.
-        vec_data[j] = _mm_loadu_si128(src + i);
-        crcs[region] =
-            ToCrc32c(_mm_crc32_u64(static_cast<uint32_t>(crcs[region]),
-                                   _mm_extract_epi64(vec_data[j], 0)));
-        crcs[region] =
-            ToCrc32c(_mm_crc32_u64(static_cast<uint32_t>(crcs[region]),
-                                   _mm_extract_epi64(vec_data[j], 1)));
+        vec_data[j] = _mm_loadu_si128(vsrc + i);
+        crcs[region] = crc32c_t{static_cast<uint32_t>(_mm_crc32_u64(
+            static_cast<uint32_t>(crcs[region]),
+            static_cast<uint64_t>(_mm_extract_epi64(vec_data[j], 0))))};
+        crcs[region] = crc32c_t{static_cast<uint32_t>(_mm_crc32_u64(
+            static_cast<uint32_t>(crcs[region]),
+            static_cast<uint64_t>(_mm_extract_epi64(vec_data[j], 1))))};
 
         // Store the data.
-        _mm_store_si128(dst + i, vec_data[j]);
+        _mm_store_si128(vdst + i, vec_data[j]);
       }
 
       // Preload the partial CRCs for the CLMUL subregions.
-#pragma unroll_completely
-      for (int j = 0; j < int_regions; j++) {
+      for (size_t j = 0; j < int_regions; j++) {
         // Cycle which regions get vector load/store and integer load/store, to
         // engage prefetching logic around vector load/stores and save issue
         // slots by using the integer registers.
-        int region = (j + vec_regions + i) % kRegions;
+        size_t region = (j + vec_regions + i) % kRegions;
 
         auto* usrc =
             reinterpret_cast<const uint64_t*>(src_bytes + region_size * region);
         auto* udst =
             reinterpret_cast<uint64_t*>(dst_bytes + region_size * region);
 
-#pragma unroll_completely
-        for (int k = 0; k < kIntLoadsPerVec; k++) {
-          int data_index = j * kIntLoadsPerVec + k;
+        for (size_t k = 0; k < kIntLoadsPerVec; k++) {
+          size_t data_index = j * kIntLoadsPerVec + k;
 
           // Load and CRC the data.
           int_data[data_index] = *(usrc + i * kIntLoadsPerVec + k);
-          crcs[region] = ToCrc32c(_mm_crc32_u64(
-              static_cast<uint32_t>(crcs[region]), int_data[data_index]));
+          crcs[region] = crc32c_t{static_cast<uint32_t>(_mm_crc32_u64(
+              static_cast<uint32_t>(crcs[region]), int_data[data_index]))};
 
           // Store the data.
           *(udst + i * kIntLoadsPerVec + k) = int_data[data_index];
@@ -319,13 +317,13 @@ crc32c_t AcceleratedCrcMemcpyEngine<vec_regions, int_regions>::Compute(
 
   // Finalize the first CRCs: XOR the internal CRCs by the XOR mask to undo the
   // XOR done before doing block copy + CRCs.
-  for (int i = 0; i < kRegions - 1; i++) {
-    crcs[i] = crcs[i] ^ kCrcDataXor;
+  for (size_t i = 0; i + 1 < kRegions; i++) {
+    crcs[i] = crc32c_t{static_cast<uint32_t>(crcs[i]) ^ kCrcDataXor};
   }
 
   // Build a CRC of the first kRegions - 1 regions.
   crc32c_t full_crc = crcs[0];
-  for (int i = 1; i < kRegions - 1; i++) {
+  for (size_t i = 1; i + 1 < kRegions; i++) {
     full_crc = ConcatCrc32c(full_crc, crcs[i], region_size);
   }
 
@@ -340,7 +338,8 @@ crc32c_t AcceleratedCrcMemcpyEngine<vec_regions, int_regions>::Compute(
                    crcs[kRegions - 1]);
 
   // Finalize and concatenate the final CRC, then return.
-  crcs[kRegions - 1] = crcs[kRegions - 1] ^ kCrcDataXor;
+  crcs[kRegions - 1] =
+      crc32c_t{static_cast<uint32_t>(crcs[kRegions - 1]) ^ kCrcDataXor};
   return ConcatCrc32c(full_crc, crcs[kRegions - 1], region_size + tail_size);
 }
 
@@ -432,4 +431,4 @@ std::unique_ptr<CrcMemcpyEngine> CrcMemcpy::GetTestEngine(int vector,
 ABSL_NAMESPACE_END
 }  // namespace absl
 
-#endif  // __SSE4_2__
+#endif  // ABSL_INTERNAL_HAVE_X86_64_ACCELERATED_CRC_MEMCPY_ENGINE

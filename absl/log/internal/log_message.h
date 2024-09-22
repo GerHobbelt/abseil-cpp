@@ -37,7 +37,6 @@
 #include "absl/base/config.h"
 #include "absl/base/internal/errno_saver.h"
 #include "absl/base/log_severity.h"
-#include "absl/log/internal/config.h"
 #include "absl/log/internal/nullguard.h"
 #include "absl/log/log_entry.h"
 #include "absl/log/log_sink.h"
@@ -48,7 +47,6 @@
 namespace absl {
 ABSL_NAMESPACE_BEGIN
 namespace log_internal {
-
 constexpr int kLogMessageBufferSize = 15000;
 
 class LogMessage {
@@ -131,6 +129,10 @@ class LogMessage {
   LogMessage& operator<<(bool v) { return operator<< <bool>(v); }
   // clang-format on
 
+  // These overloads are more efficient since no `ostream` is involved.
+  LogMessage& operator<<(const std::string& v);
+  LogMessage& operator<<(absl::string_view v);
+
   // Handle stream manipulators e.g. std::endl.
   LogMessage& operator<<(std::ostream& (*m)(std::ostream& os));
   LogMessage& operator<<(std::ios_base& (*m)(std::ios_base& os));
@@ -190,6 +192,37 @@ class LogMessage {
 
  private:
   struct LogMessageData;  // Opaque type containing message state
+  friend class AsLiteralImpl;
+  friend class StringifySink;
+
+  // This streambuf writes directly into the structured logging buffer so that
+  // arbitrary types can be encoded as string data (using
+  // `operator<<(std::ostream &, ...)` without any extra allocation or copying.
+  // Space is reserved before the data to store the length field, which is
+  // filled in by `~OstreamView`.
+  class OstreamView final : public std::streambuf {
+   public:
+    explicit OstreamView(LogMessageData& message_data);
+    ~OstreamView() override;
+    OstreamView(const OstreamView&) = delete;
+    OstreamView& operator=(const OstreamView&) = delete;
+    std::ostream& stream();
+
+   private:
+    LogMessageData& data_;
+    absl::Span<char> encoded_remaining_copy_;
+    absl::Span<char> message_start_;
+    absl::Span<char> string_start_;
+  };
+
+  enum class StringType {
+    kLiteral,
+    kNotLiteral,
+  };
+  void CopyToEncodedBuffer(absl::string_view str,
+                           StringType str_type) ABSL_ATTRIBUTE_NOINLINE;
+  void CopyToEncodedBuffer(char ch, size_t num,
+                           StringType str_type) ABSL_ATTRIBUTE_NOINLINE;
 
   // Returns `true` if the message is fatal or enabled debug-fatal.
   bool IsFatal() const;
@@ -211,8 +244,6 @@ class LogMessage {
   // We keep the data in a separate struct so that each instance of `LogMessage`
   // uses less stack space.
   std::unique_ptr<LogMessageData> data_;
-
-  std::ostream stream_;
 };
 
 // Helper class so that `AbslStringify()` can modify the LogMessage.
@@ -220,9 +251,14 @@ class StringifySink final {
  public:
   explicit StringifySink(LogMessage& message) : message_(message) {}
 
-  void Append(size_t count, char ch) { message_ << std::string(count, ch); }
+  void Append(size_t count, char ch) {
+    message_.CopyToEncodedBuffer(ch, count,
+                                 LogMessage::StringType::kNotLiteral);
+  }
 
-  void Append(absl::string_view v) { message_ << v; }
+  void Append(absl::string_view v) {
+    message_.CopyToEncodedBuffer(v, LogMessage::StringType::kNotLiteral);
+  }
 
   // For types that implement `AbslStringify` using `absl::Format()`.
   friend void AbslFormatFlush(StringifySink* sink, absl::string_view v) {
@@ -249,29 +285,21 @@ template <typename T,
           typename std::enable_if<!strings_internal::HasAbslStringify<T>::value,
                                   int>::type>
 LogMessage& LogMessage::operator<<(const T& v) {
-  stream_ << log_internal::NullGuard<T>().Guard(v);
+  OstreamView view(*data_);
+  view.stream() << log_internal::NullGuard<T>().Guard(v);
   return *this;
 }
 
-inline LogMessage& LogMessage::operator<<(
-    std::ostream& (*m)(std::ostream& os)) {
-  stream_ << m;
-  return *this;
-}
-inline LogMessage& LogMessage::operator<<(
-    std::ios_base& (*m)(std::ios_base& os)) {
-  stream_ << m;
-  return *this;
-}
 template <int SIZE>
 LogMessage& LogMessage::operator<<(const char (&buf)[SIZE]) {
-  stream_ << buf;
+  CopyToEncodedBuffer(buf, StringType::kLiteral);
   return *this;
 }
+
 // Note: the following is declared `ABSL_ATTRIBUTE_NOINLINE`
 template <int SIZE>
 LogMessage& LogMessage::operator<<(char (&buf)[SIZE]) {
-  stream_ << buf;
+  CopyToEncodedBuffer(buf, StringType::kNotLiteral);
   return *this;
 }
 // We instantiate these specializations in the library's TU to save space in
@@ -298,8 +326,6 @@ extern template LogMessage& LogMessage::operator<<(const void* const& v);
 extern template LogMessage& LogMessage::operator<<(const float& v);
 extern template LogMessage& LogMessage::operator<<(const double& v);
 extern template LogMessage& LogMessage::operator<<(const bool& v);
-extern template LogMessage& LogMessage::operator<<(const std::string& v);
-extern template LogMessage& LogMessage::operator<<(const absl::string_view& v);
 
 // `LogMessageFatal` ensures the process will exit in failure after logging this
 // message.
