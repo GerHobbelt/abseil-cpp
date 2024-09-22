@@ -1,4 +1,4 @@
-// Copyright 2022 The Abseil Authors
+// Copyright 2023 The Abseil Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,23 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef ABSL_STRINGS_INTERNAL_DAMERAU_LEVENSHTEIN_DISTANCE_H_
-#define ABSL_STRINGS_INTERNAL_DAMERAU_LEVENSHTEIN_DISTANCE_H_
+#include "absl/log/internal/nullguard.h"
 
-#include <cstdint>
+#include <array>
 
-#include "absl/strings/string_view.h"
+#include "absl/base/attributes.h"
+#include "absl/base/config.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
-namespace strings_internal {
-// Calculate DamerauLevenshtein distance between two strings.
-// When the distance is larger than cutoff, the code just returns cutoff + 1.
-uint8_t CappedDamerauLevenshteinDistance(absl::string_view s1,
-                                         absl::string_view s2, uint8_t cutoff);
+namespace log_internal {
 
-}  // namespace strings_internal
+ABSL_CONST_INIT const std::array<char, 7> kCharNull{
+    {'(', 'n', 'u', 'l', 'l', ')', '\0'}};
+ABSL_CONST_INIT const std::array<signed char, 7> kSignedCharNull{
+    {'(', 'n', 'u', 'l', 'l', ')', '\0'}};
+ABSL_CONST_INIT const std::array<unsigned char, 7> kUnsignedCharNull{
+    {'(', 'n', 'u', 'l', 'l', ')', '\0'}};
+
+}  // namespace log_internal
 ABSL_NAMESPACE_END
 }  // namespace absl
-
-#endif  // ABSL_STRINGS_INTERNAL_DAMERAU_LEVENSHTEIN_DISTANCE_H_
