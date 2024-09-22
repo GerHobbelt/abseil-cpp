@@ -72,6 +72,7 @@ void ExpectThrowNoWhat(void (*f)()) {
     f();
     FAIL() << "Didn't throw";
   } catch (const E& e) {
+		(void)e;
   }
 #else
   EXPECT_DEATH_IF_SUPPORTED(f(), "");

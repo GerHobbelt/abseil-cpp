@@ -62,7 +62,9 @@
 #endif
 
 #ifdef ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#include <algorithm>
 #include <array>
+#include <bitset>
 #include <deque>
 #include <forward_list>
 #include <list>
@@ -71,11 +73,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#endif
-
-#if defined(ABSL_IS_BIG_ENDIAN) && \
-    (defined(__GLIBCXX__) || defined(__GLIBCPP__))
-#include <bitset>
 #endif
 
 #if defined(__cpp_lib_filesystem) && __cpp_lib_filesystem >= 201703L && \
