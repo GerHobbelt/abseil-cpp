@@ -69,7 +69,8 @@ namespace crc_internal {
 // Non-inline code path for `absl::ExtendCrc32c()`. Do not call directly.
 // Call `absl::ExtendCrc32c()` (defined below) instead.
 crc32c_t ExtendCrc32cInternal(crc32c_t initial_crc,
-                              absl::string_view buf_to_add);
+                              absl::string_view buf_to_add,
+                              uint32_t kCrc32Xor);
 }  // namespace crc_internal
 
 // -----------------------------------------------------------------------------
@@ -93,16 +94,17 @@ crc32c_t ComputeCrc32c(absl::string_view buf);
 //
 // This operation has a runtime cost of O(`buf_to_add.size()`)
 inline crc32c_t ExtendCrc32c(crc32c_t initial_crc,
-                             absl::string_view buf_to_add) {
+                             absl::string_view buf_to_add,
+                             uint32_t kCrc32Xor = 0xffffffffU) {
   // Approximately 75% of calls have size <= 64.
   if (buf_to_add.size() <= 64) {
     uint32_t crc = static_cast<uint32_t>(initial_crc);
     if (crc_internal::ExtendCrc32cInline(&crc, buf_to_add.data(),
-                                         buf_to_add.size())) {
+                                         buf_to_add.size(), kCrc32Xor)) {
       return crc32c_t{crc};
     }
   }
-  return crc_internal::ExtendCrc32cInternal(initial_crc, buf_to_add);
+  return crc_internal::ExtendCrc32cInternal(initial_crc, buf_to_add, kCrc32Xor);
 }
 
 // ExtendCrc32cByZeroes()

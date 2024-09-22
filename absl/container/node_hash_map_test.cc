@@ -12,7 +12,48 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_map.h"
+#include "absl/container/node_hash_set.h"
+
+#if defined(ABSL_STRINGS_CORD_H_)
+#error "ABSL_STRINGS_CORD"
+#endif
+#if defined(ABSL_ALGORITHM_CONTAINER_H_)
+#error "ABSL_ALGORITHM_CONTAINER"
+#endif
+#if defined(_GLIBCXX_ALGORITHM)
+#error "ALGORITHM"
+#endif
+#if  defined(_LIBCPP_VECTOR)
+#error "VECTOR"
+#endif
+#if defined(_GLIBCXX_FORWARD_LIST) || defined(_LIBCPP_FORWARD_LIST)
+#error "FORWARD_LIST"
+#endif
+#if defined(_GLIBCXX_LIST) || defined(_LIBCPP_LIST)
+#error "LIST"
+#endif
+#if defined(_GLIBCXX_MAP) || defined(_LIBCPP_MAP)
+#error "MAP"
+#endif
+#if defined(_GLIBCXX_SET) || defined(_LIBCPP_SET)
+#error "SET"
+#endif
+#if defined(_GLIBCXX_UNORDERED_SET) || defined(_LIBCPP_UNORDERED_SET)
+#error "UNORDERED_SET"
+#endif
+#if defined(_LIBCPP_UNORDERED_MAP)
+#error "UNORDERED_MAP"
+#endif
+#if defined(_GLIBCXX_BITSET)
+#error "BITSET"
+#endif
+#if defined(_GLIBCXX_VARIANT)
+#error "VARIANT"
+#endif
+
 
 #include "absl/container/internal/tracked.h"
 #include "absl/container/internal/unordered_map_constructor_test.h"

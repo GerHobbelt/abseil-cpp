@@ -42,7 +42,6 @@
 #include <atomic>
 #include <functional>
 #include <memory>
-#include <vector>
 
 #include "absl/base/config.h"
 #include "absl/base/internal/per_thread_tls.h"

@@ -40,7 +40,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/algorithm/container.h"
 #include "absl/base/macros.h"
 #include "absl/container/internal/container_memory.h"
 #include "absl/container/internal/hash_function_defaults.h"  // IWYU pragma: export
@@ -513,6 +512,7 @@ class node_hash_map
   // node_hash_map::get_allocator()
   //
   // Returns the allocator function associated with this `node_hash_map`.
+  using Base::alloc_ref;
   using Base::get_allocator;
 
   // node_hash_map::hash_function()
@@ -520,10 +520,12 @@ class node_hash_map
   // Returns the hashing function used to hash the keys within this
   // `node_hash_map`.
   using Base::hash_function;
+  using Base::hash_ref;
 
   // node_hash_map::key_eq()
   //
   // Returns the function used for comparing keys equality.
+  using Base::eq_ref;
   using Base::key_eq;
 };
 
@@ -590,6 +592,9 @@ class NodeHashMapPolicy
 }  // namespace container_internal
 
 namespace container_algorithm_internal {
+
+template <typename T>
+struct IsUnorderedContainer;
 
 // Specialization of trait in absl/algorithm/container.h
 template <class Key, class T, class Hash, class KeyEqual, class Allocator>

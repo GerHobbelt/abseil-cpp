@@ -19,7 +19,6 @@
 #include <sys/types.h>
 #endif
 
-#include <algorithm>
 #include <chrono>  // NOLINT(build/c++11)
 #include <cstdint>
 #include <ctime>

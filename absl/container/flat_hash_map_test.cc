@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/strings/cord.h"
+#include "absl/algorithm/container.h"
 
 #include <memory>
 
@@ -23,6 +25,9 @@
 #include "absl/container/internal/unordered_map_members_test.h"
 #include "absl/container/internal/unordered_map_modifiers_test.h"
 #include "absl/types/any.h"
+
+static_assert(absl::container_algorithm_internal::IsUnorderedContainer<
+              absl::flat_hash_map<int, int>>::value);
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
@@ -68,6 +73,15 @@ using UniquePtrMapTypes = ::testing::Types<Map<int, std::unique_ptr<int>>>;
 
 INSTANTIATE_TYPED_TEST_SUITE_P(FlatHashMap, UniquePtrModifiersTest,
                                UniquePtrMapTypes);
+
+TEST(FlatHashMap, Cord) {
+  absl::Cord cord;
+  cord.Append("abcd");
+  absl::flat_hash_map<absl::Cord, int> set;
+  set[cord] = 10;
+  EXPECT_EQ(set[cord], 10);
+}
+
 
 TEST(FlatHashMap, StandardLayout) {
   struct Int {
@@ -150,9 +164,7 @@ struct Hash {
 
 struct Eq {
   using is_transparent = void;
-  bool operator()(size_t lhs, size_t rhs) const {
-    return lhs == rhs;
-  }
+  bool operator()(size_t lhs, size_t rhs) const { return lhs == rhs; }
   bool operator()(size_t lhs, const LazyInt& rhs) const {
     return lhs == rhs.value;
   }

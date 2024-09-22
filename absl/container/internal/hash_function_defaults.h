@@ -53,7 +53,6 @@
 
 #include "absl/base/config.h"
 #include "absl/hash/hash.h"
-#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 
 #ifdef ABSL_HAVE_STD_STRING_VIEW
@@ -62,6 +61,9 @@
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
+
+class Cord;
+
 namespace container_internal {
 
 // The hash of an object of type T is computed by using absl::Hash.
@@ -77,9 +79,7 @@ struct StringHash {
   size_t operator()(absl::string_view v) const {
     return absl::Hash<absl::string_view>{}(v);
   }
-  size_t operator()(const absl::Cord& v) const {
-    return absl::Hash<absl::Cord>{}(v);
-  }
+  size_t operator()(const absl::Cord& v) const;
 };
 
 struct StringEq {
@@ -87,15 +87,9 @@ struct StringEq {
   bool operator()(absl::string_view lhs, absl::string_view rhs) const {
     return lhs == rhs;
   }
-  bool operator()(const absl::Cord& lhs, const absl::Cord& rhs) const {
-    return lhs == rhs;
-  }
-  bool operator()(const absl::Cord& lhs, absl::string_view rhs) const {
-    return lhs == rhs;
-  }
-  bool operator()(absl::string_view lhs, const absl::Cord& rhs) const {
-    return lhs == rhs;
-  }
+  bool operator()(const absl::Cord& lhs, const absl::Cord& rhs) const;
+  bool operator()(const absl::Cord& lhs, absl::string_view rhs) const;
+  bool operator()(absl::string_view lhs, const absl::Cord& rhs) const;
 };
 
 // Supports heterogeneous lookup for string-like elements.
@@ -203,6 +197,9 @@ template <class T>
 using hash_default_eq = typename container_internal::HashEq<T>::Eq;
 
 }  // namespace container_internal
+
+#include "absl/container/internal/hash_function_cord.h"
+
 ABSL_NAMESPACE_END
 }  // namespace absl
 

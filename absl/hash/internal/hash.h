@@ -19,42 +19,50 @@
 #ifndef ABSL_HASH_INTERNAL_HASH_H_
 #define ABSL_HASH_INTERNAL_HASH_H_
 
-#include <algorithm>
-#include <array>
-#include <bitset>
 #include <cmath>
 #include <cstddef>
 #include <cstring>
-#include <deque>
-#include <forward_list>
 #include <functional>
 #include <iterator>
 #include <limits>
-#include <list>
-#include <map>
 #include <memory>
-#include <set>
 #include <string>
 #include <tuple>
 #include <type_traits>
-#include <unordered_map>
-#include <unordered_set>
 #include <utility>
-#include <vector>
 
 #include "absl/base/config.h"
 #include "absl/base/internal/unaligned_access.h"
 #include "absl/base/port.h"
-#include "absl/container/fixed_array.h"
 #include "absl/hash/internal/city.h"
 #include "absl/hash/internal/low_level_hash.h"
 #include "absl/meta/type_traits.h"
 #include "absl/numeric/bits.h"
 #include "absl/numeric/int128.h"
 #include "absl/strings/string_view.h"
+#include "absl/utility/utility.h"
+
+#ifdef ABSL_DEFINE_HASH_FOR_STD_WRAPPER
 #include "absl/types/optional.h"
 #include "absl/types/variant.h"
-#include "absl/utility/utility.h"
+#endif
+
+#ifdef ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#include <array>
+#include <deque>
+#include <forward_list>
+#include <list>
+#include <map>
+#include <set>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+#endif
+
+#if defined(ABSL_IS_BIG_ENDIAN) && \
+    (defined(__GLIBCXX__) || defined(__GLIBCPP__))
+#include <bitset>
+#endif
 
 #ifdef ABSL_HAVE_STD_STRING_VIEW
 #include <string_view>
@@ -563,6 +571,7 @@ H AbslHashValue(H hash_state, std::basic_string_view<Char> str) {
 }
 
 #endif  // ABSL_HAVE_STD_STRING_VIEW
+#ifdef ABSL_DEFINE_HASH_FOR_STD_CONTAINER
 
 // -----------------------------------------------------------------------------
 // AbslHashValue for Sequence Containers
@@ -760,6 +769,8 @@ AbslHashValue(H hash_state,
       s.size());
 }
 
+#endif
+
 // -----------------------------------------------------------------------------
 // AbslHashValue for Wrapper Types
 // -----------------------------------------------------------------------------
@@ -770,6 +781,8 @@ typename std::enable_if<is_hashable<T>::value, H>::type AbslHashValue(
     H hash_state, std::reference_wrapper<T> opt) {
   return H::combine(std::move(hash_state), opt.get());
 }
+
+#ifdef ABSL_DEFINE_HASH_FOR_STD_WRAPPER
 
 // AbslHashValue for hashing absl::optional
 template <typename H, typename T>
@@ -798,6 +811,8 @@ AbslHashValue(H hash_state, const absl::variant<T...>& v) {
   }
   return H::combine(std::move(hash_state), v.index());
 }
+
+#endif
 
 // -----------------------------------------------------------------------------
 // AbslHashValue for Other Types

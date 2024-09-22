@@ -28,7 +28,8 @@
 // This implementation requires 64-bit CRC instructions (part of SSE 4.2) and
 // PCLMULQDQ instructions. 32-bit builds with SSE 4.2 do exist, so the
 // __x86_64__ condition is necessary.
-#if defined(__x86_64__) && defined(__SSE4_2__) && defined(__PCLMUL__)
+#if defined(__x86_64__) && defined(__SSE4_2__) && defined(__PCLMUL__) && \
+    !defined(_MSC_VER)
 
 #include <x86intrin.h>
 #define ABSL_CRC_INTERNAL_HAVE_X86_SIMD
