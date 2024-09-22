@@ -246,6 +246,9 @@ class ABSL_INTERNAL_COMPRESSED_TUPLE_DECLSPEC CompressedTuple
     return StorageT<I>::get();
   }
 
+  // GCC versions prior to 11.1 incorrectly reject if the 'template' keyword
+  // is used prior to the nested-name-specifier here.
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=94799
   template <int I>
   constexpr ElemT<I>&& get() && {
     using StorageInt = StorageT<I>;
