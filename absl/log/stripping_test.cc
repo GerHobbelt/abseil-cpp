@@ -72,7 +72,7 @@ using absl::log_internal::kAbslMinLogLevel;
 
 std::string Base64UnescapeOrDie(absl::string_view data) {
   std::string decoded;
-  CHECK(absl::Base64Unescape(data, &decoded));
+	ABSL_CHECK(absl::Base64Unescape(data, &decoded));
   return decoded;
 }
 
@@ -400,7 +400,7 @@ TEST_F(StrippingTest, Check) {
   // Hiding it behind `kReallyDie` works around some overly aggressive
   // optimizations in older versions of MSVC.
   if (kReallyDie) {
-    CHECK(U3RyaXBwaW5nVGVzdENoZWNrVmFy != U3RyaXBwaW5nVGVzdENoZWNrVmFy)
+		ABSL_CHECK(U3RyaXBwaW5nVGVzdENoZWNrVmFy != U3RyaXBwaW5nVGVzdENoZWNrVmFy)
         << "U3RyaXBwaW5nVGVzdC5DaGVjaw==";
   }
 
@@ -425,7 +425,7 @@ TEST_F(StrippingTest, CheckOp) {
   volatile int U3RyaXBwaW5nVGVzdENoZWNrT3BWYXIx = 0xFEED;
   volatile int U3RyaXBwaW5nVGVzdENoZWNrT3BWYXIy = 0xCAFE;
   if (kReallyDie) {
-    CHECK_EQ(U3RyaXBwaW5nVGVzdENoZWNrT3BWYXIx, U3RyaXBwaW5nVGVzdENoZWNrT3BWYXIy)
+		ABSL_CHECK_EQ(U3RyaXBwaW5nVGVzdENoZWNrT3BWYXIx, U3RyaXBwaW5nVGVzdENoZWNrT3BWYXIy)
         << "U3RyaXBwaW5nVGVzdC5DaGVja09w";
   }
 
@@ -453,7 +453,7 @@ TEST_F(StrippingTest, CheckStrOp) {
   const char *volatile U3RyaXBwaW5nVGVzdENoZWNrU3RyT3BWYXIx = "FEED";
   const char *volatile U3RyaXBwaW5nVGVzdENoZWNrU3RyT3BWYXIy = "CAFE";
   if (kReallyDie) {
-    CHECK_STREQ(U3RyaXBwaW5nVGVzdENoZWNrU3RyT3BWYXIx,
+		ABSL_CHECK_STREQ(U3RyaXBwaW5nVGVzdENoZWNrU3RyT3BWYXIx,
                 U3RyaXBwaW5nVGVzdENoZWNrU3RyT3BWYXIy)
         << "U3RyaXBwaW5nVGVzdC5DaGVja1N0ck9w";
   }
@@ -483,7 +483,7 @@ TEST_F(StrippingTest, CheckOk) {
         absl::InvalidArgumentError("Stripping this is not my job!");
   }
   if (kReallyDie) {
-    CHECK_OK(U3RyaXBwaW5nVGVzdENoZWNrT2tWYXIx)
+		ABSL_CHECK_OK(U3RyaXBwaW5nVGVzdENoZWNrT2tWYXIx)
         << "U3RyaXBwaW5nVGVzdC5DaGVja09r";
   }
 

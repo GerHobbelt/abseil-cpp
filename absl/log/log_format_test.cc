@@ -1690,13 +1690,13 @@ size_t MaxLogFieldLengthNoPrefix() {
   class StringLengthExtractorSink : public absl::LogSink {
    public:
     void Send(const absl::LogEntry& entry) override {
-      CHECK(!size_.has_value());
-      CHECK_EQ(entry.text_message().find_first_not_of('x'),
+			ABSL_CHECK(!size_.has_value());
+			ABSL_CHECK_EQ(entry.text_message().find_first_not_of('x'),
                absl::string_view::npos);
       size_.emplace(entry.text_message().size());
     }
     size_t size() const {
-      CHECK(size_.has_value());
+			ABSL_CHECK(size_.has_value());
       return *size_;
     }
 

@@ -3584,7 +3584,7 @@ TYPED_TEST(SooTable, Basic) {
   bool frozen = true;
   TypeParam t{FreezableAlloc<typename TypeParam::value_type>(&frozen)};
   if (t.capacity() != SooCapacity()) {
-    CHECK_LT(sizeof(void*), 8) << "missing SOO coverage";
+		ABSL_CHECK_LT(sizeof(void*), 8) << "missing SOO coverage";
     GTEST_SKIP() << "not SOO on this platform";
   }
 
@@ -3613,7 +3613,7 @@ TYPED_TEST(SooTable, Basic) {
 TEST(Table, RehashToSooUnsampled) {
   SooIntTable t;
   if (t.capacity() != SooCapacity()) {
-    CHECK_LT(sizeof(void*), 8) << "missing SOO coverage";
+		ABSL_CHECK_LT(sizeof(void*), 8) << "missing SOO coverage";
     GTEST_SKIP() << "not SOO on this platform";
   }
 

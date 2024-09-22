@@ -57,10 +57,10 @@ struct BeforeMain {
   BeforeMain() {
     absl::flat_hash_map<int, int> x;
     x.insert({1, 1});
-    CHECK(x.find(0) == x.end()) << "x should not contain 0";
+		ABSL_CHECK(x.find(0) == x.end()) << "x should not contain 0";
     auto it = x.find(1);
-    CHECK(it != x.end()) << "x should contain 1";
-    CHECK(it->second) << "1 should map to 1";
+		ABSL_CHECK(it != x.end()) << "x should contain 1";
+		ABSL_CHECK(it->second) << "1 should map to 1";
   }
 };
 const BeforeMain before_main;

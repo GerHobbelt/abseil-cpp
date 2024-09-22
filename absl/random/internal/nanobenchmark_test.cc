@@ -47,7 +47,7 @@ void MeasureDiv(const FuncInput (&inputs)[N]) {
     LOG(INFO) << absl::StreamFormat("%5u: %6.2f ticks; MAD=%4.2f%%\n",
                                     results[i].input, results[i].ticks,
                                     results[i].variability * 100.0);
-    CHECK_NE(results[i].ticks, 0.0f) << "Zero duration";
+		ABSL_CHECK_NE(results[i].ticks, 0.0f) << "Zero duration";
   }
 }
 

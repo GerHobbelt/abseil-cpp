@@ -50,7 +50,7 @@ static void BM_Contains(benchmark::State& state) {
     ops += benchmark_map.contains(c++);
     ops += benchmark_map.contains(c++);
   }
-  CHECK_NE(ops, -1);
+  ABSL_CHECK_NE(ops, -1);
 }
 BENCHMARK(BM_Contains);
 

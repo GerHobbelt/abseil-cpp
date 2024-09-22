@@ -103,13 +103,13 @@ class RefCounted {
   }
 
   void Ref() const {
-    CHECK_NE(count_, nullptr);
+    ABSL_CHECK_NE(count_, nullptr);
     ++(*count_);
   }
 
   void Unref() const {
     --(*count_);
-    CHECK_GE(*count_, 0);
+		ABSL_CHECK_GE(*count_, 0);
   }
 
   int value_;

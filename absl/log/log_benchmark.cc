@@ -41,14 +41,14 @@ constexpr int x = -1;
 void BM_SuccessfulBinaryCheck(benchmark::State& state) {
   int n = 0;
   while (state.KeepRunningBatch(8)) {
-    CHECK_GE(n, x);
-    CHECK_GE(n, x);
-    CHECK_GE(n, x);
-    CHECK_GE(n, x);
-    CHECK_GE(n, x);
-    CHECK_GE(n, x);
-    CHECK_GE(n, x);
-    CHECK_GE(n, x);
+    ABSL_CHECK_GE(n, x);
+		ABSL_CHECK_GE(n, x);
+		ABSL_CHECK_GE(n, x);
+		ABSL_CHECK_GE(n, x);
+		ABSL_CHECK_GE(n, x);
+		ABSL_CHECK_GE(n, x);
+		ABSL_CHECK_GE(n, x);
+		ABSL_CHECK_GE(n, x);
     ++n;
   }
   benchmark::DoNotOptimize(n);
@@ -58,14 +58,14 @@ BENCHMARK(BM_SuccessfulBinaryCheck);
 static void BM_SuccessfulUnaryCheck(benchmark::State& state) {
   int n = 0;
   while (state.KeepRunningBatch(8)) {
-    CHECK(n >= x);
-    CHECK(n >= x);
-    CHECK(n >= x);
-    CHECK(n >= x);
-    CHECK(n >= x);
-    CHECK(n >= x);
-    CHECK(n >= x);
-    CHECK(n >= x);
+		ABSL_CHECK(n >= x);
+		ABSL_CHECK(n >= x);
+		ABSL_CHECK(n >= x);
+		ABSL_CHECK(n >= x);
+		ABSL_CHECK(n >= x);
+		ABSL_CHECK(n >= x);
+		ABSL_CHECK(n >= x);
+		ABSL_CHECK(n >= x);
     ++n;
   }
   benchmark::DoNotOptimize(n);

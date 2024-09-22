@@ -102,7 +102,7 @@ static void SetInvariantChecked(bool new_value) {
 
 static void CheckSumG0G1(void *v) {
   TestContext *cxt = static_cast<TestContext *>(v);
-  CHECK_EQ(cxt->g0, -cxt->g1) << "Error in CheckSumG0G1";
+	ABSL_CHECK_EQ(cxt->g0, -cxt->g1) << "Error in CheckSumG0G1";
   SetInvariantChecked(true);
 }
 
@@ -147,7 +147,7 @@ static void TestRW(TestContext *cxt, int c) {
   } else {
     for (int i = 0; i != cxt->iterations; i++) {
       absl::ReaderMutexLock l(&cxt->mu);
-      CHECK_EQ(cxt->g0, -cxt->g1) << "Error in TestRW";
+			ABSL_CHECK_EQ(cxt->g0, -cxt->g1) << "Error in TestRW";
       cxt->mu.AssertReaderHeld();
     }
   }
@@ -172,7 +172,7 @@ static void TestAwait(TestContext *cxt, int c) {
   cxt->mu.AssertHeld();
   while (cxt->g0 < cxt->iterations) {
     cxt->mu.Await(absl::Condition(&mc, &MyContext::MyTurn));
-    CHECK(mc.MyTurn()) << "Error in TestAwait";
+		ABSL_CHECK(mc.MyTurn()) << "Error in TestAwait";
     cxt->mu.AssertHeld();
     if (cxt->g0 < cxt->iterations) {
       int a = cxt->g0 + 1;
@@ -200,7 +200,7 @@ static void TestSignalAll(TestContext *cxt, int c) {
 }
 
 static void TestSignal(TestContext *cxt, int c) {
-  CHECK_EQ(cxt->threads, 2) << "TestSignal should use 2 threads";
+	ABSL_CHECK_EQ(cxt->threads, 2) << "TestSignal should use 2 threads";
   int target = c;
   absl::MutexLock l(&cxt->mu);
   cxt->mu.AssertHeld();
@@ -237,8 +237,8 @@ static void TestCVTimeout(TestContext *cxt, int c) {
 static bool G0GE2(TestContext *cxt) { return cxt->g0 >= 2; }
 
 static void TestTime(TestContext *cxt, int c, bool use_cv) {
-  CHECK_EQ(cxt->iterations, 1) << "TestTime should only use 1 iteration";
-  CHECK_GT(cxt->threads, 2) << "TestTime should use more than 2 threads";
+	ABSL_CHECK_EQ(cxt->iterations, 1) << "TestTime should only use 1 iteration";
+	ABSL_CHECK_GT(cxt->threads, 2) << "TestTime should use more than 2 threads";
   const bool kFalse = false;
   absl::Condition false_cond(&kFalse);
   absl::Condition g0ge2(G0GE2, cxt);
@@ -249,23 +249,23 @@ static void TestTime(TestContext *cxt, int c, bool use_cv) {
     if (use_cv) {
       cxt->cv.WaitWithTimeout(&cxt->mu, absl::Seconds(1));
     } else {
-      CHECK(!cxt->mu.AwaitWithTimeout(false_cond, absl::Seconds(1)))
+			ABSL_CHECK(!cxt->mu.AwaitWithTimeout(false_cond, absl::Seconds(1)))
           << "TestTime failed";
     }
     absl::Duration elapsed = absl::Now() - start;
-    CHECK(absl::Seconds(0.9) <= elapsed && elapsed <= absl::Seconds(2.0))
+		ABSL_CHECK(absl::Seconds(0.9) <= elapsed && elapsed <= absl::Seconds(2.0))
         << "TestTime failed";
-    CHECK_EQ(cxt->g0, 1) << "TestTime failed";
+		ABSL_CHECK_EQ(cxt->g0, 1) << "TestTime failed";
 
     start = absl::Now();
     if (use_cv) {
       cxt->cv.WaitWithTimeout(&cxt->mu, absl::Seconds(1));
     } else {
-      CHECK(!cxt->mu.AwaitWithTimeout(false_cond, absl::Seconds(1)))
+			ABSL_CHECK(!cxt->mu.AwaitWithTimeout(false_cond, absl::Seconds(1)))
           << "TestTime failed";
     }
     elapsed = absl::Now() - start;
-    CHECK(absl::Seconds(0.9) <= elapsed && elapsed <= absl::Seconds(2.0))
+		ABSL_CHECK(absl::Seconds(0.9) <= elapsed && elapsed <= absl::Seconds(2.0))
         << "TestTime failed";
     cxt->g0++;
     if (use_cv) {
@@ -276,23 +276,23 @@ static void TestTime(TestContext *cxt, int c, bool use_cv) {
     if (use_cv) {
       cxt->cv.WaitWithTimeout(&cxt->mu, absl::Seconds(4));
     } else {
-      CHECK(!cxt->mu.AwaitWithTimeout(false_cond, absl::Seconds(4)))
+			ABSL_CHECK(!cxt->mu.AwaitWithTimeout(false_cond, absl::Seconds(4)))
           << "TestTime failed";
     }
     elapsed = absl::Now() - start;
-    CHECK(absl::Seconds(3.9) <= elapsed && elapsed <= absl::Seconds(6.0))
+		ABSL_CHECK(absl::Seconds(3.9) <= elapsed && elapsed <= absl::Seconds(6.0))
         << "TestTime failed";
-    CHECK_GE(cxt->g0, 3) << "TestTime failed";
+		ABSL_CHECK_GE(cxt->g0, 3) << "TestTime failed";
 
     start = absl::Now();
     if (use_cv) {
       cxt->cv.WaitWithTimeout(&cxt->mu, absl::Seconds(1));
     } else {
-      CHECK(!cxt->mu.AwaitWithTimeout(false_cond, absl::Seconds(1)))
+			ABSL_CHECK(!cxt->mu.AwaitWithTimeout(false_cond, absl::Seconds(1)))
           << "TestTime failed";
     }
     elapsed = absl::Now() - start;
-    CHECK(absl::Seconds(0.9) <= elapsed && elapsed <= absl::Seconds(2.0))
+		ABSL_CHECK(absl::Seconds(0.9) <= elapsed && elapsed <= absl::Seconds(2.0))
         << "TestTime failed";
     if (use_cv) {
       cxt->cv.SignalAll();
@@ -302,13 +302,13 @@ static void TestTime(TestContext *cxt, int c, bool use_cv) {
     if (use_cv) {
       cxt->cv.WaitWithTimeout(&cxt->mu, absl::Seconds(1));
     } else {
-      CHECK(!cxt->mu.AwaitWithTimeout(false_cond, absl::Seconds(1)))
+			ABSL_CHECK(!cxt->mu.AwaitWithTimeout(false_cond, absl::Seconds(1)))
           << "TestTime failed";
     }
     elapsed = absl::Now() - start;
-    CHECK(absl::Seconds(0.9) <= elapsed && elapsed <= absl::Seconds(2.0))
+		ABSL_CHECK(absl::Seconds(0.9) <= elapsed && elapsed <= absl::Seconds(2.0))
         << "TestTime failed";
-    CHECK_EQ(cxt->g0, cxt->threads) << "TestTime failed";
+		ABSL_CHECK_EQ(cxt->g0, cxt->threads) << "TestTime failed";
 
   } else if (c == 1) {
     absl::MutexLock l(&cxt->mu);
@@ -316,11 +316,11 @@ static void TestTime(TestContext *cxt, int c, bool use_cv) {
     if (use_cv) {
       cxt->cv.WaitWithTimeout(&cxt->mu, absl::Milliseconds(500));
     } else {
-      CHECK(!cxt->mu.AwaitWithTimeout(false_cond, absl::Milliseconds(500)))
+			ABSL_CHECK(!cxt->mu.AwaitWithTimeout(false_cond, absl::Milliseconds(500)))
           << "TestTime failed";
     }
     const absl::Duration elapsed = absl::Now() - start;
-    CHECK(absl::Seconds(0.4) <= elapsed && elapsed <= absl::Seconds(0.9))
+		ABSL_CHECK(absl::Seconds(0.4) <= elapsed && elapsed <= absl::Seconds(0.9))
         << "TestTime failed";
     cxt->g0++;
   } else if (c == 2) {
@@ -330,7 +330,7 @@ static void TestTime(TestContext *cxt, int c, bool use_cv) {
         cxt->cv.WaitWithTimeout(&cxt->mu, absl::Seconds(100));
       }
     } else {
-      CHECK(cxt->mu.AwaitWithTimeout(g0ge2, absl::Seconds(100)))
+			ABSL_CHECK(cxt->mu.AwaitWithTimeout(g0ge2, absl::Seconds(100)))
           << "TestTime failed";
     }
     cxt->g0++;
@@ -408,7 +408,7 @@ static int RunTestWithInvariantDebugging(void (*test)(TestContext *cxt, int),
   TestContext cxt;
   cxt.mu.EnableInvariantDebugging(invariant, &cxt);
   int ret = RunTestCommon(&cxt, test, threads, iterations, operations);
-  CHECK(GetInvariantChecked()) << "Invariant not checked";
+	ABSL_CHECK(GetInvariantChecked()) << "Invariant not checked";
   return ret;
 }
 #endif
@@ -1122,7 +1122,7 @@ static bool ConditionWithAcquire(AcquireFromConditionStruct *x) {
                                absl::Milliseconds(100));
     x->mu1.Unlock();
   }
-  CHECK_LT(x->value, 4) << "should not be invoked a fourth time";
+	ABSL_CHECK_LT(x->value, 4) << "should not be invoked a fourth time";
 
   // We arrange for the condition to return true on only the 2nd and 3rd calls.
   return x->value == 2 || x->value == 3;

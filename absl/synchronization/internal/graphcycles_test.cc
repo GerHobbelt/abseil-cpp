@@ -161,7 +161,7 @@ static void CheckEdges(Nodes *nodes, Edges *edges, const IdMap &id,
 }
 
 static void CheckInvariants(const GraphCycles &gc) {
-  CHECK(gc.CheckInvariants()) << "CheckInvariants";
+	ABSL_CHECK(gc.CheckInvariants()) << "CheckInvariants";
 }
 
 // Returns the index of a randomly chosen node in *nodes.

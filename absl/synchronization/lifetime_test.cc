@@ -41,14 +41,14 @@ namespace {
 void ThreadOne(absl::Mutex* mutex, absl::CondVar* condvar,
                absl::Notification* notification, bool* state) {
   // Test that the notification is in a valid initial state.
-  CHECK(!notification->HasBeenNotified()) << "invalid Notification";
-  CHECK(!*state) << "*state not initialized";
+	ABSL_CHECK(!notification->HasBeenNotified()) << "invalid Notification";
+	ABSL_CHECK(!*state) << "*state not initialized";
 
   {
     absl::MutexLock lock(mutex);
 
     notification->Notify();
-    CHECK(notification->HasBeenNotified()) << "invalid Notification";
+		ABSL_CHECK(notification->HasBeenNotified()) << "invalid Notification";
 
     while (*state == false) {
       condvar->Wait(mutex);
@@ -58,11 +58,11 @@ void ThreadOne(absl::Mutex* mutex, absl::CondVar* condvar,
 
 void ThreadTwo(absl::Mutex* mutex, absl::CondVar* condvar,
                absl::Notification* notification, bool* state) {
-  CHECK(!*state) << "*state not initialized";
+	ABSL_CHECK(!*state) << "*state not initialized";
 
   // Wake thread one
   notification->WaitForNotification();
-  CHECK(notification->HasBeenNotified()) << "invalid Notification";
+	ABSL_CHECK(notification->HasBeenNotified()) << "invalid Notification";
   {
     absl::MutexLock lock(mutex);
     *state = true;

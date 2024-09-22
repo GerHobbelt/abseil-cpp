@@ -231,8 +231,8 @@ class CordTestPeer {
   }
 
   static Cord MakeSubstring(Cord src, size_t offset, size_t length) {
-    CHECK(src.contents_.is_tree()) << "Can not be inlined";
-    CHECK(!src.ExpectedChecksum().has_value()) << "Can not be hardened";
+		ABSL_CHECK(src.contents_.is_tree()) << "Can not be inlined";
+		ABSL_CHECK(!src.ExpectedChecksum().has_value()) << "Can not be hardened";
     Cord cord;
     auto* tree = cord_internal::SkipCrcNode(src.contents_.tree());
     auto* rep = CordRepSubstring::Create(CordRep::Ref(tree), offset, length);
@@ -1385,15 +1385,15 @@ absl::Cord BigCord(size_t len, char v) {
 // Splice block into cord.
 absl::Cord SpliceCord(const absl::Cord& blob, int64_t offset,
                       const absl::Cord& block) {
-  CHECK_GE(offset, 0);
-  CHECK_LE(static_cast<size_t>(offset) + block.size(), blob.size());
+	ABSL_CHECK_GE(offset, 0);
+	ABSL_CHECK_LE(static_cast<size_t>(offset) + block.size(), blob.size());
   absl::Cord result(blob);
   result.RemoveSuffix(blob.size() - offset);
   result.Append(block);
   absl::Cord suffix(blob);
   suffix.RemovePrefix(offset + block.size());
   result.Append(suffix);
-  CHECK_EQ(blob.size(), result.size());
+	ABSL_CHECK_EQ(blob.size(), result.size());
   return result;
 }
 

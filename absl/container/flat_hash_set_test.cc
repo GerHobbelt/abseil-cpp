@@ -59,8 +59,8 @@ struct BeforeMain {
   BeforeMain() {
     absl::flat_hash_set<int> x;
     x.insert(1);
-    CHECK(!x.contains(0)) << "x should not contain 0";
-    CHECK(x.contains(1)) << "x should contain 1";
+		ABSL_CHECK(!x.contains(0)) << "x should not contain 0";
+		ABSL_CHECK(x.contains(1)) << "x should contain 1";
   }
 };
 const BeforeMain before_main;
@@ -318,12 +318,12 @@ struct HashEqInvalidOnMove {
   }
 
   size_t operator()(int x) const {
-    CHECK(!moved);
+		ABSL_CHECK(!moved);
     return absl::HashOf(x);
   }
 
   bool operator()(int x, int y) const {
-    CHECK(!moved);
+		ABSL_CHECK(!moved);
     return x == y;
   }
 

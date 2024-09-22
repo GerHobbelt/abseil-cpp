@@ -134,14 +134,14 @@ static char try_symbolize_buffer[4096];
 // absl::Symbolize() returns false, otherwise returns try_symbolize_buffer with
 // the result of absl::Symbolize().
 static const char *TrySymbolizeWithLimit(void *pc, int limit) {
-  CHECK_LE(limit, sizeof(try_symbolize_buffer))
+	ABSL_CHECK_LE(limit, sizeof(try_symbolize_buffer))
       << "try_symbolize_buffer is too small";
 
   // Use the heap to facilitate heap and buffer sanitizer tools.
   auto heap_buffer = absl::make_unique<char[]>(sizeof(try_symbolize_buffer));
   bool found = absl::Symbolize(pc, heap_buffer.get(), limit);
   if (found) {
-    CHECK_LT(static_cast<int>(
+		ABSL_CHECK_LT(static_cast<int>(
                  strnlen(heap_buffer.get(), static_cast<size_t>(limit))),
              limit)
         << "absl::Symbolize() did not properly terminate the string";

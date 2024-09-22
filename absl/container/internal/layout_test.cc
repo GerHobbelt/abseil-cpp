@@ -43,7 +43,7 @@ using ::absl::Span;
 using ::testing::ElementsAre;
 
 size_t Distance(const void* from, const void* to) {
-  CHECK_LE(from, to) << "Distance must be non-negative";
+	ABSL_CHECK_LE(from, to) << "Distance must be non-negative";
   return static_cast<const char*>(to) - static_cast<const char*>(from);
 }
 

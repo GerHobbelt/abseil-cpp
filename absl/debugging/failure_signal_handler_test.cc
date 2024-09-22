@@ -88,7 +88,7 @@ std::string GetTmpDir() {
 // This function runs in a fork()ed process on most systems.
 void InstallHandlerWithWriteToFileAndRaise(const char* file, int signo) {
   error_file = fopen(file, "w");
-  CHECK_NE(error_file, nullptr) << "Failed create error_file";
+  ABSL_CHECK_NE(error_file, nullptr) << "Failed create error_file";
   absl::FailureSignalHandlerOptions options;
   options.writerfn = WriteToErrorFile;
   absl::InstallFailureSignalHandler(options);
