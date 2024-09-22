@@ -694,7 +694,7 @@
 // ABSL_INTERNAL_DISABLE_DEPRECATED_DECLARATION_WARNING
 // Baz ComputeBazFromFoo(Foo f);
 // ABSL_INTERNAL_RESTORE_DEPRECATED_DECLARATION_WARNING
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 // Clang also supports these GCC pragmas.
 #define ABSL_INTERNAL_DISABLE_DEPRECATED_DECLARATION_WARNING \
   _Pragma("GCC diagnostic push")             \
@@ -704,7 +704,7 @@
 #else
 #define ABSL_INTERNAL_DISABLE_DEPRECATED_DECLARATION_WARNING
 #define ABSL_INTERNAL_RESTORE_DEPRECATED_DECLARATION_WARNING
-#endif  // __GNUC__
+#endif  // defined(__GNUC__) || defined(__clang__)
 
 // ABSL_CONST_INIT
 //
