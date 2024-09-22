@@ -979,13 +979,24 @@ struct HashSelect {
   };
 
   struct StdHashProbe {
-    template <typename H, typename T>
+    template <typename H, typename T, typename std::enable_if<std::is_default_constructible<std::hash<T>>::value>::type* = nullptr>
     static auto Invoke(H state, const T& value)
         -> absl::enable_if_t<type_traits_internal::IsHashable<T>::value, H> {
 			static_assert(std::is_default_constructible<std::hash<T>>::value);
       return hash_internal::hash_bytes(std::move(state), std::hash<T>{}(value));
     }
-  };
+		template <typename H, typename T, typename std::enable_if<!std::is_default_constructible<std::hash<T>>::value>::type* = nullptr>
+		static auto Invoke(H state, const T& value)
+			-> absl::enable_if_t<type_traits_internal::IsHashable<T>::value, H> {
+			static_assert(!std::is_default_constructible<std::hash<T>>::value);
+			typedef unsigned char B[sizeof(value)];
+			B v;
+			memcpy(&v, &value, sizeof(value));
+			const unsigned char* start = v;
+			return H::combine_contiguous(std::move(state), start, sizeof(value));
+			//return hash_internal::hash_bytes(std::move(state), std::hash<T>{}(value));
+		}
+	};
 
   template <typename Hash, typename T>
   struct Probe : Hash {
