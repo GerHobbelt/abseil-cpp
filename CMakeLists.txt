@@ -52,7 +52,7 @@ endif (POLICY CMP0091)
 # This must come before the project() and include(CTest) lines.
 OPTION(BUILD_TESTING "Build tests" OFF)
 
-project(absl LANGUAGES CXX VERSION 20210324)
+project(absl LANGUAGES CXX VERSION 20211102)
 include(CTest)
 
 # Output directory is correct by default for most build setups. However, when
