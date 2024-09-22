@@ -184,6 +184,7 @@
 #ifndef ABSL_CONTAINER_INTERNAL_RAW_HASH_SET_H_
 #define ABSL_CONTAINER_INTERNAL_RAW_HASH_SET_H_
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
@@ -331,15 +332,9 @@ class probe_seq {
   size_t offset(size_t i) const { return (offset_ + i) & mask_; }
 
   void next() {
-  #ifdef ABSL_LINEAR_PROBING
-    index_ += Width;
-    offset_ += Width;
-    offset_ &= mask_;
-  #else
     index_ += Width;
     offset_ += index_;
     offset_ &= mask_;
-  #endif
   }
   // 0-based probe index, a multiple of `Width`.
   size_t index() const { return index_; }
@@ -1450,60 +1445,6 @@ class CommonFields : public CommonFieldsGenerationInfo {
         std::count(control(), control() + capacity(), ctrl_t::kDeleted));
   }
 
-  bool should_rebuild() {
-    // Size including tombstones.
-    size_t true_size = capacity() * ABSL_MAX_TRUE_LOAD_FACTOR - growth_left();
-    if (true_size < size()) {
-      printf("%zu %zu %zu\n", size(), true_size, growth_left());
-      abort();
-    }
-    if (true_size * 8 < capacity() * 7) {
-      return false;
-    }
-    if (target_rebuild_num_full_scans > current_rebuild_num_full_scans) {
-      return true;
-    }
-    else if (target_rebuild_num_full_scans < current_rebuild_num_full_scans) {
-      return false;
-    }
-    return current_rebuild_pos_ < target_rebuild_pos_;
-  }
-
-  // (1-(1-lf)), lf = size/capacity
-  size_t get_load_factor_x() {
-    return capacity()/(capacity()-size());
-  }
-
-  // current: Where we have rebuilt until now.
-  // The next rebuild will start after here.
-  size_t get_current_rebuild_pos() {
-    return current_rebuild_pos_;
-  }
-
-  void set_current_rebuild_pos(size_t pos) {
-    if (pos < current_rebuild_pos_) {
-      current_rebuild_num_full_scans++;
-      printf("current_rounds: %zu target rounds: %zu \n", current_rebuild_num_full_scans, target_rebuild_num_full_scans);
-    }
-    current_rebuild_pos_ = pos;
-  }
-
-  // We should aim to rebuild the entire hash table across n/(C_B * X) steps.
-  // Which means every insert, we should ideally rebuild (C_B * X).
-  // The target moves ahead by (C_B * X) on every insert.
-  // If we have not rebuilt until the target, we rebuild the next cluster.
-  void advance_target_rebuild_pos() {
-    target_rebuild_pos_ += (rebuild_window_multiplier) * get_load_factor_x();
-    if (target_rebuild_pos_ > capacity()) {
-      target_rebuild_num_full_scans++;
-      printf("current_rounds: %zu target rounds: %zu \n", current_rebuild_num_full_scans, target_rebuild_num_full_scans);
-    }
-    target_rebuild_pos_ = target_rebuild_pos_ & capacity();
-  }
-
-  size_t get_pts_distance() {
-    return (tombstone_distance_multiplier) * get_load_factor_x();
-  }
  private:
   // We store the has_infoz bit in the lowest bit of size_.
   static constexpr size_t HasInfozShift() { return 1; }
@@ -1534,36 +1475,6 @@ class CommonFields : public CommonFieldsGenerationInfo {
 
   // Either the control/slots pointers or the SOO slot.
   HeapOrSoo heap_or_soo_;
-  
-  // const size_t target_rebuild_interval_size = 4*x;
-  // size_t rebuild_window = capacity/(4*x); // Graveyard rebuild window (small, and there is room to improve it, we use bigger value in Zombie, e.g. n/x).
-  // float x = 1 / (1 - size / capacity);
-  // size_t rebuilt_cluster_size;
-  // CountDown to start next rebuild window
-  // Scale by cluster size.
-  // size_t cur_rebuild_cd = rebuilt_cluster_size / target_rebuild_interval_size; 
-  // Scale rebuild_cd 
-  // Parameters
-  // size_t rebuild_cd = capacity/(4*x); 
-  // size_t tombstone_distance = 2*x; // cb*x, there will be n/(2*x) primitive tombstones
-  // Position to start rebuild window from.
-  #ifndef C_B
-  #define C_B 1
-  #endif
-  #ifndef C_P
-  #define C_P 8
-  #endif
-  // If I make this const, build fails.
-  size_t rebuild_window_multiplier = C_B; 
-  size_t tombstone_distance_multiplier = C_P; 
-  // Where we should have rebuilt until now.
-  // If current_rebuild is behind target, 
-  // rebuild the next cluster to try and stay ahead of the target.
-  size_t target_rebuild_num_full_scans = 0;
-  size_t target_rebuild_pos_ = 0;
-  // Where we have rebuilt uptil now.
-  size_t current_rebuild_num_full_scans = 0;
-  size_t current_rebuild_pos_ = 0;
 };
 
 template <class Policy, class Hash, class Eq, class Alloc>
@@ -1590,7 +1501,6 @@ inline size_t NormalizeCapacity(size_t n) {
   return n ? ~size_t{} >> countl_zero(n) : 1;
 }
 
-
 // General notes on capacity/growth methods below:
 // - We use 7/8th as maximum load factor. For 16-wide groups, that gives an
 //   average of two empty slots per group.
@@ -1603,21 +1513,12 @@ inline size_t NormalizeCapacity(size_t n) {
 // number of values we should put into the table before a resizing rehash.
 inline size_t CapacityToGrowth(size_t capacity) {
   assert(IsValidCapacity(capacity));
-  #ifdef ABSL_ZOMBIE
-  // Increases the max true load factor at which a 
-  // rebuild should trigger. . The default max true 
-  // load factor is 7/8, but with `ABSL_ZOMBIE` by 
-  // the preprocessor symbol `CX`. The default value 
-  // of CX is 0.975
-  return capacity * ABSL_MAX_TRUE_LOAD_FACTOR;
-  #else
   // `capacity*7/8`
   if (Group::kWidth == 8 && capacity == 7) {
     // x-x/8 does not work when x==7.
     return 6;
   }
   return capacity - capacity / 8;
-  #endif
 }
 
 // Given `growth`, "unapplies" the load factor to find how large the capacity
@@ -2400,38 +2301,6 @@ const void* GetHashRefForEmptyHasher(const CommonFields& common);
 // REQUIRES: `target` is a valid empty position to insert.
 size_t PrepareInsertNonSoo(CommonFields& common, size_t hash, FindInfo target,
                            const PolicyFunctions& policy);
-
-// Type-erased version of raw_hash_set::drop_deletes_without_resize.
-void DropDeletesWithoutResize(CommonFields& common, const void* hash_fn,
-                              const PolicyFunctions& policy, void* tmp_space);
-void RedistributeTombstones(CommonFields& common,
-                              const PolicyFunctions& policy, int tombstone_distance);
-void RedistributeTombstonesInRange(
-  CommonFields& common,
-  const PolicyFunctions& policy,
-  size_t start_offset,
-  size_t end_offset,
-  size_t tombstone_distance);
-
-void DropDeletesWithoutResizeByPushingTombstones(
-  CommonFields& common,
-  const PolicyFunctions& policy, 
-  size_t start_offset);
-void DropDeletesWithoutResizeByRehashingClusters(
-  CommonFields& common,
-  const PolicyFunctions& policy, void *tmp_space);
-
-void ClearTombstonesInRangeByRehashingCluster(
-  CommonFields& common,
-  const PolicyFunctions& policy, 
-  size_t start_offset,
-  size_t end_offset,
-  void *tmp_space);
-
-size_t FindNextEmptySlot(ctrl_t * ctrl, size_t start_slot, size_t capacity, size_t *probe_length);
-
-
-void ConvertDeletedToEmptyAndFullToDeletedInRange(ctrl_t* ctrl, size_t start_offset, size_t end_offset, size_t capacity);
 
 // A SwissTable.
 //
@@ -3964,30 +3833,6 @@ class raw_hash_set {
     }
   }
 
-  void clear_and_redistribute_tombstones_from_rebuild_pos() {
-    size_t rebuild_pos = common().get_current_rebuild_pos();
-    size_t capacity = common().capacity();
-    size_t range_start = 0, range_end = 0;
-    probe_seq<Group::kWidth> seq(rebuild_pos, capacity);
-    size_t probe_length = 0;
-    range_start = FindNextEmptySlot(common().control(), rebuild_pos, common().capacity(), &probe_length);
-    range_start = range_start & capacity;
-    range_end = FindNextEmptySlot(common().control(), range_start+1, common().capacity(), &probe_length);
-    range_end = range_end & capacity;
-    // printf("rebuilding %ld %ld size: %ld tc: %ld\n", range_start, range_end, common().size(), common().TombstonesCount());
-    #ifdef ABSL_ZOMBIE_REBUILD_REHASH_CLUSTER
-    alignas(slot_type) unsigned char tmp[sizeof(slot_type)];
-    ClearTombstonesInRangeByRehashingCluster(common(), GetPolicyFunctions(), range_start, range_end, tmp);
-    #ifdef ABSL_ZOMBIE_GRAVEYARD
-    // Add tombstones if in ZOMBIE
-    RedistributeTombstonesInRange(common(), GetPolicyFunctions(), range_start, range_end, common().get_pts_distance());
-    #endif
-    common().set_current_rebuild_pos(range_end);
-    #else
-    abort();
-    #endif
-  }
-
  protected:
   // Attempts to find `key` in the table; if it isn't found, returns an iterator
   // where the value can be inserted into, with the control byte already set to
@@ -4036,13 +3881,13 @@ class raw_hash_set {
   // side-effect.
   //
   // See `CapacityToGrowth()`.
-  public:
-  size_t growth_left() const { 
+ public:
+  size_t growth_left() const {
     assert(!is_soo());
     return common().growth_left();
   }
 
-  private:
+ private:
   GrowthInfo& growth_info() {
     assert(!is_soo());
     return common().growth_info();

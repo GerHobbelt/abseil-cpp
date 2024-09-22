@@ -47,6 +47,7 @@
 
 #include "absl/base/internal/unaligned_access.h"
 #include "absl/base/port.h"
+#include "absl/container/fixed_array.h"
 #include "absl/hash/internal/city.h"
 #include "absl/hash/internal/low_level_hash.h"
 #include "absl/meta/type_traits.h"
