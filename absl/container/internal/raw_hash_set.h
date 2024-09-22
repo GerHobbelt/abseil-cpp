@@ -182,6 +182,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -190,10 +191,13 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/base/internal/endian.h"
 #include "absl/base/internal/raw_logging.h"
+#include "absl/base/macros.h"
 #include "absl/base/optimization.h"
+#include "absl/base/options.h"
 #include "absl/base/port.h"
 #include "absl/base/prefetch.h"
 #include "absl/container/internal/common.h"
@@ -735,13 +739,13 @@ struct GroupPortableImpl {
 
   NonIterableBitMask<uint64_t, kWidth, 3> MaskEmpty() const {
     constexpr uint64_t msbs = 0x8080808080808080ULL;
-    return NonIterableBitMask<uint64_t, kWidth, 3>((ctrl & (~ctrl << 6)) &
+    return NonIterableBitMask<uint64_t, kWidth, 3>((ctrl & ~(ctrl << 6)) &
                                                    msbs);
   }
 
   NonIterableBitMask<uint64_t, kWidth, 3> MaskEmptyOrDeleted() const {
     constexpr uint64_t msbs = 0x8080808080808080ULL;
-    return NonIterableBitMask<uint64_t, kWidth, 3>((ctrl & (~ctrl << 7)) &
+    return NonIterableBitMask<uint64_t, kWidth, 3>((ctrl & ~(ctrl << 7)) &
                                                    msbs);
   }
 
@@ -766,10 +770,21 @@ struct GroupPortableImpl {
 
 #ifdef ABSL_INTERNAL_HAVE_SSE2
 using Group = GroupSse2Impl;
+using GroupEmptyOrDeleted = GroupSse2Impl;
 #elif defined(ABSL_INTERNAL_HAVE_ARM_NEON) && defined(ABSL_IS_LITTLE_ENDIAN)
 using Group = GroupAArch64Impl;
+// For Aarch64, we use the portable implementation for counting and masking
+// empty or deleted group elements. This is to avoid the latency of moving
+// between data GPRs and Neon registers when it does not provide a benefit.
+// Using Neon is profitable when we call Match(), but is not when we don't,
+// which is the case when we do *EmptyOrDeleted operations. It is difficult to
+// make a similar approach beneficial on other architectures such as x86 since
+// they have much lower GPR <-> vector register transfer latency and 16-wide
+// Groups.
+using GroupEmptyOrDeleted = GroupPortableImpl;
 #else
 using Group = GroupPortableImpl;
+using GroupEmptyOrDeleted = GroupPortableImpl;
 #endif
 
 // When there is an insertion with no reserved growth, we rehash with
@@ -1355,7 +1370,7 @@ inline FindInfo find_first_non_full(const CommonFields& common, size_t hash) {
   auto seq = probe(common, hash);
   const ctrl_t* ctrl = common.control();
   while (true) {
-    Group g{ctrl + seq.offset()};
+    GroupEmptyOrDeleted g{ctrl + seq.offset()};
     auto mask = g.MaskEmptyOrDeleted();
     if (mask) {
 #if !defined(NDEBUG)
@@ -1694,7 +1709,8 @@ class raw_hash_set {
     // If a sentinel is reached, we null `ctrl_` out instead.
     void skip_empty_or_deleted() {
       while (IsEmptyOrDeleted(*ctrl_)) {
-        uint32_t shift = Group{ctrl_}.CountLeadingEmptyOrDeleted();
+        uint32_t shift =
+            GroupEmptyOrDeleted{ctrl_}.CountLeadingEmptyOrDeleted();
         ctrl_ += shift;
         slot_ += shift;
       }
@@ -1901,8 +1917,8 @@ class raw_hash_set {
       std::swap(common(), that.common());
     } else {
       reserve(that.size());
-      // Note: this will copy elements of dense_set and unordered_set instead of
-      // moving them. This can be fixed if it ever becomes an issue.
+      // Note: this will copy keys instead of moving them. This can be fixed if
+      // it ever becomes an issue.
       for (auto& elem : that) insert(std::move(elem));
     }
   }
@@ -1983,17 +1999,6 @@ class raw_hash_set {
     }
     common().set_reserved_growth(0);
     common().set_reservation_size(0);
-  }
-
-  inline void destroy_slots() {
-    const size_t cap = capacity();
-    const ctrl_t* ctrl = control();
-    slot_type* slot = slot_array();
-    for (size_t i = 0; i != cap; ++i) {
-      if (IsFull(ctrl[i])) {
-        PolicyTraits::destroy(&alloc_ref(), slot + i);
-      }
-    }
   }
 
   // This overload kicks in when the argument is an rvalue of insertable and
@@ -2448,8 +2453,10 @@ class raw_hash_set {
     const raw_hash_set* outer = &a;
     const raw_hash_set* inner = &b;
     if (outer->capacity() > inner->capacity()) std::swap(outer, inner);
-    for (const value_type& elem : *outer)
-      if (!inner->has_element(elem)) return false;
+    for (const value_type& elem : *outer) {
+      auto it = PolicyTraits::apply(FindElement{*inner}, elem);
+      if (it == inner->end() || !(*it == elem)) return false;
+    }
     return true;
   }
 
@@ -2530,6 +2537,17 @@ class raw_hash_set {
     // Constructed slot. Either moved into place or destroyed.
     slot_type&& slot;
   };
+
+  inline void destroy_slots() {
+    const size_t cap = capacity();
+    const ctrl_t* ctrl = control();
+    slot_type* slot = slot_array();
+    for (size_t i = 0; i != cap; ++i) {
+      if (IsFull(ctrl[i])) {
+        PolicyTraits::destroy(&alloc_ref(), slot + i);
+      }
+    }
+  }
 
   // Erases, but does not destroy, the value pointed to by `it`.
   //
@@ -2652,24 +2670,6 @@ class raw_hash_set {
       // Otherwise grow the container.
       resize(NextCapacity(cap));
     }
-  }
-
-  bool has_element(const value_type& elem) const {
-    size_t hash = PolicyTraits::apply(HashElement{hash_ref()}, elem);
-    auto seq = probe(common(), hash);
-    const ctrl_t* ctrl = control();
-    while (true) {
-      Group g{ctrl + seq.offset()};
-      for (uint32_t i : g.Match(H2(hash))) {
-        if (ABSL_PREDICT_TRUE(
-                PolicyTraits::element(slot_array() + seq.offset(i)) == elem))
-          return true;
-      }
-      if (ABSL_PREDICT_TRUE(g.MaskEmpty())) return false;
-      seq.next();
-      assert(seq.index() <= capacity() && "full table!");
-    }
-    return false;
   }
 
   // TODO(alkis): Optimize this assuming *this and that don't overlap.
@@ -2912,18 +2912,6 @@ struct HashtableDebugAccess<Set, absl::void_t<typename Set::raw_hash_set>> {
           m += Traits::space_used(c.slot_array() + i);
         }
       }
-    }
-    return m;
-  }
-
-  static size_t LowerBoundAllocatedByteSize(size_t size) {
-    size_t capacity = GrowthToLowerboundCapacity(size);
-    if (capacity == 0) return 0;
-    size_t m = AllocSize(NormalizeCapacity(capacity), sizeof(Slot),
-                         alignof(Slot), /*has_infoz=*/false);
-    size_t per_slot = Traits::space_used(static_cast<const Slot*>(nullptr));
-    if (per_slot != ~size_t{}) {
-      m += per_slot * size;
     }
     return m;
   }

@@ -29,6 +29,8 @@ enum class CpuType {
   kAmdRome,
   kAmdNaples,
   kAmdMilan,
+  kAmdGenoa,
+  kAmdRyzenV3000,
   kIntelCascadelakeXeon,
   kIntelSkylakeXeon,
   kIntelBroadwell,
@@ -37,6 +39,7 @@ enum class CpuType {
   kIntelSandybridge,
   kIntelWestmere,
   kArmNeoverseN1,
+  kAmpereSiryn,
 };
 
 // Returns the type of host CPU this code is running on.  Returns kUnknown if

@@ -189,8 +189,14 @@ CpuType GetAmdCpuType() {
       break;
     case 0x19:
       switch (model_num) {
+        case 0x0:  // Stepping Ax
         case 0x1:  // Stepping B0
           return CpuType::kAmdMilan;
+        case 0x10:  // Stepping A0
+        case 0x11:  // Stepping B0
+          return CpuType::kAmdGenoa;
+        case 0x44:  // Stepping A0
+          return CpuType::kAmdRyzenV3000;
         default:
           return CpuType::kUnknown;
       }
@@ -239,6 +245,9 @@ CpuType GetCpuType() {
     uint32_t part_number = (midr >> 4) & 0xfff;
     if (implementer == 0x41 && part_number == 0xd0c) {
       return CpuType::kArmNeoverseN1;
+    }
+    if (implementer == 0xc0 && part_number == 0xac3) {
+      return CpuType::kAmpereSiryn;
     }
   }
   return CpuType::kUnknown;
