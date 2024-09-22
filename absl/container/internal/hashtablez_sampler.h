@@ -44,7 +44,6 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"

@@ -41,7 +41,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/hash_container_defaults.h"
 #include "absl/container/internal/container_memory.h"
 #include "absl/container/internal/node_slot_policy.h"
