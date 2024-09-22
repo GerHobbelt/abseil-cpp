@@ -1454,7 +1454,7 @@ class CommonFields : public CommonFieldsGenerationInfo {
     // Size including tombstones.
     size_t true_size = capacity() * ABSL_MAX_TRUE_LOAD_FACTOR - growth_left();
     if (true_size < size()) {
-      printf("%ld %ld %ld\n", size(), true_size, growth_left());
+      printf("%zu %zu %zu\n", size(), true_size, growth_left());
       abort();
     }
     if (true_size * 8 < capacity() * 7) {
@@ -1483,7 +1483,7 @@ class CommonFields : public CommonFieldsGenerationInfo {
   void set_current_rebuild_pos(size_t pos) {
     if (pos < current_rebuild_pos_) {
       current_rebuild_num_full_scans++;
-      printf("current_rounds: %ld target rounds: %ld \n", current_rebuild_num_full_scans, target_rebuild_num_full_scans);
+      printf("current_rounds: %zu target rounds: %zu \n", current_rebuild_num_full_scans, target_rebuild_num_full_scans);
     }
     current_rebuild_pos_ = pos;
   }
@@ -1496,7 +1496,7 @@ class CommonFields : public CommonFieldsGenerationInfo {
     target_rebuild_pos_ += (rebuild_window_multiplier) * get_load_factor_x();
     if (target_rebuild_pos_ > capacity()) {
       target_rebuild_num_full_scans++;
-      printf("current_rounds: %ld target rounds: %ld \n", current_rebuild_num_full_scans, target_rebuild_num_full_scans);
+      printf("current_rounds: %zu target rounds: %zu \n", current_rebuild_num_full_scans, target_rebuild_num_full_scans);
     }
     target_rebuild_pos_ = target_rebuild_pos_ & capacity();
   }
