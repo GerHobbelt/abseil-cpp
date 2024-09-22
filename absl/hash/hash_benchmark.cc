@@ -279,8 +279,10 @@ ABSL_ATTRIBUTE_UNUSED static const bool kInitialized = [] {
 
 template <class T>
 struct PodRand {
-  static_assert(std::is_pod<T>::value, "");
-  static_assert(kEntropySize + sizeof(T) < sizeof(entropy), "");
+	// https://en.cppreference.com/w/cpp/types/is_pod
+  static_assert(std::is_standard_layout<T>::value, "");
+	static_assert(std::is_trivial<T>::value, "");
+	static_assert(kEntropySize + sizeof(T) < sizeof(entropy), "");
 
   T Get(size_t i) const {
     T v;
