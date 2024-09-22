@@ -185,10 +185,10 @@
 
 #include "absl/base/config.h"
 #include "absl/base/internal/endian.h"
-#include "absl/base/internal/prefetch.h"
 #include "absl/base/internal/raw_logging.h"
 #include "absl/base/optimization.h"
 #include "absl/base/port.h"
+#include "absl/base/prefetch.h"
 #include "absl/container/internal/common.h"
 #include "absl/container/internal/compressed_tuple.h"
 #include "absl/container/internal/container_memory.h"
@@ -749,6 +749,15 @@ using Group = GroupAArch64Impl;
 using Group = GroupPortableImpl;
 #endif
 
+// When there is an insertion with no reserved growth, we rehash with
+// probability `min(1, RehashProbabilityConstant() / capacity())`. Using a
+// constant divided by capacity ensures that inserting N elements is still O(N)
+// in the average case. Using the constant 16 means that we expect to rehash ~8
+// times more often than when generations are disabled. We are adding expected
+// rehash_probability * #insertions/capacity_growth = 16/capacity * ((7/8 -
+// 7/16) * capacity)/capacity_growth = ~7 extra rehashes per capacity growth.
+inline size_t RehashProbabilityConstant() { return 16; }
+
 class CommonFieldsGenerationInfoEnabled {
   // A sentinel value for reserved_growth_ indicating that we just ran out of
   // reserved growth on the last insertion. When reserve is called and then
@@ -769,12 +778,10 @@ class CommonFieldsGenerationInfoEnabled {
 
   // Whether we should rehash on insert in order to detect bugs of using invalid
   // references. We rehash on the first insertion after reserved_growth_ reaches
-  // 0 after a call to reserve.
-  // TODO(b/254649633): we could potentially do a rehash with low probability
+  // 0 after a call to reserve. We also do a rehash with low probability
   // whenever reserved_growth_ is zero.
-  bool should_rehash_for_bug_detection_on_insert() const {
-    return reserved_growth_ == kReservedGrowthJustRanOut;
-  }
+  bool should_rehash_for_bug_detection_on_insert(const ctrl_t* ctrl,
+                                                 size_t capacity) const;
   void maybe_increment_generation_on_insert() {
     if (reserved_growth_ == kReservedGrowthJustRanOut) reserved_growth_ = 0;
 
@@ -820,7 +827,9 @@ class CommonFieldsGenerationInfoDisabled {
   CommonFieldsGenerationInfoDisabled& operator=(
       CommonFieldsGenerationInfoDisabled&&) = default;
 
-  bool should_rehash_for_bug_detection_on_insert() const { return false; }
+  bool should_rehash_for_bug_detection_on_insert(const ctrl_t*, size_t) const {
+    return false;
+  }
   void maybe_increment_generation_on_insert() {}
   void reset_reserved_growth(size_t, size_t) {}
   size_t reserved_growth() const { return 0; }
@@ -905,6 +914,10 @@ class CommonFields : public CommonFieldsGenerationInfo {
     return compressed_tuple_.template get<1>();
   }
 
+  bool should_rehash_for_bug_detection_on_insert() const {
+    return CommonFieldsGenerationInfo::
+        should_rehash_for_bug_detection_on_insert(control_, capacity_);
+  }
   void reset_reserved_growth(size_t reservation) {
     CommonFieldsGenerationInfo::reset_reserved_growth(reservation, size_);
   }
@@ -1106,10 +1119,12 @@ struct FindInfo {
 inline bool is_small(size_t capacity) { return capacity < Group::kWidth - 1; }
 
 // Begins a probing operation on `common.control`, using `hash`.
-inline probe_seq<Group::kWidth> probe(const CommonFields& common, size_t hash) {
-  const ctrl_t* ctrl = common.control_;
-  const size_t capacity = common.capacity_;
+inline probe_seq<Group::kWidth> probe(const ctrl_t* ctrl, const size_t capacity,
+                                      size_t hash) {
   return probe_seq<Group::kWidth>(H1(hash, ctrl), capacity);
+}
+inline probe_seq<Group::kWidth> probe(const CommonFields& common, size_t hash) {
+  return probe(common.control_, common.capacity_, hash);
 }
 
 // Probes an array of control bits using a probe sequence derived from `hash`,
@@ -2117,12 +2132,12 @@ class raw_hash_set {
   void prefetch(const key_arg<K>& key) const {
     (void)key;
     // Avoid probing if we won't be able to prefetch the addresses received.
-#ifdef ABSL_INTERNAL_HAVE_PREFETCH
+#ifdef ABSL_HAVE_PREFETCH
     prefetch_heap_block();
     auto seq = probe(common(), hash_ref()(key));
-    base_internal::PrefetchT0(control() + seq.offset());
-    base_internal::PrefetchT0(slot_array() + seq.offset());
-#endif  // ABSL_INTERNAL_HAVE_PREFETCH
+    PrefetchToLocalCache(control() + seq.offset());
+    PrefetchToLocalCache(slot_array() + seq.offset());
+#endif  // ABSL_HAVE_PREFETCH
   }
 
   // The API of find() has two extensions.
@@ -2529,10 +2544,14 @@ class raw_hash_set {
   // See `CapacityToGrowth()`.
   size_t& growth_left() { return common().growth_left(); }
 
-  // Prefetch the heap-allocated memory region to resolve potential TLB misses.
-  // This is intended to overlap with execution of calculating the hash for a
-  // key.
-  void prefetch_heap_block() const { base_internal::PrefetchT2(control()); }
+  // Prefetch the heap-allocated memory region to resolve potential TLB and
+  // cache misses. This is intended to overlap with execution of calculating the
+  // hash for a key.
+  void prefetch_heap_block() const {
+#if ABSL_HAVE_BUILTIN(__builtin_prefetch) || defined(__GNUC__)
+    __builtin_prefetch(control(), 0, 1);
+#endif
+  }
 
   CommonFields& common() { return settings_.template get<0>(); }
   const CommonFields& common() const { return settings_.template get<0>(); }

@@ -457,7 +457,6 @@ cc_library(
         ":cordz_update_scope",
         ":cordz_update_tracker",
         ":internal",
-        ":str_format",
         ":strings",
         "//absl/base",
         "//absl/base:config",
@@ -514,6 +513,7 @@ cc_library(
         "//absl/container:inlined_vector",
         "//absl/debugging:stacktrace",
         "//absl/synchronization",
+        "//absl/time",
         "//absl/types:span",
     ],
 )
