@@ -231,6 +231,21 @@ TEST(Util, GrowthAndCapacity) {
   }
 }
 
+TEST(Util, probe_seq) {
+  probe_seq<16> seq(0, 127);
+  auto gen = [&]() {
+    size_t res = seq.offset();
+    seq.next();
+    return res;
+  };
+  std::vector<size_t> offsets(8);
+  std::generate_n(offsets.begin(), 8, gen);
+  EXPECT_THAT(offsets, ElementsAre(0, 16, 48, 96, 32, 112, 80, 64));
+  seq = probe_seq<16>(128, 127);
+  std::generate_n(offsets.begin(), 8, gen);
+  EXPECT_THAT(offsets, ElementsAre(0, 16, 48, 96, 32, 112, 80, 64));
+}
+
 TEST(BitMask, Smoke) {
   EXPECT_FALSE((BitMask<uint8_t, 8>(0)));
   EXPECT_TRUE((BitMask<uint8_t, 8>(5)));
@@ -452,7 +467,6 @@ TEST(Batch, DropDeletes) {
         << i << " " << static_cast<int>(pattern[i % pattern.size()]);
   }
 }
-
 
 TEST(Group, CountLeadingEmptyOrDeleted) {
   const std::vector<ctrl_t> empty_examples = {ctrl_t::kEmpty, ctrl_t::kDeleted};
@@ -1353,8 +1367,6 @@ TEST(Table, ChurnTest) {
     arr_index += (hashTableCap*1)/100;
   }
 }
-
-
 
 // Test that rehash with no resize happen in case of many deleted slots.
 TEST(Table, RehashWithNoResize) {

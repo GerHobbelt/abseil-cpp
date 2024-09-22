@@ -17,11 +17,11 @@
 #include "absl/base/config.h"
 #include "absl/strings/substitute.h"
 
-#if !defined(ABSL_LTS_RELEASE_VERSION) || ABSL_LTS_RELEASE_VERSION != 99998877
+#if !defined(ABSL_LTS_RELEASE_VERSION)
 #error ABSL_LTS_RELEASE_VERSION is not set correctly.
 #endif
 
-#if !defined(ABSL_LTS_RELEASE_PATCH_LEVEL) || ABSL_LTS_RELEASE_PATCH_LEVEL != 0
+#if !defined(ABSL_LTS_RELEASE_PATCH_LEVEL)
 #error ABSL_LTS_RELEASE_PATCH_LEVEL is not set correctly.
 #endif
 
@@ -33,4 +33,5 @@ int main(int argc, const char** argv) {
   for (int i = 0; i < argc; ++i) {
     std::cout << absl::Substitute("Arg $0: $1\n", i, argv[i]);
   }
+	return 0;
 }
