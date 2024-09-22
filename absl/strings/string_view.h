@@ -29,18 +29,6 @@
 
 #include "absl/base/config.h"
 
-#ifdef ABSL_USES_STD_STRING_VIEW
-
-#include <string_view>  // IWYU pragma: export
-
-namespace absl {
-ABSL_NAMESPACE_BEGIN
-using string_view = std::string_view;
-ABSL_NAMESPACE_END
-}  // namespace absl
-
-#else  // ABSL_USES_STD_STRING_VIEW
-
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -56,6 +44,18 @@ ABSL_NAMESPACE_END
 #include "absl/base/macros.h"
 #include "absl/base/optimization.h"
 #include "absl/base/port.h"
+
+#ifdef ABSL_USES_STD_STRING_VIEW
+
+#include <string_view>  // IWYU pragma: export
+
+namespace absl {
+ABSL_NAMESPACE_BEGIN
+using string_view = std::string_view;
+ABSL_NAMESPACE_END
+}  // namespace absl
+
+#else  // ABSL_USES_STD_STRING_VIEW
 
 #if ABSL_HAVE_BUILTIN(__builtin_memcmp) ||        \
     (defined(__GNUC__) && !defined(__clang__)) || \
