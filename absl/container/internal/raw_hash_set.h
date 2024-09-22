@@ -239,9 +239,10 @@ namespace container_internal {
 
 #ifdef ABSL_SWISSTABLE_ENABLE_GENERATIONS
 #error ABSL_SWISSTABLE_ENABLE_GENERATIONS cannot be directly set
-#elif defined(ABSL_HAVE_ADDRESS_SANITIZER) || \
-    defined(ABSL_HAVE_HWADDRESS_SANITIZER) || \
-    defined(ABSL_HAVE_MEMORY_SANITIZER)
+#elif (defined(ABSL_HAVE_ADDRESS_SANITIZER) ||   \
+       defined(ABSL_HAVE_HWADDRESS_SANITIZER) || \
+       defined(ABSL_HAVE_MEMORY_SANITIZER)) &&   \
+    !defined(NDEBUG_SANITIZER)  // If defined, performance is important.
 // When compiled in sanitizer mode, we add generation integers to the backing
 // array and iterators. In the backing array, we store the generation between
 // the control bytes and the slots. When iterators are dereferenced, we assert
@@ -574,6 +575,16 @@ inline bool IsEmptyGeneration(const GenerationType* generation) {
 // randomize insertion order within groups.
 bool ShouldInsertBackwardsForDebug(size_t capacity, size_t hash,
                                    const ctrl_t* ctrl);
+
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ShouldInsertBackwards(
+    ABSL_ATTRIBUTE_UNUSED size_t capacity, ABSL_ATTRIBUTE_UNUSED size_t hash,
+    ABSL_ATTRIBUTE_UNUSED const ctrl_t* ctrl) {
+#if defined(NDEBUG)
+  return false;
+#else
+  return ShouldInsertBackwardsForDebug(capacity, hash, ctrl);
+#endif
+}
 
 // Returns insert position for the given mask.
 // We want to add entropy even when ASLR is not enabled.
@@ -1062,6 +1073,88 @@ using HashSetIteratorGenerationInfo = HashSetIteratorGenerationInfoDisabled;
 #define ABSL_MAX_TRUE_LOAD_FACTOR 0.975
 #endif
 
+// Stored the information regarding number of slots we can still fill
+// without needing to rehash.
+//
+// We want to ensure sufficient number of empty slots in the table in order
+// to keep probe sequences relatively short. Empty slot in the probe group
+// is required to stop probing.
+//
+// Tombstones (kDeleted slots) are not included in the growth capacity,
+// because we'd like to rehash when the table is filled with tombstones and/or
+// full slots.
+//
+// GrowthInfo also stores a bit that encodes whether table may have any
+// deleted slots.
+// Most of the tables (>95%) have no deleted slots, so some functions can
+// be more efficient with this information.
+//
+// Callers can also force a rehash via the standard `rehash(0)`,
+// which will recompute this value as a side-effect.
+//
+// See also `CapacityToGrowth()`.
+class GrowthInfo {
+ public:
+  // Leaves data member uninitialized.
+  GrowthInfo() = default;
+
+  // Initializes the GrowthInfo assuming we can grow `growth_left` elements
+  // and there are no kDeleted slots in the table.
+  void InitGrowthLeftNoDeleted(size_t growth_left) {
+    growth_left_info_ = growth_left;
+  }
+
+  // Overwrites single full slot with an empty slot.
+  void OverwriteFullAsEmpty() { ++growth_left_info_; }
+
+  // Overwrites single empty slot with a full slot.
+  void OverwriteEmptyAsFull() {
+    assert(GetGrowthLeft() > 0);
+    --growth_left_info_;
+  }
+
+  // Overwrites several empty slots with full slots.
+  void OverwriteManyEmptyAsFull(size_t cnt) {
+    assert(GetGrowthLeft() >= cnt);
+    growth_left_info_ -= cnt;
+  }
+
+  // Overwrites specified control element with full slot.
+  void OverwriteControlAsFull(ctrl_t ctrl) {
+    assert(GetGrowthLeft() >= static_cast<size_t>(IsEmpty(ctrl)));
+    growth_left_info_ -= static_cast<size_t>(IsEmpty(ctrl));
+  }
+
+  // Overwrites single full slot with a deleted slot.
+  void OverwriteFullAsDeleted() { growth_left_info_ |= kDeletedBit; }
+
+  // Returns true if table satisfies two properties:
+  // 1. Guaranteed to have no kDeleted slots.
+  // 2. There is a place for at least one element to grow.
+  bool HasNoDeletedAndGrowthLeft() const {
+    return static_cast<std::make_signed_t<size_t>>(growth_left_info_) > 0;
+  }
+
+  // Returns true if table guaranteed to have no k
+  bool HasNoDeleted() const {
+    return static_cast<std::make_signed_t<size_t>>(growth_left_info_) >= 0;
+  }
+
+  // Returns the number of elements left to grow.
+  size_t GetGrowthLeft() const {
+    return growth_left_info_ & kGrowthLeftMask;
+  }
+
+ private:
+  static constexpr size_t kGrowthLeftMask = ((~size_t{}) >> 1);
+  static constexpr size_t kDeletedBit = ~kGrowthLeftMask;
+  // Topmost bit signal whenever there are deleted slots.
+  size_t growth_left_info_;
+};
+
+static_assert(sizeof(GrowthInfo) == sizeof(size_t), "");
+static_assert(alignof(GrowthInfo) == alignof(size_t), "");
+
 // Returns whether `n` is a valid capacity (i.e., number of slots).
 //
 // A valid capacity is a non-zero integer `2^m - 1`.
@@ -1080,9 +1173,9 @@ constexpr size_t NumControlBytes(size_t capacity) {
 }
 
 // Computes the offset from the start of the backing allocation of control.
-// infoz and growth_left are stored at the beginning of the backing array.
+// infoz and growth_info are stored at the beginning of the backing array.
 inline static size_t ControlOffset(bool has_infoz) {
-  return (has_infoz ? sizeof(HashtablezInfoHandle) : 0) + sizeof(size_t);
+  return (has_infoz ? sizeof(HashtablezInfoHandle) : 0) + sizeof(GrowthInfo);
 }
 
 // Helper class for computing offsets and allocation size of hash set fields.
@@ -1139,24 +1232,27 @@ struct soo_tag_t {};
 // Sentinel type to indicate SOO CommonFields construction with full size.
 struct full_soo_tag_t {};
 
+// Suppress erroneous uninitialized memory errors on GCC. For example, GCC
+// thinks that the call to slot_array() in find_or_prepare_insert() is reading
+// uninitialized memory, but slot_array is only called there when the table is
+// non-empty and this memory is initialized when the table is non-empty.
+#if !defined(__clang__) && defined(__GNUC__)
+#define ABSL_SWISSTABLE_IGNORE_UNINITIALIZED(x)                    \
+  _Pragma("GCC diagnostic push")                                   \
+      _Pragma("GCC diagnostic ignored \"-Wmaybe-uninitialized\"")  \
+          _Pragma("GCC diagnostic ignored \"-Wuninitialized\"") x; \
+  _Pragma("GCC diagnostic pop")
+#define ABSL_SWISSTABLE_IGNORE_UNINITIALIZED_RETURN(x) \
+  ABSL_SWISSTABLE_IGNORE_UNINITIALIZED(return x)
+#else
+#define ABSL_SWISSTABLE_IGNORE_UNINITIALIZED(x) x
+#define ABSL_SWISSTABLE_IGNORE_UNINITIALIZED_RETURN(x) return x
+#endif
+
 // This allows us to work around an uninitialized memory warning when
 // constructing begin() iterators in empty hashtables.
 union MaybeInitializedPtr {
-  void* get() const {
-    // Suppress erroneous uninitialized memory errors on GCC. GCC thinks that
-    // the call to slot_array() in find_or_prepare_insert() is reading
-    // uninitialized memory, but slot_array is only called there when the table
-    // is non-empty and this memory is initialized when the table is non-empty.
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#pragma GCC diagnostic ignored "-Wuninitialized"
-#endif
-    return p;
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
-  }
+  void* get() const { ABSL_SWISSTABLE_IGNORE_UNINITIALIZED_RETURN(p); }
   void set(void* ptr) { p = ptr; }
 
   void* p;
@@ -1172,7 +1268,7 @@ struct HeapPtrs {
   // This contains `capacity + 1 + NumClonedBytes()` entries, even
   // when the table is empty (hence EmptyGroup).
   //
-  // Note that growth_left is stored immediately before this pointer.
+  // Note that growth_info is stored immediately before this pointer.
   // May be uninitialized for SOO tables.
   ctrl_t* control;
 
@@ -1187,6 +1283,25 @@ struct HeapPtrs {
 union HeapOrSoo {
   HeapOrSoo() = default;
   explicit HeapOrSoo(ctrl_t* c) : heap(c) {}
+
+  ctrl_t*& control() {
+    ABSL_SWISSTABLE_IGNORE_UNINITIALIZED_RETURN(heap.control);
+  }
+  ctrl_t* control() const {
+    ABSL_SWISSTABLE_IGNORE_UNINITIALIZED_RETURN(heap.control);
+  }
+  MaybeInitializedPtr& slot_array() {
+    ABSL_SWISSTABLE_IGNORE_UNINITIALIZED_RETURN(heap.slot_array);
+  }
+  MaybeInitializedPtr slot_array() const {
+    ABSL_SWISSTABLE_IGNORE_UNINITIALIZED_RETURN(heap.slot_array);
+  }
+  void* get_soo_data() {
+    ABSL_SWISSTABLE_IGNORE_UNINITIALIZED_RETURN(soo_data);
+  }
+  const void* get_soo_data() const {
+    ABSL_SWISSTABLE_IGNORE_UNINITIALIZED_RETURN(soo_data);
+  }
 
   HeapPtrs heap;
   unsigned char soo_data[sizeof(HeapPtrs)];
@@ -1216,34 +1331,24 @@ class CommonFields : public CommonFieldsGenerationInfo {
   }
 
   // The inline data for SOO is written on top of control_/slots_.
-  const void* soo_data() const { return heap_or_soo_.soo_data; }
-  void* soo_data() { return heap_or_soo_.soo_data; }
+  const void* soo_data() const { return heap_or_soo_.get_soo_data(); }
+  void* soo_data() { return heap_or_soo_.get_soo_data(); }
 
   HeapOrSoo heap_or_soo() const { return heap_or_soo_; }
   const HeapOrSoo& heap_or_soo_ref() const { return heap_or_soo_; }
 
-  ctrl_t* control() const { return heap_or_soo_.heap.control; }
-  void set_control(ctrl_t* c) { heap_or_soo_.heap.control = c; }
+  ctrl_t* control() const { return heap_or_soo_.control(); }
+  void set_control(ctrl_t* c) { heap_or_soo_.control() = c; }
   void* backing_array_start() const {
-    // growth_left (and maybe infoz) is stored before control bytes.
+    // growth_info (and maybe infoz) is stored before control bytes.
     assert(reinterpret_cast<uintptr_t>(control()) % alignof(size_t) == 0);
     return control() - ControlOffset(has_infoz());
   }
 
   // Note: we can't use slots() because Qt defines "slots" as a macro.
-  void* slot_array() const { return heap_or_soo_.heap.slot_array.get(); }
-  MaybeInitializedPtr slots_union() const {
-    // Suppress erroneous uninitialized memory errors on GCC.
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
-    return heap_or_soo_.heap.slot_array;
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
-  }
-  void set_slots(void* s) { heap_or_soo_.heap.slot_array.set(s); }
+  void* slot_array() const { return heap_or_soo_.slot_array().get(); }
+  MaybeInitializedPtr slots_union() const { return heap_or_soo_.slot_array(); }
+  void set_slots(void* s) { heap_or_soo_.slot_array().set(s); }
 
   // The number of filled slots.
   size_t size() const { return size_ >> HasInfozShift(); }
@@ -1276,17 +1381,15 @@ class CommonFields : public CommonFieldsGenerationInfo {
 
   // The number of slots we can still fill without needing to rehash.
   // This is stored in the heap allocation before the control bytes.
-  // TODO(b/289225379): experiment with moving growth_left back inline to
+  // TODO(b/289225379): experiment with moving growth_info back inline to
   // increase room for SOO.
-  size_t growth_left() const {
-    const size_t* gl_ptr = reinterpret_cast<size_t*>(control()) - 1;
-    assert(reinterpret_cast<uintptr_t>(gl_ptr) % alignof(size_t) == 0);
+  GrowthInfo& growth_info() {
+    auto* gl_ptr = reinterpret_cast<GrowthInfo*>(control()) - 1;
+    assert(reinterpret_cast<uintptr_t>(gl_ptr) % alignof(GrowthInfo) == 0);
     return *gl_ptr;
   }
-  void set_growth_left(size_t gl) {
-    size_t* gl_ptr = reinterpret_cast<size_t*>(control()) - 1;
-    assert(reinterpret_cast<uintptr_t>(gl_ptr) % alignof(size_t) == 0);
-    *gl_ptr = gl;
+  GrowthInfo growth_info() const {
+    return const_cast<CommonFields*>(this)->growth_info();
   }
 
   bool has_infoz() const {
@@ -1744,6 +1847,10 @@ template <typename = void>
 inline FindInfo find_first_non_full(const CommonFields& common, size_t hash) {
   auto seq = probe(common, hash);
   const ctrl_t* ctrl = common.control();
+  if (IsEmptyOrDeleted(ctrl[seq.offset()]) &&
+      !ShouldInsertBackwards(common.capacity(), hash, ctrl)) {
+    return {seq.offset(), /*probe_length=*/0};
+  }
   while (true) {
     GroupFullEmptyOrDeleted g{ctrl + seq.offset()};
     auto mask = g.MaskEmptyOrDeleted();
@@ -1767,7 +1874,8 @@ extern template FindInfo find_first_non_full(const CommonFields&, size_t);
 FindInfo find_first_non_full_outofline(const CommonFields&, size_t);
 
 inline void ResetGrowthLeft(CommonFields& common) {
-  common.set_growth_left(CapacityToGrowth(common.capacity()) - common.size());
+  common.growth_info().InitGrowthLeftNoDeleted(
+      CapacityToGrowth(common.capacity()) - common.size());
 }
 
 // Sets `ctrl` to `{kEmpty, kSentinel, ..., kEmpty}`, marking the entire
@@ -1826,9 +1934,9 @@ inline void SetCtrlInSingleGroupTable(const CommonFields& c, size_t i, h2_t h,
   SetCtrlInSingleGroupTable(c, i, static_cast<ctrl_t>(h), slot_size);
 }
 
-// growth_left (which is a size_t) is stored with the backing array.
+// growth_info (which is a size_t) is stored with the backing array.
 constexpr size_t BackingArrayAlignment(size_t align_of_slot) {
-  return (std::max)(align_of_slot, alignof(size_t));
+  return (std::max)(align_of_slot, alignof(GrowthInfo));
 }
 
 // Returns the address of the ith slot in slots where each slot occupies
@@ -1889,7 +1997,8 @@ constexpr bool ShouldSampleHashtablezInfo() {
 }
 
 template <bool kSooEnabled>
-HashtablezInfoHandle SampleHashtablezInfo(size_t sizeof_slot,
+HashtablezInfoHandle SampleHashtablezInfo(size_t sizeof_slot, size_t sizeof_key,
+                                          size_t sizeof_value,
                                           size_t old_capacity, bool was_soo,
                                           HashtablezInfoHandle forced_infoz,
                                           CommonFields& c) {
@@ -1897,12 +2006,12 @@ HashtablezInfoHandle SampleHashtablezInfo(size_t sizeof_slot,
   // In SOO, we sample on the first insertion so if this is an empty SOO case
   // (e.g. when reserve is called), then we still need to sample.
   if (kSooEnabled && was_soo && c.size() == 0) {
-    return Sample(sizeof_slot, SooCapacity());
+    return Sample(sizeof_slot, sizeof_key, sizeof_value, SooCapacity());
   }
   // For non-SOO cases, we sample whenever the capacity is increasing from zero
   // to non-zero.
   if (!kSooEnabled && old_capacity == 0) {
-    return Sample(sizeof_slot, 0);
+    return Sample(sizeof_slot, sizeof_key, sizeof_value, 0);
   }
   return c.infoz();
 }
@@ -1951,14 +2060,14 @@ class HashSetResizeHelper {
   }
 
   HeapOrSoo& old_heap_or_soo() { return old_heap_or_soo_; }
-  void* old_soo_data() { return old_heap_or_soo_.soo_data; }
+  void* old_soo_data() { return old_heap_or_soo_.get_soo_data(); }
   ctrl_t* old_ctrl() const {
     assert(!was_soo_);
-    return old_heap_or_soo_.heap.control;
+    return old_heap_or_soo_.control();
   }
   void* old_slots() const {
     assert(!was_soo_);
-    return old_heap_or_soo_.heap.slot_array.get();
+    return old_heap_or_soo_.slot_array().get();
   }
   size_t old_capacity() const { return old_capacity_; }
 
@@ -2005,12 +2114,15 @@ class HashSetResizeHelper {
   template <typename Alloc, size_t SizeOfSlot, bool TransferUsesMemcpy,
             bool SooEnabled, size_t AlignOfSlot>
   ABSL_ATTRIBUTE_NOINLINE bool InitializeSlots(CommonFields& c, Alloc alloc,
-                                               ctrl_t soo_slot_h2) {
+                                               ctrl_t soo_slot_h2,
+                                               size_t key_size,
+                                               size_t value_size) {
     assert(c.capacity());
     HashtablezInfoHandle infoz =
         ShouldSampleHashtablezInfo<Alloc>()
-            ? SampleHashtablezInfo<SooEnabled>(SizeOfSlot, old_capacity_,
-                                               was_soo_, forced_infoz_, c)
+            ? SampleHashtablezInfo<SooEnabled>(SizeOfSlot, key_size, value_size,
+                                               old_capacity_, was_soo_,
+                                               forced_infoz_, c)
             : HashtablezInfoHandle{};
 
     const bool has_infoz = infoz.IsSampled();
@@ -2749,7 +2861,7 @@ class raw_hash_set {
       infoz().RecordStorageChanged(size, cap);
     }
     common().set_size(size);
-    set_growth_left(growth_left() - size);
+    growth_info().OverwriteManyEmptyAsFull(size);
   }
 
   ABSL_ATTRIBUTE_NOINLINE raw_hash_set(raw_hash_set&& that) noexcept(
@@ -3506,7 +3618,8 @@ class raw_hash_set {
   inline HashtablezInfoHandle try_sample_soo() {
     assert(is_soo());
     if (!ShouldSampleHashtablezInfo<CharAlloc>()) return HashtablezInfoHandle{};
-    return Sample(sizeof(slot_type), SooCapacity());
+    return Sample(sizeof(slot_type), sizeof(key_type), sizeof(value_type),
+                  SooCapacity());
   }
 
   inline void destroy_slots() {
@@ -3531,7 +3644,9 @@ class raw_hash_set {
   inline void destructor_impl() {
     if (capacity() == 0) return;
     if (is_soo()) {
-      if (!empty()) destroy(soo_slot());
+      if (!empty()) {
+        ABSL_SWISSTABLE_IGNORE_UNINITIALIZED(destroy(soo_slot()));
+      }
       return;
     }
     destroy_slots();
@@ -3602,7 +3717,8 @@ class raw_hash_set {
         resize_helper.InitializeSlots<CharAlloc, sizeof(slot_type),
                                       PolicyTraits::transfer_uses_memcpy(),
                                       SooEnabled(), alignof(slot_type)>(
-            common(), CharAlloc(alloc_ref()), soo_slot_h2);
+            common(), CharAlloc(alloc_ref()), soo_slot_h2, sizeof(key_type),
+            sizeof(value_type));
 
     // In the SooEnabled() case, capacity is never 0 so we don't check.
     if (!SooEnabled() && resize_helper.old_capacity() == 0) {
@@ -3864,7 +3980,6 @@ class raw_hash_set {
     auto hash = hash_ref()(key);
     auto seq = probe(common(), hash);
     const ctrl_t* ctrl = control();
-    // First find key, if exists insert there.
     while (true) {
       Group g{ctrl + seq.offset()};
       for (uint32_t i : g.Match(H2(hash))) {
@@ -3873,12 +3988,17 @@ class raw_hash_set {
                 PolicyTraits::element(slot_array() + seq.offset(i)))))
           return {iterator_at(seq.offset(i)), false};
       }
-      if (ABSL_PREDICT_TRUE(g.MaskEmpty())) break;
+      auto mask_empty = g.MaskEmpty();
+      if (ABSL_PREDICT_TRUE(mask_empty)) {
+        size_t target = seq.offset(
+            GetInsertionOffset(mask_empty, capacity(), hash, control()));
+        return {
+            iterator_at(prepare_insert(hash, FindInfo{target, seq.index()})),
+            true};
+      }
       seq.next();
       assert(seq.index() <= capacity() && "full table!");
     }
-    // if key not found
-    return {iterator_at(prepare_insert(hash)), true};
   }
 
   void clear_and_redistribute_tombstones_from_rebuild_pos() {
@@ -3915,19 +4035,39 @@ class raw_hash_set {
     return find_or_prepare_insert_non_soo(key);
   }
 
-  // Given the hash of a value not currently in the table, finds the next
-  // viable slot index to insert it at.
+  // Given the hash of a value not currently in the table and the first empty
+  // slot in the probe sequence, finds the viable slot index to insert it at.
+  //
+  // In case there's no space left, the table can be resized or rehashed
+  // (see rehash_and_grow_if_necessary).
+  //
+  // In case of absence of deleted slots and positive growth_left, element can
+  // be inserted in the provided `target` position.
+  //
+  // When table has deleted slots (according to GrowthInfo), target position
+  // will be searched one more time using `find_first_non_full`.
   //
   // REQUIRES: At least one non-full slot available.
-  size_t prepare_insert(size_t hash) ABSL_ATTRIBUTE_NOINLINE {
+  // REQUIRES: `target` is a valid empty position to insert.
+  size_t prepare_insert(size_t hash, FindInfo target) ABSL_ATTRIBUTE_NOINLINE {
     assert(!is_soo());
-    const bool rehash_for_bug_detection =
-        common().should_rehash_for_bug_detection_on_insert();
-    if (rehash_for_bug_detection) {
-      // Move to a different heap allocation in order to detect bugs.
-      const size_t cap = capacity();
-      resize(growth_left() > 0 ? cap : NextCapacity(cap));
-    }
+    // When there are no deleted slots in the table
+    // and growth_left is positive, we can insert at the first
+    // empty slot in the probe sequence (target).
+    bool use_target_hint = false;
+    // Optimization is disabled on enabled generations.
+    // We have to rehash even sparse tables randomly in such mode.
+#ifndef ABSL_SWISSTABLE_ENABLE_GENERATIONS
+    use_target_hint = growth_info().HasNoDeletedAndGrowthLeft();
+#endif
+    if (ABSL_PREDICT_FALSE(!use_target_hint)) {
+      const bool rehash_for_bug_detection =
+          common().should_rehash_for_bug_detection_on_insert();
+      if (rehash_for_bug_detection) {
+        // Move to a different heap allocation in order to detect bugs.
+        const size_t cap = capacity();
+        resize(growth_left() > 0 ? cap : NextCapacity(cap));
+      }
     #ifdef ABSL_ZOMBIE_DEAMORTIZED
     if (common().should_rebuild()) {
       clear_and_redistribute_tombstones_from_rebuild_pos();
@@ -3935,25 +4075,26 @@ class raw_hash_set {
     common().advance_target_rebuild_pos();
     auto target = find_first_non_full(common(), hash);
     #else
-    FindInfo target;
-    if (!rehash_for_bug_detection && ABSL_PREDICT_FALSE(growth_left() == 0)) {
-      const size_t old_capacity = capacity();
-      rehash_and_grow_if_necessary();
-      // NOTE: It is safe to use `FindFirstNonFullAfterResize` after
-      // `rehash_and_grow_if_necessary`, whether capacity changes or not.
-      // `rehash_and_grow_if_necessary` may *not* call `resize`
-      // and perform `drop_deletes_without_resize` instead. But this
-      // could happen only on big tables and will not change capacity.
-      // For big tables `FindFirstNonFullAfterResize` will always
-      // fallback to normal `find_first_non_full`.
-      target = HashSetResizeHelper::FindFirstNonFullAfterResize(
-          common(), old_capacity, hash);
-    } else {
-      target = find_first_non_full(common(), hash);
+      if (!rehash_for_bug_detection &&
+          ABSL_PREDICT_FALSE(growth_left() == 0)) {
+        const size_t old_capacity = capacity();
+        rehash_and_grow_if_necessary();
+        // NOTE: It is safe to use `FindFirstNonFullAfterResize` after
+        // `rehash_and_grow_if_necessary`, whether capacity changes or not.
+        // `rehash_and_grow_if_necessary` may *not* call `resize`
+        // and perform `drop_deletes_without_resize` instead. But this
+        // could happen only on big tables and will not change capacity.
+        // For big tables `FindFirstNonFullAfterResize` will always
+        // fallback to normal `find_first_non_full`.
+        target = HashSetResizeHelper::FindFirstNonFullAfterResize(
+            common(), old_capacity, hash);
+      } else {
+        target = find_first_non_full(common(), hash);
+      }
     }
     #endif
     PrepareInsertCommon(common());
-    set_growth_left(growth_left() - IsEmpty(control()[target.offset]));
+    growth_info().OverwriteControlAsFull(control()[target.offset]);
     SetCtrl(common(), target.offset, H2(hash), sizeof(slot_type));
     infoz().RecordInsert(hash, target.probe_length);
     return target.offset;
@@ -4000,12 +4141,17 @@ class raw_hash_set {
   public:
   size_t growth_left() const { 
     assert(!is_soo());
-    return common().growth_left(); 
+    return growth_info().GetGrowthLeft();
   }
+
   private:
-  void set_growth_left(size_t gl) {
+  GrowthInfo& growth_info() {
     assert(!is_soo());
-    return common().set_growth_left(gl);
+    return common().growth_info();
+  }
+  GrowthInfo growth_info() const {
+    assert(!is_soo());
+    return common().growth_info();
   }
 
   // Prefetch the heap-allocated memory region to resolve potential TLB and
@@ -4167,5 +4313,7 @@ ABSL_NAMESPACE_END
 }  // namespace absl
 
 #undef ABSL_SWISSTABLE_ENABLE_GENERATIONS
+#undef ABSL_SWISSTABLE_IGNORE_UNINITIALIZED
+#undef ABSL_SWISSTABLE_IGNORE_UNINITIALIZED_RETURN
 
 #endif  // ABSL_CONTAINER_INTERNAL_RAW_HASH_SET_H_

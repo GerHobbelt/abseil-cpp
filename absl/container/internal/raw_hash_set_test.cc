@@ -100,6 +100,78 @@ using ::testing::UnorderedElementsAre;
 // Convenience function to static cast to ctrl_t.
 ctrl_t CtrlT(int i) { return static_cast<ctrl_t>(i); }
 
+TEST(GrowthInfoTest, GetGrowthLeft) {
+  GrowthInfo gi;
+  gi.InitGrowthLeftNoDeleted(5);
+  EXPECT_EQ(gi.GetGrowthLeft(), 5);
+  gi.OverwriteFullAsDeleted();
+  EXPECT_EQ(gi.GetGrowthLeft(), 5);
+}
+
+TEST(GrowthInfoTest, HasNoDeleted) {
+  GrowthInfo gi;
+  gi.InitGrowthLeftNoDeleted(5);
+  EXPECT_TRUE(gi.HasNoDeleted());
+  gi.OverwriteFullAsDeleted();
+  EXPECT_FALSE(gi.HasNoDeleted());
+  // After reinitialization we have no deleted slots.
+  gi.InitGrowthLeftNoDeleted(5);
+  EXPECT_TRUE(gi.HasNoDeleted());
+}
+
+TEST(GrowthInfoTest, HasNoDeletedAndGrowthLeft) {
+  GrowthInfo gi;
+  gi.InitGrowthLeftNoDeleted(5);
+  EXPECT_TRUE(gi.HasNoDeletedAndGrowthLeft());
+  gi.OverwriteFullAsDeleted();
+  EXPECT_FALSE(gi.HasNoDeletedAndGrowthLeft());
+  gi.InitGrowthLeftNoDeleted(0);
+  EXPECT_FALSE(gi.HasNoDeletedAndGrowthLeft());
+  gi.OverwriteFullAsDeleted();
+  EXPECT_FALSE(gi.HasNoDeletedAndGrowthLeft());
+  // After reinitialization we have no deleted slots.
+  gi.InitGrowthLeftNoDeleted(5);
+  EXPECT_TRUE(gi.HasNoDeletedAndGrowthLeft());
+}
+
+TEST(GrowthInfoTest, OverwriteFullAsEmpty) {
+  GrowthInfo gi;
+  gi.InitGrowthLeftNoDeleted(5);
+  gi.OverwriteFullAsEmpty();
+  EXPECT_EQ(gi.GetGrowthLeft(), 6);
+  gi.OverwriteFullAsDeleted();
+  EXPECT_EQ(gi.GetGrowthLeft(), 6);
+  gi.OverwriteFullAsEmpty();
+  EXPECT_EQ(gi.GetGrowthLeft(), 7);
+  EXPECT_FALSE(gi.HasNoDeleted());
+}
+
+TEST(GrowthInfoTest, OverwriteEmptyAsFull) {
+  GrowthInfo gi;
+  gi.InitGrowthLeftNoDeleted(5);
+  gi.OverwriteEmptyAsFull();
+  EXPECT_EQ(gi.GetGrowthLeft(), 4);
+  gi.OverwriteFullAsDeleted();
+  EXPECT_EQ(gi.GetGrowthLeft(), 4);
+  gi.OverwriteEmptyAsFull();
+  EXPECT_EQ(gi.GetGrowthLeft(), 3);
+  EXPECT_FALSE(gi.HasNoDeleted());
+}
+
+TEST(GrowthInfoTest, OverwriteControlAsFull) {
+  GrowthInfo gi;
+  gi.InitGrowthLeftNoDeleted(5);
+  gi.OverwriteControlAsFull(ctrl_t::kEmpty);
+  EXPECT_EQ(gi.GetGrowthLeft(), 4);
+  gi.OverwriteControlAsFull(ctrl_t::kDeleted);
+  EXPECT_EQ(gi.GetGrowthLeft(), 4);
+  gi.OverwriteFullAsDeleted();
+  gi.OverwriteControlAsFull(ctrl_t::kDeleted);
+  // We do not count number of deleted, so the bit sticks till the next rehash.
+  EXPECT_FALSE(gi.HasNoDeletedAndGrowthLeft());
+  EXPECT_FALSE(gi.HasNoDeleted());
+}
+
 TEST(Util, NormalizeCapacity) {
   EXPECT_EQ(1, NormalizeCapacity(0));
   EXPECT_EQ(1, NormalizeCapacity(1));
@@ -1856,6 +1928,27 @@ TEST(Table, EraseInsertProbing) {
   EXPECT_THAT(t, UnorderedElementsAre(1, 10, 3, 11, 12));
 }
 
+TEST(Table, GrowthInfoDeletedBit) {
+  BadTable t;
+  EXPECT_TRUE(
+      RawHashSetTestOnlyAccess::GetCommon(t).growth_info().HasNoDeleted());
+  int64_t init_count = static_cast<int64_t>(
+      CapacityToGrowth(NormalizeCapacity(Group::kWidth + 1)));
+  for (int64_t i = 0; i < init_count; ++i) {
+    t.insert(i);
+  }
+  EXPECT_TRUE(
+      RawHashSetTestOnlyAccess::GetCommon(t).growth_info().HasNoDeleted());
+  t.erase(0);
+  EXPECT_EQ(RawHashSetTestOnlyAccess::CountTombstones(t), 1);
+  EXPECT_FALSE(
+      RawHashSetTestOnlyAccess::GetCommon(t).growth_info().HasNoDeleted());
+  t.rehash(0);
+  EXPECT_EQ(RawHashSetTestOnlyAccess::CountTombstones(t), 0);
+  EXPECT_TRUE(
+      RawHashSetTestOnlyAccess::GetCommon(t).growth_info().HasNoDeleted());
+}
+
 TYPED_TEST_P(SooTest, Clear) {
   TypeParam t;
   EXPECT_TRUE(t.find(0) == t.end());
@@ -2674,6 +2767,8 @@ TYPED_TEST_P(RawHashSamplerTest, Sample) {
         std::memory_order_relaxed)]++;
     reservations[info.max_reserve.load(std::memory_order_relaxed)]++;
     EXPECT_EQ(info.inline_element_size, sizeof(typename TypeParam::value_type));
+    EXPECT_EQ(info.key_size, sizeof(typename TypeParam::key_type));
+    EXPECT_EQ(info.value_size, sizeof(typename TypeParam::value_type));
 
     if (soo_enabled) {
       EXPECT_EQ(info.soo_capacity, SooCapacity());
