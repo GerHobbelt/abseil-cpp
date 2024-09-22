@@ -983,6 +983,7 @@ struct HashSelect {
     template <typename H, typename T>
     static auto Invoke(H state, const T& value)
         -> absl::enable_if_t<type_traits_internal::IsHashable<T>::value, H> {
+			static_assert(std::is_default_constructible<std::hash<T>>::value);
       return hash_internal::hash_bytes(std::move(state), std::hash<T>{}(value));
     }
   };
