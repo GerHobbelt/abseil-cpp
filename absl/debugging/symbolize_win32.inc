@@ -17,6 +17,9 @@
 
 #include <windows.h>
 
+#undef min
+#undef max
+
 // MSVC header dbghelp.h has a warning for an ignored typedef.
 #pragma warning(push)
 #pragma warning(disable:4091)
