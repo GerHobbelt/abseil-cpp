@@ -25,7 +25,11 @@
 #error ABSL_LTS_RELEASE_PATCH_LEVEL is not set correctly.
 #endif
 
-int main(int argc, char** argv) {
+#if defined(BUILD_MONOLITHIC)
+#define main   abseil_cmake_test_project_main
+#endif
+
+int main(int argc, const char** argv) {
   for (int i = 0; i < argc; ++i) {
     std::cout << absl::Substitute("Arg $0: $1\n", i, argv[i]);
   }
