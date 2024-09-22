@@ -29,6 +29,8 @@
 #ifndef ABSL_CONTAINER_FLAT_HASH_SET_H_
 #define ABSL_CONTAINER_FLAT_HASH_SET_H_
 
+#include <cstddef>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -475,9 +477,11 @@ struct FlatHashSetPolicy {
                                                  std::forward<Args>(args)...);
   }
 
+  // Return std::true_type in case destroy is trivial.
   template <class Allocator>
-  static void destroy(Allocator* alloc, slot_type* slot) {
+  static auto destroy(Allocator* alloc, slot_type* slot) {
     absl::allocator_traits<Allocator>::destroy(*alloc, slot);
+    return IsDestructionTrivial<Allocator, slot_type>();
   }
 
   static T& element(slot_type* slot) { return *slot; }
@@ -491,6 +495,11 @@ struct FlatHashSetPolicy {
   }
 
   static size_t space_used(const T*) { return 0; }
+
+  template <class Hash>
+  static constexpr HashSlotFn get_hash_slot_fn() {
+    return &TypeErasedApplyToSlotFn<Hash, T>;
+  }
 };
 }  // namespace container_internal
 
