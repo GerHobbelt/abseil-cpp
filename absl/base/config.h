@@ -111,7 +111,7 @@
 //
 // LTS releases can be obtained from
 // https://github.com/abseil/abseil-cpp/releases.
-#define ABSL_LTS_RELEASE_VERSION 20211102
+#define ABSL_LTS_RELEASE_VERSION 20220623
 #define ABSL_LTS_RELEASE_PATCH_LEVEL 0
 
 // Helper macro to convert a CPP variable to a string literal.

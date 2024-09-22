@@ -48,7 +48,7 @@ if (POLICY CMP0091)
   cmake_policy(SET CMP0091 NEW)
 endif (POLICY CMP0091)
 
-project(absl LANGUAGES CXX VERSION 20211102)
+project(absl LANGUAGES CXX VERSION 20220623)
 include(CTest)
 
 # Output directory is correct by default for most build setups. However, when
