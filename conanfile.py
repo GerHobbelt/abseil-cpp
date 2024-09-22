@@ -57,7 +57,7 @@ class AbseilConan(ConanFile):
         return cmake
 
     def build(self):
-        tools.replace_in_file("CMakeLists.txt", "project(absl CXX)", "project(absl CXX)\ninclude(conanbuildinfo.cmake)\nconan_basic_setup()")
+        tools.replace_in_file("CMakeLists.txt", "project(absl LANGUAGES CXX)", "project(absl LANGUAGES CXX)\ninclude(conanbuildinfo.cmake)\nconan_basic_setup()")
         cmake = self._configure_cmake()
         cmake.build()
 

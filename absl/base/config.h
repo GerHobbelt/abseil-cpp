@@ -268,9 +268,20 @@ static_assert(ABSL_INTERNAL_INLINE_NAMESPACE_STR[0] != 'h' ||
      ((ABSL_INTERNAL_HAVE_MIN_GNUC_VERSION(7, 4) && defined(__GLIBCXX__)) || \
       (ABSL_INTERNAL_HAVE_MIN_GNUC_VERSION(8, 2) &&                          \
        defined(_LIBCPP_VERSION)))) ||                                        \
-    (defined(_MSC_VER) && !defined(__NVCC__))
+    (defined(_MSC_VER) && !defined(__NVCC__) && !defined(__clang__))
 #define ABSL_HAVE_STD_IS_TRIVIALLY_CONSTRUCTIBLE 1
 #define ABSL_HAVE_STD_IS_TRIVIALLY_ASSIGNABLE 1
+#endif
+
+// ABSL_HAVE_STD_IS_TRIVIALLY_COPYABLE
+//
+// Checks whether `std::is_trivially_copyable<T>` is supported.
+//
+// Notes: Clang 15+ with libc++ supports these features, GCC hasn't been tested.
+#if defined(ABSL_HAVE_STD_IS_TRIVIALLY_COPYABLE)
+#error ABSL_HAVE_STD_IS_TRIVIALLY_COPYABLE cannot be directly set
+#elif defined(__clang__) && (__clang_major__ >= 15)
+#define ABSL_HAVE_STD_IS_TRIVIALLY_COPYABLE 1
 #endif
 
 // ABSL_HAVE_THREAD_LOCAL
@@ -904,9 +915,14 @@ static_assert(ABSL_INTERNAL_INLINE_NAMESPACE_STR[0] != 'h' ||
 
 // ABSL_INTERNAL_HAVE_ARM_NEON is used for compile-time detection of NEON (ARM
 // SIMD).
+//
+// If __CUDA_ARCH__ is defined, then we are compiling CUDA code in device mode.
+// In device mode, NEON intrinsics are not available, regardless of host
+// platform.
+// https://llvm.org/docs/CompileCudaWithLLVM.html#detecting-clang-vs-nvcc-from-code
 #ifdef ABSL_INTERNAL_HAVE_ARM_NEON
 #error ABSL_INTERNAL_HAVE_ARM_NEON cannot be directly set
-#elif defined(__ARM_NEON)
+#elif defined(__ARM_NEON) && !defined(__CUDA_ARCH__)
 #define ABSL_INTERNAL_HAVE_ARM_NEON 1
 #endif
 

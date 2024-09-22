@@ -545,7 +545,7 @@ struct GroupSse2Impl {
 
   // Returns a bitmask representing the positions of slots that match hash.
   BitMask<uint32_t, kWidth> Match(h2_t hash) const {
-    auto match = _mm_set1_epi8(hash);
+    auto match = _mm_set1_epi8(static_cast<char>(hash));
     return BitMask<uint32_t, kWidth>(
         static_cast<uint32_t>(_mm_movemask_epi8(_mm_cmpeq_epi8(match, ctrl))));
   }
@@ -557,7 +557,7 @@ struct GroupSse2Impl {
     return NonIterableBitMask<uint32_t, kWidth>(
         static_cast<uint32_t>(_mm_movemask_epi8(_mm_sign_epi8(ctrl, ctrl))));
 #else
-    auto match = _mm_set1_epi8(static_cast<h2_t>(ctrl_t::kEmpty));
+    auto match = _mm_set1_epi8(static_cast<char>(ctrl_t::kEmpty));
     return NonIterableBitMask<uint32_t, kWidth>(
         static_cast<uint32_t>(_mm_movemask_epi8(_mm_cmpeq_epi8(match, ctrl))));
 #endif
@@ -565,14 +565,14 @@ struct GroupSse2Impl {
 
   // Returns a bitmask representing the positions of empty or deleted slots.
   NonIterableBitMask<uint32_t, kWidth> MaskEmptyOrDeleted() const {
-    auto special = _mm_set1_epi8(static_cast<uint8_t>(ctrl_t::kSentinel));
+    auto special = _mm_set1_epi8(static_cast<char>(ctrl_t::kSentinel));
     return NonIterableBitMask<uint32_t, kWidth>(static_cast<uint32_t>(
         _mm_movemask_epi8(_mm_cmpgt_epi8_fixed(special, ctrl))));
   }
 
   // Returns the number of trailing empty or deleted elements in the group.
   uint32_t CountLeadingEmptyOrDeleted() const {
-    auto special = _mm_set1_epi8(static_cast<uint8_t>(ctrl_t::kSentinel));
+    auto special = _mm_set1_epi8(static_cast<char>(ctrl_t::kSentinel));
     return TrailingZeros(static_cast<uint32_t>(
         _mm_movemask_epi8(_mm_cmpgt_epi8_fixed(special, ctrl)) + 1));
   }
@@ -612,9 +612,9 @@ struct GroupAArch64Impl {
 
   NonIterableBitMask<uint64_t, kWidth, 3> MaskEmpty() const {
     uint64_t mask =
-        vget_lane_u64(vreinterpret_u64_u8(
-                          vceq_s8(vdup_n_s8(static_cast<h2_t>(ctrl_t::kEmpty)),
-                                  vreinterpret_s8_u8(ctrl))),
+        vget_lane_u64(vreinterpret_u64_u8(vceq_s8(
+                          vdup_n_s8(static_cast<int8_t>(ctrl_t::kEmpty)),
+                          vreinterpret_s8_u8(ctrl))),
                       0);
     return NonIterableBitMask<uint64_t, kWidth, 3>(mask);
   }
@@ -635,7 +635,8 @@ struct GroupAArch64Impl {
     // Clang and GCC optimize countr_zero to rbit+clz without any check for 0,
     // so we should be fine.
     constexpr uint64_t bits = 0x0101010101010101ULL;
-    return countr_zero((mask | ~(mask >> 7)) & bits) >> 3;
+    return static_cast<uint32_t>(countr_zero((mask | ~(mask >> 7)) & bits) >>
+                                 3);
   }
 
   void ConvertSpecialToEmptyAndFullToDeleted(ctrl_t* dst) const {
@@ -693,7 +694,8 @@ struct GroupPortableImpl {
     // ctrl | ~(ctrl >> 7) will have the lowest bit set to zero for kEmpty and
     // kDeleted. We lower all other bits and count number of trailing zeros.
     constexpr uint64_t bits = 0x0101010101010101ULL;
-    return countr_zero((ctrl | ~(ctrl >> 7)) & bits) >> 3;
+    return static_cast<uint32_t>(countr_zero((ctrl | ~(ctrl >> 7)) & bits) >>
+                                 3);
   }
 
   void ConvertSpecialToEmptyAndFullToDeleted(ctrl_t* dst) const {
@@ -1142,11 +1144,12 @@ class raw_hash_set {
           std::is_nothrow_default_constructible<key_equal>::value&&
               std::is_nothrow_default_constructible<allocator_type>::value) {}
 
-  explicit raw_hash_set(size_t bucket_count, const hasher& hash = hasher(),
+  explicit raw_hash_set(size_t bucket_count,
+                        const hasher& hash = hasher(),
                         const key_equal& eq = key_equal(),
                         const allocator_type& alloc = allocator_type())
       : ctrl_(EmptyGroup()),
-        settings_(0, HashtablezInfoHandle(), hash, eq, alloc) {
+        settings_(0u, HashtablezInfoHandle(), hash, eq, alloc) {
     if (bucket_count) {
       capacity_ = NormalizeCapacity(bucket_count);
       initialize_slots();
@@ -1271,14 +1274,16 @@ class raw_hash_set {
               std::is_nothrow_copy_constructible<allocator_type>::value)
       : ctrl_(absl::exchange(that.ctrl_, EmptyGroup())),
         slots_(absl::exchange(that.slots_, nullptr)),
-        size_(absl::exchange(that.size_, 0)),
-        capacity_(absl::exchange(that.capacity_, 0)),
+        size_(absl::exchange(that.size_, size_t{0})),
+        capacity_(absl::exchange(that.capacity_, size_t{0})),
         // Hash, equality and allocator are copied instead of moved because
         // `that` must be left valid. If Hash is std::function<Key>, moving it
         // would create a nullptr functor that cannot be called.
-        settings_(absl::exchange(that.growth_left(), 0),
+        settings_(absl::exchange(that.growth_left(), size_t{0}),
                   absl::exchange(that.infoz(), HashtablezInfoHandle()),
-                  that.hash_ref(), that.eq_ref(), that.alloc_ref()) {}
+                  that.hash_ref(),
+                  that.eq_ref(),
+                  that.alloc_ref()) {}
 
   raw_hash_set(raw_hash_set&& that, const allocator_type& a)
       : ctrl_(EmptyGroup()),

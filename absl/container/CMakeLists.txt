@@ -28,6 +28,7 @@ absl_cc_library(
     ${ABSL_DEFAULT_LINKOPTS}
   DEPS
     absl::container_common
+    absl::common_policy_traits
     absl::compare
     absl::compressed_tuple
     absl::container_memory
@@ -81,7 +82,6 @@ absl_cc_test(
     absl::raw_logging_internal
     absl::strings
     absl::test_instance_tracker
-    absl::type_traits
     GTest::gmock_main
 )
 
@@ -532,6 +532,7 @@ absl_cc_library(
   COPTS
     ${ABSL_DEFAULT_COPTS}
   DEPS
+    absl::common_policy_traits
     absl::meta
   PUBLIC
 )
@@ -545,6 +546,31 @@ absl_cc_test(
     ${ABSL_TEST_COPTS}
   DEPS
     absl::hash_policy_traits
+    GTest::gmock_main
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    common_policy_traits
+  HDRS
+    "internal/common_policy_traits.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::meta
+  PUBLIC
+)
+
+absl_cc_test(
+  NAME
+    common_policy_traits_test
+  SRCS
+    "internal/common_policy_traits_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::common_policy_traits
     GTest::gmock_main
 )
 
