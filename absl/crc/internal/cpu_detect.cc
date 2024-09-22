@@ -28,7 +28,7 @@
 #include <intrin.h>
 #endif
 
-#if defined(__x86_64__) || defined(_M_X64)
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 #if ABSL_HAVE_BUILTIN(__cpuid) || defined(__clang__)
 // MSVC-equivalent __cpuid intrinsic declaration for clang-like compilers
 // for non-Windows build environments.
@@ -43,13 +43,13 @@ static void __cpuid(int cpu_info[4], int info_type) {
                    : "a"(info_type), "c"(0));
 }
 #endif  // !defined(_WIN32) && !defined(_WIN64)
-#endif  // defined(__x86_64__) || defined(_M_X64)
+#endif  // defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
 namespace crc_internal {
 
-#if defined(__x86_64__) || defined(_M_X64)
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 
 namespace {
 
@@ -137,7 +137,7 @@ CpuType GetIntelCpuType() {
             case 0x5e:  // Skylake (client)
               return CpuType::kIntelSkylake;
             default:
-              return CpuType::kUnknown;
+              return model_num > 0x56 ? CpuType::kIntelSkylake : CpuType::kUnknown; // force newer Intel CPUs to be tested as Skylake
           }
         default:
           return CpuType::kUnknown;
@@ -198,7 +198,7 @@ CpuType GetAmdCpuType() {
         case 0x44:  // Stepping A0
           return CpuType::kAmdRyzenV3000;
         default:
-          return CpuType::kUnknown;
+          return model_num > 0x11 ? CpuType::kAmdRyzenV3000 : CpuType::kUnknown; // force newer AMD CPUs to be tested as kAmdRyzenV3000
       }
       break;
     default:

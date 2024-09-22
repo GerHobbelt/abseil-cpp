@@ -622,6 +622,8 @@ CRCImpl* TryNewCRC32AcceleratedX86ARMCombined() {
     case CpuType::kAmdRome:
     case CpuType::kAmdNaples:
     case CpuType::kAmdMilan:
+    case CpuType::kAmdGenoa:
+    case CpuType::kAmdRyzenV3000:
       return new CRC32AcceleratedX86ARMCombinedMultipleStreams<
           3, 1, CutoffStrategy::Fold3>();
     // PCLMULQDQ is fast, use combined PCLMULQDQ + CRC implementation.

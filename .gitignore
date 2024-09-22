@@ -141,3 +141,8 @@ debug_*/*
 MODULE.bazel
 MODULE.bazel.lock
 out.txt
+# Visual Studio files
+.vs/
+msvc.build/
+*.vcxproj.user
+/build-cmake*
