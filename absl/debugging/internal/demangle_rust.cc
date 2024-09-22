@@ -36,6 +36,7 @@ bool IsLower(char c) { return 'a' <= c && c <= 'z'; }
 bool IsUpper(char c) { return 'A' <= c && c <= 'Z'; }
 bool IsAlpha(char c) { return IsLower(c) || IsUpper(c); }
 bool IsIdentifierChar(char c) { return IsAlpha(c) || IsDigit(c) || c == '_'; }
+bool IsLowerHexDigit(char c) { return IsDigit(c) || ('a' <= c && c <= 'f'); }
 
 const char* BasicTypeName(char c) {
   switch (c) {
@@ -150,11 +151,11 @@ class RustSymbolParser {
         path:
           switch (Take()) {
             case 'C': goto crate_root;
-            case 'M': return false;  // inherent-impl not yet implemented
-            case 'X': return false;  // trait-impl not yet implemented
+            case 'M': goto inherent_impl;
+            case 'X': goto trait_impl;
             case 'Y': goto trait_definition;
             case 'N': goto nested_path;
-            case 'I': return false;  // generic-args not yet implemented
+            case 'I': goto generic_args;
             case 'B': goto path_backref;
             default: return false;
           }
@@ -162,6 +163,35 @@ class RustSymbolParser {
         // crate-root -> C identifier (C consumed above)
         crate_root:
           if (!ParseIdentifier()) return false;
+          continue;
+
+        // inherent-impl -> M impl-path type (M already consumed)
+        inherent_impl:
+          if (!Emit("<")) return false;
+          ABSL_DEMANGLER_RECURSE(impl_path, kInherentImplType);
+          ABSL_DEMANGLER_RECURSE(type, kInherentImplEnding);
+          if (!Emit(">")) return false;
+          continue;
+
+        // trait-impl -> X impl-path type path (X already consumed)
+        trait_impl:
+          if (!Emit("<")) return false;
+          ABSL_DEMANGLER_RECURSE(impl_path, kTraitImplType);
+          ABSL_DEMANGLER_RECURSE(type, kTraitImplInfix);
+          if (!Emit(" as ")) return false;
+          ABSL_DEMANGLER_RECURSE(path, kTraitImplEnding);
+          if (!Emit(">")) return false;
+          continue;
+
+        // impl-path -> disambiguator? path (but never print it!)
+        impl_path:
+          ++silence_depth_;
+          {
+            int ignored_disambiguator;
+            if (!ParseDisambiguator(ignored_disambiguator)) return false;
+          }
+          ABSL_DEMANGLER_RECURSE(path, kImplPathEnding);
+          --silence_depth_;
           continue;
 
         // trait-definition -> Y type path (Y already consumed)
@@ -212,7 +242,15 @@ class RustSymbolParser {
             if (type_name == nullptr || !Emit(type_name)) return false;
             continue;
           }
-          if (Eat('A')) return false;  // array-type not yet implemented
+          if (Eat('A')) {
+            // array-type = A type const
+            if (!Emit("[")) return false;
+            ABSL_DEMANGLER_RECURSE(type, kArraySize);
+            if (!Emit("; ")) return false;
+            ABSL_DEMANGLER_RECURSE(constant, kFinishArray);
+            if (!Emit("]")) return false;
+            continue;
+          }
           if (Eat('S')) {
             if (!Emit("[")) return false;
             ABSL_DEMANGLER_RECURSE(type, kSliceEnding);
@@ -290,6 +328,68 @@ class RustSymbolParser {
           --silence_depth_;
           continue;
 
+        // const -> type const-data | p | backref
+        //
+        // const is a C++ keyword, so we use the label `constant` instead.
+        constant:
+          if (Eat('B')) goto const_backref;
+          if (Eat('p')) {
+            if (!Emit("_")) return false;
+            continue;
+          }
+
+          // Scan the type without printing it.
+          //
+          // The Rust language restricts the type of a const generic argument
+          // much more than the mangling grammar does.  We do not enforce this.
+          //
+          // We also do not bother printing false, true, 'A', and '\u{abcd}' for
+          // the types bool and char.  Because we do not print generic-args
+          // contents, we expect to print constants only in array sizes, and
+          // those should not be bool or char.
+          ++silence_depth_;
+          ABSL_DEMANGLER_RECURSE(type, kConstData);
+          --silence_depth_;
+
+          // const-data -> n? hex-digit* _
+          //
+          // Although the grammar doesn't say this, existing demanglers expect
+          // that zero is 0, not an empty digit sequence, and no nonzero value
+          // may have leading zero digits.  Also n0_ is accepted and printed as
+          // -0, though a toolchain will probably never write that encoding.
+          if (Eat('n') && !EmitChar('-')) return false;
+          if (!Emit("0x")) return false;
+          if (Eat('0')) {
+            if (!EmitChar('0')) return false;
+            if (!Eat('_')) return false;
+            continue;
+          }
+          while (IsLowerHexDigit(Peek())) {
+            if (!EmitChar(Take())) return false;
+          }
+          if (!Eat('_')) return false;
+          continue;
+
+        // generic-args -> I path generic-arg* E (I already consumed)
+        //
+        // We follow the C++ demangler in omitting all the arguments from the
+        // output, printing only the list opening and closing tokens.
+        generic_args:
+          ABSL_DEMANGLER_RECURSE(path, kBeginGenericArgList);
+          if (!Emit("::<>")) return false;
+          ++silence_depth_;
+          while (!Eat('E')) {
+            ABSL_DEMANGLER_RECURSE(generic_arg, kContinueGenericArgList);
+          }
+          --silence_depth_;
+          continue;
+
+        // generic-arg -> lifetime | type | K const
+        generic_arg:
+          if (Eat('L')) return false;  // lifetime not yet implemented
+          if (Eat('K')) goto constant;
+          goto type;
+
         // backref -> B base-62-number (B already consumed)
         //
         // The BeginBackref call parses and range-checks the base-62-number.  We
@@ -315,6 +415,14 @@ class RustSymbolParser {
           }
           EndBackref();
           continue;
+
+        const_backref:
+          if (!BeginBackref()) return false;
+          if (silence_depth_ == 0) {
+            ABSL_DEMANGLER_RECURSE(constant, kConstantBackrefEnding);
+          }
+          EndBackref();
+          continue;
       }
     }
 
@@ -328,15 +436,27 @@ class RustSymbolParser {
     kVendorSpecificSuffix,
     kIdentifierInUppercaseNamespace,
     kIdentifierInLowercaseNamespace,
+    kInherentImplType,
+    kInherentImplEnding,
+    kTraitImplType,
+    kTraitImplInfix,
+    kTraitImplEnding,
+    kImplPathEnding,
     kTraitDefinitionInfix,
     kTraitDefinitionEnding,
+    kArraySize,
+    kFinishArray,
     kSliceEnding,
     kAfterFirstTupleElement,
     kAfterSecondTupleElement,
     kAfterThirdTupleElement,
     kAfterSubsequentTupleElement,
+    kConstData,
+    kBeginGenericArgList,
+    kContinueGenericArgList,
     kPathBackrefEnding,
     kTypeBackrefEnding,
+    kConstantBackrefEnding,
   };
 
   // Element counts for the stack arrays.  Larger stack sizes accommodate more
