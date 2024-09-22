@@ -233,6 +233,7 @@ namespace container_internal {
 #ifdef ABSL_SWISSTABLE_ENABLE_GENERATIONS
 #error ABSL_SWISSTABLE_ENABLE_GENERATIONS cannot be directly set
 #elif defined(ABSL_HAVE_ADDRESS_SANITIZER) || \
+    defined(ABSL_HAVE_HWADDRESS_SANITIZER) || \
     defined(ABSL_HAVE_MEMORY_SANITIZER)
 // When compiled in sanitizer mode, we add generation integers to the backing
 // array and iterators. In the backing array, we store the generation between
@@ -2073,7 +2074,7 @@ class raw_hash_set {
     // PRECONDITION: not an end() iterator.
     reference operator*() const {
       AssertIsFull(ctrl_, generation(), generation_ptr(), "operator*()");
-      return PolicyTraits::element(slot_);
+      return unchecked_deref();
     }
 
     // PRECONDITION: not an end() iterator.
@@ -2147,6 +2148,16 @@ class raw_hash_set {
     union {
       slot_type* slot_;
     };
+
+    // An equality check which skips ABSL Hardening iterator invalidation
+    // checks.
+    // Should be used when the lifetimes of the iterators are well-enough
+    // understood to prove that they cannot be invalid.
+    bool unchecked_equals(const iterator& b) { return ctrl_ == b.control(); }
+
+    // Dereferences the iterator without ABSL Hardening iterator invalidation
+    // checks.
+    reference unchecked_deref() const { return PolicyTraits::element(slot_); }
   };
 
   class const_iterator {
@@ -2191,6 +2202,10 @@ class raw_hash_set {
     slot_type* slot() const { return inner_.slot(); }
 
     iterator inner_;
+
+    bool unchecked_equals(const const_iterator& b) {
+      return inner_.unchecked_equals(b.inner_);
+    }
   };
 
   using node_type = node_handle<Policy, hash_policy_traits<Policy>, Alloc>;
@@ -2851,7 +2866,11 @@ class raw_hash_set {
 
   template <class K = key_type>
   bool contains(const key_arg<K>& key) const {
-    return find(key) != end();
+    // Here neither the iterator returned by `find()` nor `end()` can be invalid
+    // outside of potential thread-safety issues.
+    // `find()`'s return value is constructed, used, and then destructed
+    // all in this context.
+    return !find(key).unchecked_equals(end());
   }
 
   template <class K = key_type>
@@ -3337,6 +3356,8 @@ class raw_hash_set {
   const_iterator iterator_at(size_t i) const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return {control() + i, slot_array() + i, common().generation_ptr()};
   }
+
+  reference unchecked_deref(iterator it) { return it.unchecked_deref(); }
 
  private:
   friend struct RawHashSetTestOnlyAccess;
