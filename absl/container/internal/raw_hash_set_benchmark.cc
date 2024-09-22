@@ -24,6 +24,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <deque>
 
 #include "absl/base/internal/raw_logging.h"
 #include "absl/container/internal/container_memory.h"
