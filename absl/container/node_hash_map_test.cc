@@ -56,7 +56,7 @@
 
 
 #include <cstddef>
-#include <new>  // NOLINT: used for __cpp_lib_launder
+#include <new>
 #include <string>
 #include <tuple>
 #include <type_traits>
