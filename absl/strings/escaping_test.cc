@@ -39,7 +39,7 @@ struct epair {
 
 TEST(CEscape, EscapeAndUnescape) {
   const std::string inputs[] = {
-      std::string("foo\nxx\r\b\0023"),
+      std::string("foo\nxx\r\b\002" "3"),
       std::string(""),
       std::string("abc"),
       std::string("\1chad_rules"),
