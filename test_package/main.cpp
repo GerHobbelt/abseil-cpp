@@ -10,6 +10,11 @@
 #include "absl/numeric/int128.h"
 #include "absl/time/time.h"
 
+#if defined(BUILD_MONOLITHIC)
+#define main   abseil_test_package_main
+#endif
+
+extern "C"
 int main()
 {
     absl::flat_hash_set<std::string> set1;
@@ -46,4 +51,6 @@ int main()
     absl::Time t1 = absl::Now();
     absl::Time t2 = absl::Time();
     absl::Time t3 = absl::UnixEpoch();
+
+		return 0;
 }

@@ -509,7 +509,12 @@ void RunForType(std::vector<Result>& results) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+#if defined(BUILD_MONOLITHIC)
+#define main   abseil_raw_hash_Set_probe_benchmark_main
+#endif
+
+extern "C"
+int main(int argc, const char** argv) {
   // Parse the benchmark flags. Ignore all of them except the regex pattern.
   for (int i = 1; i < argc; ++i) {
     absl::string_view arg = argv[i];

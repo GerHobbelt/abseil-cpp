@@ -27,4 +27,8 @@
 #include "absl/base/policy_checks.h"  // IWYU pragma: keep
 #include "absl/base/port.h"           // IWYU pragma: keep
 
+#if defined(BUILD_MONOLITHIC)
+#define main   abseil_c_header_test_main
+#endif
+
 int main() { return 0; }
