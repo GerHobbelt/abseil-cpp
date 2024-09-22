@@ -31,6 +31,8 @@
 // `node_hash_set` should be an easy migration. Consider migrating to
 // `node_hash_set` and perhaps converting to a more efficient `flat_hash_set`
 // upon further review.
+//
+// `node_hash_set` is not exception-safe.
 
 #ifndef ABSL_CONTAINER_NODE_HASH_SET_H_
 #define ABSL_CONTAINER_NODE_HASH_SET_H_
@@ -39,11 +41,13 @@
 #include <memory>
 #include <type_traits>
 
+#include "absl/base/attributes.h"
 #include "absl/container/hash_container_defaults.h"
 #include "absl/container/internal/container_memory.h"
 #include "absl/container/internal/node_slot_policy.h"
 #include "absl/container/internal/raw_hash_set.h"  // IWYU pragma: export
 #include "absl/memory/memory.h"
+#include "absl/meta/type_traits.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
@@ -110,7 +114,7 @@ struct NodeHashSetPolicy;
 //  }
 template <class T, class Hash = DefaultHashContainerHash<T>,
           class Eq = DefaultHashContainerEq<T>, class Alloc = std::allocator<T>>
-class node_hash_set
+class ABSL_INTERNAL_ATTRIBUTE_OWNER node_hash_set
     : public absl::container_internal::raw_hash_set<
           absl::container_internal::NodeHashSetPolicy<T>, Hash, Eq, Alloc> {
   using Base = typename node_hash_set::raw_hash_set;
@@ -464,6 +468,33 @@ typename node_hash_set<T, H, E, A>::size_type erase_if(
     node_hash_set<T, H, E, A>& c, Predicate pred) {
   return container_internal::EraseIf(pred, &c);
 }
+
+namespace container_internal {
+
+// c_for_each_fast(node_hash_set<>, Function)
+//
+// Container-based version of the <algorithm> `std::for_each()` function to
+// apply a function to a container's elements.
+// There is no guarantees on the order of the function calls.
+// Erasure and/or insertion of elements in the function is not allowed.
+template <typename T, typename H, typename E, typename A, typename Function>
+decay_t<Function> c_for_each_fast(const node_hash_set<T, H, E, A>& c,
+                                  Function&& f) {
+  container_internal::ForEach(f, &c);
+  return f;
+}
+template <typename T, typename H, typename E, typename A, typename Function>
+decay_t<Function> c_for_each_fast(node_hash_set<T, H, E, A>& c, Function&& f) {
+  container_internal::ForEach(f, &c);
+  return f;
+}
+template <typename T, typename H, typename E, typename A, typename Function>
+decay_t<Function> c_for_each_fast(node_hash_set<T, H, E, A>&& c, Function&& f) {
+  container_internal::ForEach(f, &c);
+  return f;
+}
+
+}  // namespace container_internal
 
 namespace container_internal {
 

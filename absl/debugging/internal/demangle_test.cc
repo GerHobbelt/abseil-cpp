@@ -943,6 +943,29 @@ TEST(Demangle, TransactionSafeFunctionType) {
   EXPECT_STREQ("f()", tmp);
 }
 
+TEST(Demangle, TemplateParameterObject) {
+  char tmp[80];
+
+  // Source:
+  //
+  // struct S { int x, y; };
+  // template <S s, const S* p = &s> void f() {}
+  // template void f<S{1, 2}>();
+  //
+  // LLVM demangling:
+  //
+  // void f<S{1, 2}, &template parameter object for S{1, 2}>()
+  EXPECT_TRUE(Demangle("_Z1fIXtl1SLi1ELi2EEEXadL_ZTAXtlS0_Li1ELi2EEEEEEvv",
+                       tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+
+  // The name of the object standing alone.
+  //
+  // LLVM demangling: template parameter object for S{1, 2}
+  EXPECT_TRUE(Demangle("_ZTAXtl1SLi1ELi2EEE", tmp, sizeof(tmp)));
+  EXPECT_STREQ("template parameter object", tmp);
+}
+
 TEST(Demangle, EnableIfAttributeOnGlobalFunction) {
   char tmp[80];
 
@@ -1186,7 +1209,7 @@ TEST(Demangle, BinaryFoldExpressions) {
 TEST(Demangle, SizeofPacks) {
   char tmp[80];
 
-  // template <std::size_t i> struct S {};
+  // template <size_t i> struct S {};
   //
   // template <class... T> auto f(T... p) -> S<sizeof...(T)> { return {}; }
   // template auto f<int, long>(int, long) -> S<2>;
@@ -1843,6 +1866,35 @@ TEST(Demangle, ThreadLocalWrappers) {
 
   EXPECT_TRUE(Demangle("_ZTHN2ns3varE", tmp, sizeof(tmp)));
   EXPECT_STREQ("thread-local initialization routine for ns::var", tmp);
+}
+
+TEST(Demangle, DubiousSrStSymbols) {
+  char tmp[80];
+
+  // GNU demangling (not accepted by LLVM):
+  //
+  // S<std::u<char>::v> f<char>()
+  EXPECT_TRUE(Demangle("_Z1fIcE1SIXsrSt1uIT_E1vEEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+
+  // A real case from the wild.
+  //
+  // GNU demangling (not accepted by LLVM) with line breaks and indentation
+  // added for readability:
+  //
+  // __gnu_cxx::__enable_if<std::__is_char<char>::__value, bool>::__type
+  // std::operator==<char>(
+  //     std::__cxx11::basic_string<char, std::char_traits<char>,
+  //                                std::allocator<char> > const&,
+  //     std::__cxx11::basic_string<char, std::char_traits<char>,
+  //                                std::allocator<char> > const&)
+  EXPECT_TRUE(Demangle(
+      "_ZSteqIcEN9__gnu_cxx11__enable_if"
+      "IXsrSt9__is_charIT_E7__valueEbE"
+      "6__typeE"
+      "RKNSt7__cxx1112basic_stringIS3_St11char_traitsIS3_ESaIS3_EEESE_",
+      tmp, sizeof(tmp)));
+  EXPECT_STREQ("std::operator==<>()", tmp);
 }
 
 // Test one Rust symbol to exercise Demangle's delegation path.  Rust demangling
