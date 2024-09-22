@@ -81,6 +81,7 @@ static const AbbrevPair kOperatorList[] = {
     {"rs", ">>", 2},
     {"lS", "<<=", 2},
     {"rS", ">>=", 2},
+    {"ss", "<=>", 2},
     {"eq", "==", 2},
     {"ne", "!=", 2},
     {"lt", "<", 2},
@@ -100,6 +101,7 @@ static const AbbrevPair kOperatorList[] = {
     {"qu", "?", 3},
     {"st", "sizeof", 0},  // Special syntax
     {"sz", "sizeof", 1},  // Not a real operator name, but used in expressions.
+    {"sZ", "sizeof...", 0},  // Special syntax
     {nullptr, nullptr, 0},
 };
 
@@ -298,8 +300,8 @@ static bool ParseOneCharToken(State *state, const char one_char_token) {
   return false;
 }
 
-// Returns true and advances "mangled_cur" if we find "two_char_token"
-// at "mangled_cur" position.  It is assumed that "two_char_token" does
+// Returns true and advances "mangled_idx" if we find "two_char_token"
+// at "mangled_idx" position.  It is assumed that "two_char_token" does
 // not contain '\0'.
 static bool ParseTwoCharToken(State *state, const char *two_char_token) {
   ComplexityGuard guard(state);
@@ -307,6 +309,21 @@ static bool ParseTwoCharToken(State *state, const char *two_char_token) {
   if (RemainingInput(state)[0] == two_char_token[0] &&
       RemainingInput(state)[1] == two_char_token[1]) {
     state->parse_state.mangled_idx += 2;
+    return true;
+  }
+  return false;
+}
+
+// Returns true and advances "mangled_idx" if we find "three_char_token"
+// at "mangled_idx" position.  It is assumed that "three_char_token" does
+// not contain '\0'.
+static bool ParseThreeCharToken(State *state, const char *three_char_token) {
+  ComplexityGuard guard(state);
+  if (guard.IsTooComplex()) return false;
+  if (RemainingInput(state)[0] == three_char_token[0] &&
+      RemainingInput(state)[1] == three_char_token[1] &&
+      RemainingInput(state)[2] == three_char_token[2]) {
+    state->parse_state.mangled_idx += 3;
     return true;
   }
   return false;
@@ -578,10 +595,14 @@ static bool ParseTemplateArgs(State *state);
 static bool ParseTemplateArg(State *state);
 static bool ParseBaseUnresolvedName(State *state);
 static bool ParseUnresolvedName(State *state);
+static bool ParseUnionSelector(State* state);
+static bool ParseFunctionParam(State* state);
+static bool ParseBracedExpression(State *state);
 static bool ParseExpression(State *state);
 static bool ParseExprPrimary(State *state);
-static bool ParseExprCastValue(State *state);
+static bool ParseExprCastValueAndTrailingE(State *state);
 static bool ParseQRequiresClauseExpr(State *state);
+static bool ParseRequirement(State *state);
 static bool ParseLocalName(State *state);
 static bool ParseLocalNameSuffix(State *state);
 static bool ParseDiscriminator(State *state);
@@ -1628,7 +1649,7 @@ static bool ParseTemplateArg(State *state) {
   //     ::= L <source-name> [<template-args>] [<expr-cast-value> E]
   if (ParseLocalSourceName(state) && Optional(ParseTemplateArgs(state))) {
     copy = state->parse_state;
-    if (ParseExprCastValue(state) && ParseOneCharToken(state, 'E')) {
+    if (ParseExprCastValueAndTrailingE(state)) {
       return true;
     }
     state->parse_state = copy;
@@ -1743,26 +1764,96 @@ static bool ParseUnresolvedName(State *state) {
   return false;
 }
 
+// <union-selector> ::= _ [<number>]
+//
+// https://github.com/itanium-cxx-abi/cxx-abi/issues/47
+static bool ParseUnionSelector(State *state) {
+  return ParseOneCharToken(state, '_') && Optional(ParseNumber(state, nullptr));
+}
+
+// <function-param> ::= fp <(top-level) CV-qualifiers> _
+//                  ::= fp <(top-level) CV-qualifiers> <number> _
+//                  ::= fL <number> p <(top-level) CV-qualifiers> _
+//                  ::= fL <number> p <(top-level) CV-qualifiers> <number> _
+//                  ::= fpT  # this
+static bool ParseFunctionParam(State *state) {
+  ComplexityGuard guard(state);
+  if (guard.IsTooComplex()) return false;
+
+  ParseState copy = state->parse_state;
+
+  // Function-param expression (level 0).
+  if (ParseTwoCharToken(state, "fp") && Optional(ParseCVQualifiers(state)) &&
+      Optional(ParseNumber(state, nullptr)) && ParseOneCharToken(state, '_')) {
+    return true;
+  }
+  state->parse_state = copy;
+
+  // Function-param expression (level 1+).
+  if (ParseTwoCharToken(state, "fL") && Optional(ParseNumber(state, nullptr)) &&
+      ParseOneCharToken(state, 'p') && Optional(ParseCVQualifiers(state)) &&
+      Optional(ParseNumber(state, nullptr)) && ParseOneCharToken(state, '_')) {
+    return true;
+  }
+  state->parse_state = copy;
+
+  return ParseThreeCharToken(state, "fpT");
+}
+
+// <braced-expression> ::= <expression>
+//                     ::= di <field source-name> <braced-expression>
+//                     ::= dx <index expression> <braced-expression>
+//                     ::= dX <expression> <expression> <braced-expression>
+static bool ParseBracedExpression(State *state) {
+  ComplexityGuard guard(state);
+  if (guard.IsTooComplex()) return false;
+
+  ParseState copy = state->parse_state;
+
+  if (ParseTwoCharToken(state, "di") && ParseSourceName(state) &&
+      ParseBracedExpression(state)) {
+    return true;
+  }
+  state->parse_state = copy;
+
+  if (ParseTwoCharToken(state, "dx") && ParseExpression(state) &&
+      ParseBracedExpression(state)) {
+    return true;
+  }
+  state->parse_state = copy;
+
+  if (ParseTwoCharToken(state, "dX") &&
+      ParseExpression(state) && ParseExpression(state) &&
+      ParseBracedExpression(state)) {
+    return true;
+  }
+  state->parse_state = copy;
+
+  return ParseExpression(state);
+}
+
 // <expression> ::= <1-ary operator-name> <expression>
 //              ::= <2-ary operator-name> <expression> <expression>
 //              ::= <3-ary operator-name> <expression> <expression> <expression>
 //              ::= cl <expression>+ E
 //              ::= cp <simple-id> <expression>* E # Clang-specific.
+//              ::= so <type> <expression> [<number>] <union-selector>* [p] E
 //              ::= cv <type> <expression>      # type (expression)
 //              ::= cv <type> _ <expression>* E # type (expr-list)
+//              ::= tl <type> <braced-expression>* E
 //              ::= st <type>
 //              ::= <template-param>
 //              ::= <function-param>
+//              ::= sZ <template-param>
+//              ::= sZ <function-param>
 //              ::= <expr-primary>
 //              ::= dt <expression> <unresolved-name> # expr.name
 //              ::= pt <expression> <unresolved-name> # expr->name
 //              ::= sp <expression>         # argument pack expansion
 //              ::= sr <type> <unqualified-name> <template-args>
 //              ::= sr <type> <unqualified-name>
-// <function-param> ::= fp <(top-level) CV-qualifiers> _
-//                  ::= fp <(top-level) CV-qualifiers> <number> _
-//                  ::= fL <number> p <(top-level) CV-qualifiers> _
-//                  ::= fL <number> p <(top-level) CV-qualifiers> <number> _
+//              ::= u <source-name> <template-arg>* E  # vendor extension
+//              ::= rq <requirement>+ E
 static bool ParseExpression(State *state) {
   ComplexityGuard guard(state);
   if (guard.IsTooComplex()) return false;
@@ -1787,17 +1878,26 @@ static bool ParseExpression(State *state) {
   }
   state->parse_state = copy;
 
-  // Function-param expression (level 0).
-  if (ParseTwoCharToken(state, "fp") && Optional(ParseCVQualifiers(state)) &&
-      Optional(ParseNumber(state, nullptr)) && ParseOneCharToken(state, '_')) {
+  // <expression> ::= so <type> <expression> [<number>] <union-selector>* [p] E
+  //
+  // https://github.com/itanium-cxx-abi/cxx-abi/issues/47
+  if (ParseTwoCharToken(state, "so") && ParseType(state) &&
+      ParseExpression(state) && Optional(ParseNumber(state, nullptr)) &&
+      ZeroOrMore(ParseUnionSelector, state) &&
+      Optional(ParseOneCharToken(state, 'p')) &&
+      ParseOneCharToken(state, 'E')) {
     return true;
   }
   state->parse_state = copy;
 
-  // Function-param expression (level 1+).
-  if (ParseTwoCharToken(state, "fL") && Optional(ParseNumber(state, nullptr)) &&
-      ParseOneCharToken(state, 'p') && Optional(ParseCVQualifiers(state)) &&
-      Optional(ParseNumber(state, nullptr)) && ParseOneCharToken(state, '_')) {
+  // <expression> ::= <function-param>
+  if (ParseFunctionParam(state)) return true;
+  state->parse_state = copy;
+
+  // <expression> ::= tl <type> <braced-expression>* E
+  if (ParseTwoCharToken(state, "tl") && ParseType(state) &&
+      ZeroOrMore(ParseBracedExpression, state) &&
+      ParseOneCharToken(state, 'E')) {
     return true;
   }
   state->parse_state = copy;
@@ -1845,6 +1945,16 @@ static bool ParseExpression(State *state) {
   }
   state->parse_state = copy;
 
+  // sizeof...(pack)
+  //
+  // <expression> ::= sZ <template-param>
+  //              ::= sZ <function-param>
+  if (ParseTwoCharToken(state, "sZ") &&
+      (ParseFunctionParam(state) || ParseTemplateParam(state))) {
+    return true;
+  }
+  state->parse_state = copy;
+
   // Object and pointer member access expressions.
   if ((ParseTwoCharToken(state, "dt") || ParseTwoCharToken(state, "pt")) &&
       ParseExpression(state) && ParseType(state)) {
@@ -1863,6 +1973,22 @@ static bool ParseExpression(State *state) {
 
   // Parameter pack expansion
   if (ParseTwoCharToken(state, "sp") && ParseExpression(state)) {
+    return true;
+  }
+  state->parse_state = copy;
+
+  // Vendor extended expressions
+  if (ParseOneCharToken(state, 'u') && ParseSourceName(state) &&
+      ZeroOrMore(ParseTemplateArg, state) && ParseOneCharToken(state, 'E')) {
+    return true;
+  }
+  state->parse_state = copy;
+
+  // <expression> ::= rq <requirement>+ E
+  //
+  // https://github.com/itanium-cxx-abi/cxx-abi/issues/24
+  if (ParseTwoCharToken(state, "rq") && OneOrMore(ParseRequirement, state) &&
+      ParseOneCharToken(state, 'E')) {
     return true;
   }
   state->parse_state = copy;
@@ -1914,7 +2040,7 @@ static bool ParseExprPrimary(State *state) {
 
   // The merged cast production.
   if (ParseOneCharToken(state, 'L') && ParseType(state) &&
-      ParseExprCastValue(state)) {
+      ParseExprCastValueAndTrailingE(state)) {
     return true;
   }
   state->parse_state = copy;
@@ -1929,7 +2055,7 @@ static bool ParseExprPrimary(State *state) {
 }
 
 // <number> or <float>, followed by 'E', as described above ParseExprPrimary.
-static bool ParseExprCastValue(State *state) {
+static bool ParseExprCastValueAndTrailingE(State *state) {
   ComplexityGuard guard(state);
   if (guard.IsTooComplex()) return false;
   // We have to be able to backtrack after accepting a number because we could
@@ -1980,6 +2106,39 @@ static bool ParseQRequiresClauseExpr(State *state) {
 
   // also restores append
   state->parse_state = copy;
+  return false;
+}
+
+// <requirement> ::= X <expression> [N] [R <type-constraint>]
+// <requirement> ::= T <type>
+// <requirement> ::= Q <constraint-expression>
+//
+// <type-constraint> ::= <name>
+//
+// <constraint-expression> ::= <expression>
+//
+// https://github.com/itanium-cxx-abi/cxx-abi/issues/24
+static bool ParseRequirement(State *state) {
+  ComplexityGuard guard(state);
+  if (guard.IsTooComplex()) return false;
+
+  ParseState copy = state->parse_state;
+
+  if (ParseOneCharToken(state, 'X') && ParseExpression(state) &&
+      Optional(ParseOneCharToken(state, 'N')) &&
+      // This logic backtracks cleanly if we eat an R but a valid type doesn't
+      // follow it.
+      (!ParseOneCharToken(state, 'R') || ParseName(state))) {
+    return true;
+  }
+  state->parse_state = copy;
+
+  if (ParseOneCharToken(state, 'T') && ParseType(state)) return true;
+  state->parse_state = copy;
+
+  if (ParseOneCharToken(state, 'Q') && ParseExpression(state)) return true;
+  state->parse_state = copy;
+
   return false;
 }
 

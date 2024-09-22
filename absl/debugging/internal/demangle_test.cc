@@ -212,6 +212,97 @@ TEST(Demangle, TemplateParamSubstitutionWithGenericLambda) {
   EXPECT_STREQ(tmp, "Fooer<>::foo<>()");
 }
 
+TEST(Demangle, LambdaRequiresTrue) {
+  char tmp[100];
+
+  // auto $_0::operator()<int>(int) const requires true
+  ASSERT_TRUE(Demangle("_ZNK3$_0clIiEEDaT_QLb1E", tmp, sizeof(tmp)));
+  EXPECT_STREQ(tmp, "$_0::operator()<>()");
+}
+
+TEST(Demangle, LambdaRequiresSimpleExpression) {
+  char tmp[100];
+
+  // auto $_0::operator()<int>(int) const requires 2 + 2 == 4
+  ASSERT_TRUE(Demangle("_ZNK3$_0clIiEEDaT_QeqplLi2ELi2ELi4E",
+                       tmp, sizeof(tmp)));
+  EXPECT_STREQ(tmp, "$_0::operator()<>()");
+}
+
+TEST(Demangle, LambdaRequiresRequiresExpressionContainingTrue) {
+  char tmp[100];
+
+  // auto $_0::operator()<int>(int) const requires requires { true; }
+  ASSERT_TRUE(Demangle("_ZNK3$_0clIiEEDaT_QrqXLb1EE", tmp, sizeof(tmp)));
+  EXPECT_STREQ(tmp, "$_0::operator()<>()");
+}
+
+TEST(Demangle, LambdaRequiresRequiresExpressionContainingConcept) {
+  char tmp[100];
+
+  // auto $_0::operator()<int>(int) const
+  // requires requires { std::same_as<decltype(fp), int>; }
+  ASSERT_TRUE(Demangle("_ZNK3$_0clIiEEDaT_QrqXsr3stdE7same_asIDtfp_EiEE",
+                       tmp, sizeof(tmp)));
+  EXPECT_STREQ(tmp, "$_0::operator()<>()");
+}
+
+TEST(Demangle, LambdaRequiresRequiresExpressionContainingNoexceptExpression) {
+  char tmp[100];
+
+  // auto $_0::operator()<int>(int) const
+  // requires requires { {fp + fp} noexcept; }
+  ASSERT_TRUE(Demangle("_ZNK3$_0clIiEEDaT_QrqXplfp_fp_NE", tmp, sizeof(tmp)));
+  EXPECT_STREQ(tmp, "$_0::operator()<>()");
+}
+
+TEST(Demangle, LambdaRequiresRequiresExpressionContainingReturnTypeConstraint) {
+  char tmp[100];
+
+  // auto $_0::operator()<int>(int) const
+  // requires requires { {fp + fp} -> std::same_as<decltype(fp)>; }
+  ASSERT_TRUE(Demangle("_ZNK3$_0clIiEEDaT_QrqXplfp_fp_RNSt7same_asIDtfp_EEEE",
+                       tmp, sizeof(tmp)));
+  EXPECT_STREQ(tmp, "$_0::operator()<>()");
+}
+
+TEST(Demangle, LambdaRequiresRequiresExpressionWithBothNoexceptAndReturnType) {
+  char tmp[100];
+
+  // auto $_0::operator()<int>(int) const
+  // requires requires { {fp + fp} noexcept -> std::same_as<decltype(fp)>; }
+  ASSERT_TRUE(Demangle("_ZNK3$_0clIiEEDaT_QrqXplfp_fp_NRNSt7same_asIDtfp_EEEE",
+                       tmp, sizeof(tmp)));
+  EXPECT_STREQ(tmp, "$_0::operator()<>()");
+}
+
+TEST(Demangle, LambdaRequiresRequiresExpressionContainingType) {
+  char tmp[100];
+
+  // auto $_0::operator()<S>(S) const
+  // requires requires { typename S::T; }
+  ASSERT_TRUE(Demangle("_ZNK3$_0clI1SEEDaT_QrqTNS2_1TEE", tmp, sizeof(tmp)));
+  EXPECT_STREQ(tmp, "$_0::operator()<>()");
+}
+
+TEST(Demangle, LambdaRequiresRequiresExpressionNestingAnotherRequires) {
+  char tmp[100];
+
+  // auto $_0::operator()<int>(int) const requires requires { requires true; }
+  ASSERT_TRUE(Demangle("_ZNK3$_0clIiEEDaT_QrqQLb1EE", tmp, sizeof(tmp)));
+  EXPECT_STREQ(tmp, "$_0::operator()<>()");
+}
+
+TEST(Demangle, LambdaRequiresRequiresExpressionContainingTwoRequirements) {
+  char tmp[100];
+
+  // auto $_0::operator()<int>(int) const
+  // requires requires { requires true; requires 2 + 2 == 4; }
+  ASSERT_TRUE(Demangle("_ZNK3$_0clIiEEDaT_QrqXLb1EXeqplLi2ELi2ELi4EE",
+                       tmp, sizeof(tmp)));
+  EXPECT_STREQ(tmp, "$_0::operator()<>()");
+}
+
 // Test corner cases of boundary conditions.
 TEST(Demangle, CornerCases) {
   char tmp[10];
@@ -276,6 +367,14 @@ TEST(Demangle, Clones) {
   EXPECT_FALSE(Demangle("_ZL3Foov.isra.2.constprop.", tmp, sizeof(tmp)));
 }
 
+TEST(Demangle, LiteralOfGlobalNamespaceEnumType) {
+  char tmp[80];
+
+  // void f<(E)42>()
+  EXPECT_TRUE(Demangle("_Z1fIL1E42EEvv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+}
+
 // Test the GNU abi_tag extension.
 TEST(Demangle, AbiTags) {
   char tmp[80];
@@ -298,6 +397,148 @@ TEST(Demangle, AbiTags) {
   // [[gnu::abi_tag("foo", "bar")]] void C() {}
   EXPECT_TRUE(Demangle("_Z1CB3barB3foov", tmp, sizeof(tmp)));
   EXPECT_STREQ("C[abi:bar][abi:foo]()", tmp);
+}
+
+TEST(Demangle, ThisPointerInDependentSignature) {
+  char tmp[80];
+
+  // decltype(g<int>(this)) S::f<int>()
+  EXPECT_TRUE(Demangle("_ZN1S1fIiEEDTcl1gIT_EfpTEEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::f<>()", tmp);
+}
+
+// Test subobject-address template parameters.
+TEST(Demangle, SubobjectAddresses) {
+  char tmp[80];
+
+  // void f<a.<char const at offset 123>>()
+  EXPECT_TRUE(Demangle("_Z1fIXsoKcL_Z1aE123EEEvv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+
+  // void f<&a.<char const at offset 0>>()
+  EXPECT_TRUE(Demangle("_Z1fIXadsoKcL_Z1aEEEEvv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+
+  // void f<&a.<char const at offset 123>>()
+  EXPECT_TRUE(Demangle("_Z1fIXadsoKcL_Z1aE123EEEvv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+
+  // void f<&a.<char const at offset 123>>(), past the end this time
+  EXPECT_TRUE(Demangle("_Z1fIXadsoKcL_Z1aE123pEEEvv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+
+  // void f<&a.<char const at offset 0>>() with union-selectors
+  EXPECT_TRUE(Demangle("_Z1fIXadsoKcL_Z1aE__1_234EEEvv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+
+  // void f<&a.<char const at offset 123>>(), past the end, with union-selector
+  EXPECT_TRUE(Demangle("_Z1fIXadsoKcL_Z1aE123_456pEEEvv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+}
+
+TEST(Demangle, SizeofPacks) {
+  char tmp[80];
+
+  // template <std::size_t i> struct S {};
+  //
+  // template <class... T> auto f(T... p) -> S<sizeof...(T)> { return {}; }
+  // template auto f<int, long>(int, long) -> S<2>;
+  //
+  // template <class... T> auto g(T... p) -> S<sizeof...(p)> { return {}; }
+  // template auto g<int, long>(int, long) -> S<2>;
+
+  // S<sizeof...(int, long)> f<int, long>(int, long)
+  EXPECT_TRUE(Demangle("_Z1fIJilEE1SIXsZT_EEDpT_", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+
+  // S<sizeof... (fp)> g<int, long>(int, long)
+  EXPECT_TRUE(Demangle("_Z1gIJilEE1SIXsZfp_EEDpT_", tmp, sizeof(tmp)));
+  EXPECT_STREQ("g<>()", tmp);
+}
+
+TEST(Demangle, Spaceship) {
+  char tmp[80];
+
+  // #include <compare>
+  //
+  // struct S { auto operator<=>(const S&) const = default; };
+  // auto (S::*f) = &S::operator<=>;  // make sure S::operator<=> is emitted
+  //
+  // template <class T> auto g(T x, T y) -> decltype(x <=> y) {
+  //   return x <=> y;
+  // }
+  // template auto g<S>(S x, S y) -> decltype(x <=> y);
+
+  // S::operator<=>(S const&) const
+  EXPECT_TRUE(Demangle("_ZNK1SssERKS_", tmp, sizeof(tmp)));
+  EXPECT_STREQ("S::operator<=>()", tmp);
+
+  // decltype(fp <=> fp0) g<S>(S, S)
+  EXPECT_TRUE(Demangle("_Z1gI1SEDTssfp_fp0_ET_S2_", tmp, sizeof(tmp)));
+  EXPECT_STREQ("g<>()", tmp);
+}
+
+TEST(Demangle, VendorExtendedExpressions) {
+  char tmp[80];
+
+  // void f<__e()>()
+  EXPECT_TRUE(Demangle("_Z1fIXu3__eEEEvv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+
+  // void f<__e(int, long)>()
+  EXPECT_TRUE(Demangle("_Z1fIXu3__eilEEEvv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+}
+
+TEST(Demangle, DirectListInitialization) {
+  char tmp[80];
+
+  // template <class T> decltype(T{}) f() { return T{}; }
+  // template decltype(int{}) f<int>();
+  //
+  // struct XYZ { int x, y, z; };
+  // template <class T> decltype(T{1, 2, 3}) g() { return T{1, 2, 3}; }
+  // template decltype(XYZ{1, 2, 3}) g<XYZ>();
+  //
+  // template <class T> decltype(T{.x = 1, .y = 2, .z = 3}) h() {
+  //   return T{.x = 1, .y = 2, .z = 3};
+  // }
+  // template decltype(XYZ{.x = 1, .y = 2, .z = 3}) h<XYZ>();
+  //
+  // // The following two cases require full C99 designated initializers,
+  // // not part of C++ but likely available as an extension if you ask your
+  // // compiler nicely.
+  //
+  // struct A { int a[4]; };
+  // template <class T> decltype(T{.a[2] = 42}) i() { return T{.a[2] = 42}; }
+  // template decltype(A{.a[2] = 42}) i<A>();
+  //
+  // template <class T> decltype(T{.a[1 ... 3] = 42}) j() {
+  //   return T{.a[1 ... 3] = 42};
+  // }
+  // template decltype(A{.a[1 ... 3] = 42}) j<A>();
+
+  // decltype(int{}) f<int>()
+  EXPECT_TRUE(Demangle("_Z1fIiEDTtlT_EEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("f<>()", tmp);
+
+  // decltype(XYZ{1, 2, 3}) g<XYZ>()
+  EXPECT_TRUE(Demangle("_Z1gI3XYZEDTtlT_Li1ELi2ELi3EEEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("g<>()", tmp);
+
+  // decltype(XYZ{.x = 1, .y = 2, .z = 3}) h<XYZ>()
+  EXPECT_TRUE(Demangle("_Z1hI3XYZEDTtlT_di1xLi1Edi1yLi2Edi1zLi3EEEv",
+                       tmp, sizeof(tmp)));
+  EXPECT_STREQ("h<>()", tmp);
+
+  // decltype(A{.a[2] = 42}) i<A>()
+  EXPECT_TRUE(Demangle("_Z1iI1AEDTtlT_di1adxLi2ELi42EEEv", tmp, sizeof(tmp)));
+  EXPECT_STREQ("i<>()", tmp);
+
+  // decltype(A{.a[1 ... 3] = 42}) j<A>()
+  EXPECT_TRUE(Demangle("_Z1jI1AEDTtlT_di1adXLi1ELi3ELi42EEEv",
+                       tmp, sizeof(tmp)));
+  EXPECT_STREQ("j<>()", tmp);
 }
 
 // Test one Rust symbol to exercise Demangle's delegation path.  Rust demangling
