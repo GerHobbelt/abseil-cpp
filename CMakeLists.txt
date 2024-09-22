@@ -63,6 +63,15 @@ list(APPEND CMAKE_MODULE_PATH
   ${CMAKE_CURRENT_LIST_DIR}/absl/copts
 )
 
+option(ABSL_MSVC_STATIC_RUNTIME
+  "Link static runtime libraries"
+  OFF)
+if(ABSL_MSVC_STATIC_RUNTIME)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+else()
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+endif()
+
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 include(AbseilDll)
@@ -241,7 +250,7 @@ if(ABSL_ENABLE_INSTALL)
     ABSL_INTERNAL_OPTIONS_H_PINNED
     "${ABSL_INTERNAL_OPTIONS_H_CONTENTS}")
 
-  file(WRITE "${CMAKE_BINARY_DIR}/options-pinned.h" "${ABSL_INTERNAL_OPTIONS_H_PINNED}")
+  file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/options-pinned.h" CONTENT "${ABSL_INTERNAL_OPTIONS_H_PINNED}")
 
   install(FILES "${CMAKE_BINARY_DIR}/options-pinned.h"
          DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/absl/base
