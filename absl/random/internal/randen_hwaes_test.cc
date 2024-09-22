@@ -64,7 +64,11 @@ TEST(RandenHwAesTest, Default) {
 
 }  // namespace
 
-int main(int argc, char* argv[]) {
+#if defined(BUILD_MONOLIUTHIC)
+#define main  abseil_randen_hwaes_test_main
+#endif
+
+int main(int argc, const char** argv) {
   testing::InitGoogleTest(&argc, argv);
 
   LOG(INFO) << "ABSL_HAVE_ACCELERATED_AES=" << ABSL_HAVE_ACCELERATED_AES;

@@ -605,7 +605,11 @@ TEST(Symbolize, Unimplemented) {
 
 #endif
 
-int main(int argc, char **argv) {
+#if defined(BUILD_MONOLIUTHIC)
+#define main  abseil_symbolize_test_main
+#endif
+
+int main(int argc, const char **argv) {
 #if !defined(__EMSCRIPTEN__)
   // Make sure kHpageTextPadding is linked into the binary.
   if (volatile_bool) {

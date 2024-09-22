@@ -538,7 +538,11 @@ path.
 
 }  // namespace
 
-int main(int argc, char* argv[]) {
+#if defined(BUILD_MONOLIUTHIC)
+#define main  abseil_flags_usage_test_main
+#endif
+
+int main(int argc, const char** argv) {
   (void)absl::GetFlag(FLAGS_undefok);  // Force linking of parse.cc
   flags::SetProgramInvocationName("usage_test");
 #if !defined(GTEST_HAS_ABSL) || !GTEST_HAS_ABSL
