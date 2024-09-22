@@ -50,7 +50,7 @@ if (POLICY CMP0067)
   cmake_policy(SET CMP0067 NEW)
 endif (POLICY CMP0067)
 
-project(absl LANGUAGES CXX VERSION 20230117)
+project(absl LANGUAGES CXX VERSION 20230125)
 include(CTest)
 
 # Output directory is correct by default for most build setups. However, when
