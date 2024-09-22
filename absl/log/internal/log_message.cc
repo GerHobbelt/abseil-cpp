@@ -41,6 +41,7 @@
 #include "absl/container/inlined_vector.h"
 #include "absl/debugging/internal/examine_stack.h"
 #include "absl/log/globals.h"
+#include "absl/log/internal/append_truncated.h"
 #include "absl/log/internal/config.h"
 #include "absl/log/internal/globals.h"
 #include "absl/log/internal/log_format.h"
@@ -49,7 +50,6 @@
 #include "absl/log/log_sink.h"
 #include "absl/log/log_sink_registry.h"
 #include "absl/memory/memory.h"
-#include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -65,14 +65,6 @@ ABSL_NAMESPACE_BEGIN
 namespace log_internal {
 
 namespace {
-// Copies into `dst` as many bytes of `src` as will fit, then truncates the
-// copied bytes from the front of `dst` and returns the number of bytes written.
-size_t AppendTruncated(absl::string_view src, absl::Span<char>* dst) {
-  if (src.size() > dst->size()) src = src.substr(0, dst->size());
-  memcpy(dst->data(), src.data(), src.size());
-  dst->remove_prefix(src.size());
-  return src.size();
-}
 
 absl::string_view Basename(absl::string_view filepath) {
 #ifdef _WIN32
@@ -163,7 +155,7 @@ class LogEntryStreambuf final : public std::streambuf {
 
   size_t Append(absl::string_view data) {
     absl::Span<char> remaining(pptr(), static_cast<size_t>(epptr() - pptr()));
-    const size_t written = AppendTruncated(data, &remaining);
+    const size_t written = log_internal::AppendTruncated(data, remaining);
     pbump(static_cast<int>(written));
     return written;
   }
@@ -467,7 +459,7 @@ LogMessageFatal::LogMessageFatal(const char* file, int line,
 
 // ABSL_ATTRIBUTE_NORETURN doesn't seem to work on destructors with msvc, so
 // disable msvc's warning about the d'tor never returning.
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma warning(push)
 #pragma warning(disable : 4722)
 #endif
@@ -475,7 +467,7 @@ LogMessageFatal::~LogMessageFatal() {
   Flush();
   FailWithoutStackTrace();
 }
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma warning(pop)
 #endif
 
@@ -493,7 +485,7 @@ LogMessageQuietlyFatal::LogMessageQuietlyFatal(const char* file, int line,
 
 // ABSL_ATTRIBUTE_NORETURN doesn't seem to work on destructors with msvc, so
 // disable msvc's warning about the d'tor never returning.
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma warning(push)
 #pragma warning(disable : 4722)
 #endif
@@ -501,7 +493,7 @@ LogMessageQuietlyFatal::~LogMessageQuietlyFatal() {
   Flush();
   FailQuietly();
 }
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma warning(pop)
 #endif
 

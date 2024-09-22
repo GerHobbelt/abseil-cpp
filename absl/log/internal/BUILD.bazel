@@ -91,6 +91,7 @@ cc_library(
     copts = ABSL_DEFAULT_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
     deps = [
+        ":append_truncated",
         ":config",
         ":globals",
         "//absl/base:config",
@@ -132,6 +133,7 @@ cc_library(
         "//absl/log:__pkg__",
     ],
     deps = [
+        ":append_truncated",
         ":config",
         ":format",
         ":globals",
@@ -152,8 +154,19 @@ cc_library(
         "//absl/log:log_sink_registry",
         "//absl/memory",
         "//absl/strings",
-        "//absl/strings:str_format",
         "//absl/time",
+        "//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "append_truncated",
+    hdrs = ["append_truncated.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        "//absl/base:config",
+        "//absl/strings",
         "//absl/types:span",
     ],
 )
@@ -230,6 +243,7 @@ cc_library(
     deps = [
         ":config",
         "//absl/base:config",
+        "//absl/base:core_headers",
         "//absl/base:log_severity",
         "//absl/log:log_entry",
         "//absl/strings",
@@ -265,6 +279,7 @@ cc_library(
         ":config",
         ":test_helpers",
         "//absl/base:config",
+        "//absl/base:core_headers",
         "//absl/base:log_severity",
         "//absl/log:log_entry",
         "//absl/strings",
