@@ -518,6 +518,9 @@ cc_test(
     name = "hashtablez_sampler_test",
     srcs = ["internal/hashtablez_sampler_test.cc"],
     linkopts = ABSL_DEFAULT_LINKOPTS,
+    tags = [
+        "no_test_wasm",
+    ],
     deps = [
         ":hashtablez_sampler",
         "//absl/base:config",
@@ -589,6 +592,7 @@ cc_library(
         "//absl/base:config",
         "//absl/base:core_headers",
         "//absl/base:endian",
+        "//absl/base:prefetch",
         "//absl/memory",
         "//absl/meta:type_traits",
         "//absl/numeric:bits",
@@ -611,6 +615,7 @@ cc_test(
         "//absl/base",
         "//absl/base:config",
         "//absl/base:core_headers",
+        "//absl/base:prefetch",
         "//absl/base:raw_logging_internal",
         "//absl/strings",
         "@com_google_googletest//:gtest_main",
@@ -934,6 +939,10 @@ cc_test(
     copts = ABSL_TEST_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
     shard_count = 10,
+    tags = [
+        "no_test_ios",
+        "no_test_wasm",
+    ],
     visibility = ["//visibility:private"],
     deps = [
         ":btree",
