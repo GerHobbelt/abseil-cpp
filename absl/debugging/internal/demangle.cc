@@ -1297,32 +1297,39 @@ static bool ParseCVQualifiers(State *state) {
 }
 
 // <builtin-type> ::= v, etc.  # single-character builtin types
-//                ::= u <source-name>
+//                ::= u <source-name> [I <type> E]
 //                ::= Dd, etc.  # two-character builtin types
 //
 // Not supported:
 //                ::= DF <number> _ # _FloatN (N bits)
 //
+// NOTE: [I <type> E] is a vendor extension (http://shortn/_FrINpH1XC5).
 static bool ParseBuiltinType(State *state) {
   ComplexityGuard guard(state);
   if (guard.IsTooComplex()) return false;
-  const AbbrevPair *p;
-  for (p = kBuiltinTypeList; p->abbrev != nullptr; ++p) {
+
+  for (const AbbrevPair *p = kBuiltinTypeList; p->abbrev != nullptr; ++p) {
     // Guaranteed only 1- or 2-character strings in kBuiltinTypeList.
     if (p->abbrev[1] == '\0') {
       if (ParseOneCharToken(state, p->abbrev[0])) {
         MaybeAppend(state, p->real_name);
-        return true;
+        return true;  // ::= v, etc.  # single-character builtin types
       }
     } else if (p->abbrev[2] == '\0' && ParseTwoCharToken(state, p->abbrev)) {
       MaybeAppend(state, p->real_name);
-      return true;
+      return true;  // ::= Dd, etc.  # two-character builtin types
     }
   }
 
   ParseState copy = state->parse_state;
   if (ParseOneCharToken(state, 'u') && ParseSourceName(state)) {
-    return true;
+    copy = state->parse_state;
+    if (ParseOneCharToken(state, 'I') && ParseType(state) &&
+        ParseOneCharToken(state, 'E')) {
+      return true;  // ::= u <source-name> I <type> E
+    }
+    state->parse_state = copy;
+    return true;  // ::= u <source-name>
   }
   state->parse_state = copy;
   return false;
@@ -1427,19 +1434,35 @@ static bool ParsePointerToMemberType(State *state) {
 
 // <template-param> ::= T_
 //                  ::= T <parameter-2 non-negative number> _
+//                  ::= TL <level-1> __
+//                  ::= TL <level-1> _ <parameter-2 non-negative number> _
 static bool ParseTemplateParam(State *state) {
   ComplexityGuard guard(state);
   if (guard.IsTooComplex()) return false;
   if (ParseTwoCharToken(state, "T_")) {
     MaybeAppend(state, "?");  // We don't support template substitutions.
-    return true;
+    return true;              // ::= T_
   }
 
   ParseState copy = state->parse_state;
   if (ParseOneCharToken(state, 'T') && ParseNumber(state, nullptr) &&
       ParseOneCharToken(state, '_')) {
     MaybeAppend(state, "?");  // We don't support template substitutions.
-    return true;
+    return true;              // ::= T <parameter-2 non-negative number> _
+  }
+  state->parse_state = copy;
+
+  if (ParseTwoCharToken(state, "TL") && ParseNumber(state, nullptr)) {
+    if (ParseTwoCharToken(state, "__")) {
+      MaybeAppend(state, "?");  // We don't support template substitutions.
+      return true;              // ::= TL <level-1> __
+    }
+
+    if (ParseOneCharToken(state, '_') && ParseNumber(state, nullptr) &&
+        ParseOneCharToken(state, '_')) {
+      MaybeAppend(state, "?");  // We don't support template substitutions.
+      return true;  // ::= TL <level-1> _ <parameter-2 non-negative number> _
+    }
   }
   state->parse_state = copy;
   return false;
@@ -1942,6 +1965,8 @@ static bool ParseExprCastValue(State *state) {
 // template <typename T>
 // int foo(T);
 static bool ParseQRequiresClauseExpr(State *state) {
+  ComplexityGuard guard(state);
+  if (guard.IsTooComplex()) return false;
   ParseState copy = state->parse_state;
   DisableAppend(state);
 
