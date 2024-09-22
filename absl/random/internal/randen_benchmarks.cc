@@ -138,7 +138,7 @@ void Measure(const char* name, const FuncInput (&inputs)[N]) {
 }
 
 // unpredictable == 1 but the compiler does not know that.
-void RunAll(const int argc, char* argv[]) {
+void RunAll(const int argc, const char** argv) {
   if (argc == 2) {
     int cpu = -1;
     if (!absl::SimpleAtoi(argv[1], &cpu)) {
@@ -170,7 +170,12 @@ void RunAll(const int argc, char* argv[]) {
 
 }  // namespace
 
-int main(int argc, char* argv[]) {
+#if defined(BUILD_MONOLITHIC)
+#define main  abseil_randen_benchmark_main
+#endif
+
+extern "C"
+int main(int argc, const char** argv) {
   RunAll(argc, argv);
   return 0;
 }

@@ -135,7 +135,12 @@ void TableGenerator::Print(std::ostream* os) {
 ABSL_NAMESPACE_END
 }  // namespace absl
 
-int main(int, char**) {
+#if defined(BUILD_MONOLITHIC)
+#define main  abseil_gaussian_distribution_gentables_main
+#endif
+
+extern "C"
+int main(void) {
   std::cerr << "\nCopy the output to gaussian_distribution.cc" << std::endl;
   absl::random_internal::TableGenerator generator;
   generator.Print(&std::cout);

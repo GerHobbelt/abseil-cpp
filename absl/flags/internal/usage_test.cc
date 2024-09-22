@@ -542,6 +542,7 @@ path.
 #define main  abseil_flags_usage_test_main
 #endif
 
+extern "C"
 int main(int argc, const char** argv) {
   (void)absl::GetFlag(FLAGS_undefok);  // Force linking of parse.cc
   flags::SetProgramInvocationName("usage_test");

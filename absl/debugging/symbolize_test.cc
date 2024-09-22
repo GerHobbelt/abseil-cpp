@@ -609,6 +609,7 @@ TEST(Symbolize, Unimplemented) {
 #define main  abseil_symbolize_test_main
 #endif
 
+extern "C"
 int main(int argc, const char **argv) {
 #if !defined(__EMSCRIPTEN__)
   // Make sure kHpageTextPadding is linked into the binary.

@@ -16,8 +16,14 @@
 
 #include "absl/hash/hash.h"
 
+#if defined(BUILD_MONOLITHIC)
+#define main  abseil_print_hash_of_util_main
+#endif
+
 // Prints the hash of argv[1].
-int __cdecl main(int argc, char** argv) {
+extern "C"
+int main(int argc, const char** argv) {
   if (argc < 2) return 1;
   printf("%zu\n", absl::Hash<int>{}(std::atoi(argv[1])));  // NOLINT
+	return 0;
 }

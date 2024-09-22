@@ -163,6 +163,7 @@ INSTANTIATE_TEST_SUITE_P(AbslDeathTest, FailureSignalHandlerDeathTest,
 #define main  abseil_failure_signal_handler_test_main
 #endif
 
+extern "C"
 int main(int argc, const char** argv) {
   absl::InitializeSymbolizer(argv[0]);
   testing::InitGoogleTest(&argc, argv);

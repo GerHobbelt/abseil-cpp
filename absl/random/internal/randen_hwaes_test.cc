@@ -68,6 +68,7 @@ TEST(RandenHwAesTest, Default) {
 #define main  abseil_randen_hwaes_test_main
 #endif
 
+extern "C"
 int main(int argc, const char** argv) {
   testing::InitGoogleTest(&argc, argv);
 

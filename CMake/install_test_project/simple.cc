@@ -29,6 +29,7 @@
 #define main   abseil_cmake_test_project_main
 #endif
 
+extern "C"
 int main(int argc, const char** argv) {
   for (int i = 0; i < argc; ++i) {
     std::cout << absl::Substitute("Arg $0: $1\n", i, argv[i]);
