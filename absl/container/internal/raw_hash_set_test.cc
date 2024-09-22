@@ -1285,7 +1285,7 @@ TEST(Table, ChurnTestSmall) {
   const size_t hashTableSize = (hashTableCap*95)/100;
 
   size_t seed = time(NULL);
-  printf("SEED: %ld\n", seed);
+  printf("SEED: %zu\n", seed);
   IntTable t;
   t.reserveFixed(hashTableCap);
 
@@ -1328,8 +1328,8 @@ TEST(Table, ChurnTestSmall) {
 }
 
 TEST(Table, ChurnTest) {
-  int hashTableCap = (1<<20)-1;
-  int hashTableSize = (hashTableCap*95)/100;
+  const int hashTableCap = (1<<20)-1;
+  const int hashTableSize = (hashTableCap*95)/100;
 
   IntTable t;
   t.reserve(hashTableCap/2);
@@ -1346,7 +1346,7 @@ TEST(Table, ChurnTest) {
     }
 
     for(uint64_t i =0; i<(hashTableCap)/100; i++) {
-      arr[(arr_index+i) % hashTableSize] = random(); 
+      arr[(arr_index+i) % hashTableSize] = rand(); 
       t.insert(arr[(arr_index+i) % hashTableSize]);
     }
     printf("%zu %zu %zu %zu\n", t.capacity(), t.size(), RawHashSetTestOnlyAccess::CountTombstones(t), t.growth_left());
