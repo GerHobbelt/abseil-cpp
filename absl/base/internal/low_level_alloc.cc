@@ -40,6 +40,9 @@
 #include <unistd.h>
 #else
 #include <windows.h>
+
+#undef min
+#undef max
 #endif
 
 #ifdef __linux__
