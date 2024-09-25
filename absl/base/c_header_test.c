@@ -31,4 +31,4 @@
 #define main   abseil_c_header_test_main
 #endif
 
-int main() { return 0; }
+int main(void) { return 0; }
