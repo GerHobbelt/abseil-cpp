@@ -169,7 +169,7 @@ namespace {
 class ArgsList {
  public:
   ArgsList() : next_arg_(0) {}
-  ArgsList(int argc, char* argv[]) : args_(argv, argv + argc), next_arg_(0) {}
+  ArgsList(int argc, const char** argv) : args_(argv, argv + argc), next_arg_(0) {}
   explicit ArgsList(const std::vector<std::string>& args)
       : args_(args), next_arg_(0) {}
 
@@ -699,11 +699,11 @@ std::vector<std::string> GetMisspellingHints(const absl::string_view flag) {
 
 // --------------------------------------------------------------------
 
-std::vector<char*> ParseCommandLineImpl(int argc, char* argv[],
+std::vector<const char*> ParseCommandLineImpl(int argc, const char** argv,
                                         UsageFlagsAction usage_flag_action,
                                         OnUndefinedFlag undef_flag_action,
                                         std::ostream& error_help_output) {
-  std::vector<char*> positional_args;
+  std::vector<const char*> positional_args;
   std::vector<UnrecognizedFlag> unrecognized_flags;
 
   auto help_mode = flags_internal::ParseAbseilFlagsOnlyImpl(
@@ -742,7 +742,7 @@ std::vector<char*> ParseCommandLineImpl(int argc, char* argv[],
 //   commandline
 // * Otherwise it returns HelpMode::kNone
 HelpMode ParseAbseilFlagsOnlyImpl(
-    int argc, char* argv[], std::vector<char*>& positional_args,
+    int argc, const char** argv, std::vector<const char*>& positional_args,
     std::vector<UnrecognizedFlag>& unrecognized_flags,
     UsageFlagsAction usage_flag_action) {
   ABSL_INTERNAL_CHECK(argc > 0, "Missing argv[0]");
@@ -917,8 +917,8 @@ HelpMode ParseAbseilFlagsOnlyImpl(
 
 }  // namespace flags_internal
 
-void ParseAbseilFlagsOnly(int argc, char* argv[],
-                          std::vector<char*>& positional_args,
+void ParseAbseilFlagsOnly(int argc, const char** argv,
+                          std::vector<const char*>& positional_args,
                           std::vector<UnrecognizedFlag>& unrecognized_flags) {
   auto help_mode = flags_internal::ParseAbseilFlagsOnlyImpl(
       argc, argv, positional_args, unrecognized_flags,
@@ -936,7 +936,7 @@ void ReportUnrecognizedFlags(
 
 // --------------------------------------------------------------------
 
-std::vector<char*> ParseCommandLine(int argc, char* argv[]) {
+std::vector<const char*> ParseCommandLine(int argc, const char** argv) {
   return flags_internal::ParseCommandLineImpl(
       argc, argv, flags_internal::UsageFlagsAction::kHandleUsage,
       flags_internal::OnUndefinedFlag::kAbortIfUndefined);

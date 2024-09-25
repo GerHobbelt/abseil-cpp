@@ -1092,7 +1092,7 @@ TEST_F(FlagTest, TestNonTriviallyCopyableParseSet) {
   TestExpectedLeaks<2>(
       [&] {
         const char* in_argv[] = {"testbin", "--test_flag_ntc_udt2=A"};
-        absl::ParseCommandLine(2, const_cast<char**>(in_argv));
+        absl::ParseCommandLine(2, in_argv);
       },
       0);
 
@@ -1127,7 +1127,7 @@ TEST_F(FlagTest, TestNonTriviallyCopyableGetBeforeMainParseGet) {
   TestExpectedLeaks<4>(
       [&] {
         const char* in_argv[] = {"testbin", "--test_flag_ntc_udt4=C"};
-        absl::ParseCommandLine(2, const_cast<char**>(in_argv));
+        absl::ParseCommandLine(2, in_argv);
       },
       1);
 
@@ -1155,7 +1155,7 @@ TEST_F(FlagTest, TestNonTriviallyCopyableSetParseGet) {
   TestExpectedLeaks<5>(
       [&] {
         const char* in_argv[] = {"testbin", "--test_flag_ntc_udt5=C"};
-        absl::ParseCommandLine(2, const_cast<char**>(in_argv));
+        absl::ParseCommandLine(2, in_argv);
       },
       0);
 

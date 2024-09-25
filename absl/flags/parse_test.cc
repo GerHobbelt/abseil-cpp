@@ -258,10 +258,10 @@ class ParseTest : public testing::Test {
 
 template <int N>
 flags::HelpMode InvokeParseAbslOnlyImpl(const char* (&in_argv)[N]) {
-  std::vector<char*> positional_args;
+  std::vector<const char*> positional_args;
   std::vector<absl::UnrecognizedFlag> unrecognized_flags;
 
-  return flags::ParseAbseilFlagsOnlyImpl(N, const_cast<char**>(in_argv),
+  return flags::ParseAbseilFlagsOnlyImpl(N, in_argv,
                                          positional_args, unrecognized_flags,
                                          flags::UsageFlagsAction::kHandleUsage);
 }
@@ -270,27 +270,27 @@ flags::HelpMode InvokeParseAbslOnlyImpl(const char* (&in_argv)[N]) {
 
 template <int N>
 void InvokeParseAbslOnly(const char* (&in_argv)[N]) {
-  std::vector<char*> positional_args;
+  std::vector<const char*> positional_args;
   std::vector<absl::UnrecognizedFlag> unrecognized_flags;
 
-  absl::ParseAbseilFlagsOnly(2, const_cast<char**>(in_argv), positional_args,
+  absl::ParseAbseilFlagsOnly(2, in_argv, positional_args,
                              unrecognized_flags);
 }
 
 // --------------------------------------------------------------------
 
 template <int N>
-std::vector<char*> InvokeParseCommandLineImpl(const char* (&in_argv)[N]) {
+std::vector<const char*> InvokeParseCommandLineImpl(const char* (&in_argv)[N]) {
   return flags::ParseCommandLineImpl(
-      N, const_cast<char**>(in_argv), flags::UsageFlagsAction::kHandleUsage,
+      N, in_argv, flags::UsageFlagsAction::kHandleUsage,
       flags::OnUndefinedFlag::kAbortIfUndefined, std::cerr);
 }
 
 // --------------------------------------------------------------------
 
 template <int N>
-std::vector<char*> InvokeParse(const char* (&in_argv)[N]) {
-  return absl::ParseCommandLine(N, const_cast<char**>(in_argv));
+std::vector<const char*> InvokeParse(const char* (&in_argv)[N]) {
+  return absl::ParseCommandLine(N, in_argv);
 }
 
 // --------------------------------------------------------------------
@@ -994,10 +994,10 @@ TEST_F(ParseTest, ParseAbseilFlagsOnlySuccess) {
       "arg4",
   };
 
-  std::vector<char*> positional_args;
+  std::vector<const char*> positional_args;
   std::vector<absl::UnrecognizedFlag> unrecognized_flags;
 
-  absl::ParseAbseilFlagsOnly(13, const_cast<char**>(in_args), positional_args,
+  absl::ParseAbseilFlagsOnly(13, in_args, positional_args,
                              unrecognized_flags);
   EXPECT_THAT(positional_args,
               ElementsAreArray(
@@ -1034,10 +1034,10 @@ TEST_F(ParseTest, UndefOkFlagsAreIgnored) {
       "--undef_flag3",     "value",
   };
 
-  std::vector<char*> positional_args;
+  std::vector<const char*> positional_args;
   std::vector<absl::UnrecognizedFlag> unrecognized_flags;
 
-  absl::ParseAbseilFlagsOnly(6, const_cast<char**>(in_args), positional_args,
+  absl::ParseAbseilFlagsOnly(6, in_args, positional_args,
                              unrecognized_flags);
   EXPECT_THAT(positional_args, ElementsAreArray({absl::string_view("testbin"),
                                                  absl::string_view("value")}));
@@ -1063,10 +1063,10 @@ TEST_F(ParseTest, AllUndefOkFlagsAreIgnored) {
       "--undef_flag4",
   };
 
-  std::vector<char*> positional_args;
+  std::vector<const char*> positional_args;
   std::vector<absl::UnrecognizedFlag> unrecognized_flags;
 
-  absl::ParseAbseilFlagsOnly(8, const_cast<char**>(in_args), positional_args,
+  absl::ParseAbseilFlagsOnly(8, in_args, positional_args,
                              unrecognized_flags);
   EXPECT_THAT(positional_args,
               ElementsAreArray({absl::string_view("testbin"),

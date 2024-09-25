@@ -63,6 +63,7 @@ std::unique_ptr<absl::time_internal::cctz::ZoneInfoSource> DefaultFactory(
 ZoneInfoSourceFactory zone_info_source_factory __attribute__((weak)) =
     DefaultFactory;
 #elif defined(_MSC_VER) && !defined(__MINGW32__) && !defined(_LIBCPP_VERSION)
+#if !defined(BUILD_MONOLITHIC)
 extern ZoneInfoSourceFactory zone_info_source_factory;
 extern ZoneInfoSourceFactory default_factory;
 ZoneInfoSourceFactory default_factory = DefaultFactory;
@@ -105,6 +106,10 @@ ZoneInfoSourceFactory default_factory = DefaultFactory;
 #else
 #error Unsupported MSVC platform
 #endif  // _M_<PLATFORM>
+#else
+// Make it a "strong" definition if we have no other choice.
+ZoneInfoSourceFactory zone_info_source_factory = DefaultFactory;
+#endif
 #else
 // Make it a "strong" definition if we have no other choice.
 ZoneInfoSourceFactory zone_info_source_factory = DefaultFactory;

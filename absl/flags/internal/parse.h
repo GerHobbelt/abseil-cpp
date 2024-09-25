@@ -47,8 +47,8 @@ enum class OnUndefinedFlag {
 // internal unit tests to validate expected outputs.
 // When this was written, `EXPECT_EXIT` only supported matchers on stderr,
 // but not on stdout.
-std::vector<char*> ParseCommandLineImpl(
-    int argc, char* argv[], UsageFlagsAction usage_flag_action,
+std::vector<const char*> ParseCommandLineImpl(
+    int argc, const char** argv, UsageFlagsAction usage_flag_action,
     OnUndefinedFlag undef_flag_action,
     std::ostream& error_help_output = std::cout);
 

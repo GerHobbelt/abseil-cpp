@@ -225,8 +225,8 @@ void Accumulate(bool& a, const UDT& f) {
 BENCHMARKED_TYPES(BM_ManyGetFlag)
 
 void BM_ThreadedFindCommandLineFlag(benchmark::State& state) {
-  char dummy[] = "dummy";
-  char* argv[] = {dummy};
+  const char dummy[] = "dummy";
+  const char* argv[] = {dummy};
   // We need to ensure that flags have been parsed. That is where the registry
   // is finalized.
   absl::ParseCommandLine(1, argv);

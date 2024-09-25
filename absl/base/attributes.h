@@ -46,7 +46,7 @@
 //
 // GCC: https://gcc.gnu.org/gcc-5/changes.html
 // Clang: https://clang.llvm.org/docs/LanguageExtensions.html
-#ifdef __has_attribute
+#if defined(__has_attribute) && !defined(_MSC_VER)
 #define ABSL_HAVE_ATTRIBUTE(x) __has_attribute(x)
 #else
 #define ABSL_HAVE_ATTRIBUTE(x) 0

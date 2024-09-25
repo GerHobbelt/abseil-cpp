@@ -54,7 +54,7 @@ inline bool operator==(const UnrecognizedFlag& lhs,
 namespace flags_internal {
 
 HelpMode ParseAbseilFlagsOnlyImpl(
-    int argc, char* argv[], std::vector<char*>& positional_args,
+    int argc, const char** argv, std::vector<const char*>& positional_args,
     std::vector<UnrecognizedFlag>& unrecognized_flags,
     UsageFlagsAction usage_flag_action);
 
@@ -93,8 +93,8 @@ HelpMode ParseAbseilFlagsOnlyImpl(
 // that appear within `undefok` will therefore be ignored and not included in
 // the `unrecognized_flag` output parameter.
 //
-void ParseAbseilFlagsOnly(int argc, char* argv[],
-                          std::vector<char*>& positional_args,
+void ParseAbseilFlagsOnly(int argc, const char** argv,
+                          std::vector<const char*>& positional_args,
                           std::vector<UnrecognizedFlag>& unrecognized_flags);
 
 // ReportUnrecognizedFlags()
@@ -122,7 +122,7 @@ void ReportUnrecognizedFlags(
 //
 // This function returns all the remaining positional arguments collected by
 // `ParseAbseilFlagsOnly`.
-std::vector<char*> ParseCommandLine(int argc, char* argv[]);
+std::vector<const char*> ParseCommandLine(int argc, const char** argv);
 
 ABSL_NAMESPACE_END
 }  // namespace absl
