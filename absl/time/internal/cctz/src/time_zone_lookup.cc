@@ -33,6 +33,12 @@
 #endif
 
 #if defined(_WIN32)
+// shut up MSVC many times inside the system header files:
+// - warning C5204: class has virtual functions, but its trivial destructor is not virtual; instances of objects derived from this class may not be destructed correctly
+// - warning C5256: a non-defining declaration of an enumeration with a fixed underlying type is only permitted as a standalone declaration
+// 
+#pragma warning(disable: 5204 5256)
+
 #include <sdkddkver.h>
 // Include only when the SDK is for Windows 10 (and later), and the binary is
 // targeted for Windows XP and later.
