@@ -171,7 +171,7 @@ ABSL_CONST_INIT absl::Mutex late_const_init_mutex(absl::kConstInit);
 
 }  // namespace
 
-int main() {
+int main(void) {
   TestLocals();
   TestConstInitGlobal();
   // Explicitly call exit(0) here, to make it clear that we intend for the

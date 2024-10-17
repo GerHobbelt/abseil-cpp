@@ -710,7 +710,7 @@ check_cxx_source_compiles(
 #elif __cplusplus < 201703L
 #  error "The compiler defaults or is configured for C++ < 17"
 #endif
-int main() { return 0; }
+int main(void) { return 0; }
 ]==]
   ABSL_INTERNAL_AT_LEAST_CXX17)
 
@@ -723,7 +723,7 @@ check_cxx_source_compiles(
 #elif __cplusplus < 202002L
 #  error "The compiler defaults or is configured for C++ < 20"
 #endif
-int main() { return 0; }
+int main(void) { return 0; }
 ]==]
   ABSL_INTERNAL_AT_LEAST_CXX20)
 

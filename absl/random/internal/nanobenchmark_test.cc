@@ -73,7 +73,12 @@ void RunAll(const int argc, char* argv[]) {
 ABSL_NAMESPACE_END
 }  // namespace absl
 
-int main(int argc, char* argv[]) {
+#if defined(BUILD_MONOLITHIC)
+#define main   abseil_internal_nanobench_test_main
+#endif
+
+extern "C"
+int main(int argc, const char** argv) {
   absl::random_internal_nanobenchmark::RunAll(argc, argv);
   return 0;
 }

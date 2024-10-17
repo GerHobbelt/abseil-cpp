@@ -18,7 +18,7 @@
 // ABSL_PRETTY_FUNCTION
 //
 // In C++11, __func__ gives the undecorated name of the current function.  That
-// is, "main", not "int main()".  Various compilers give extra macros to get the
+// is, "main", not "int main(void)".  Various compilers give extra macros to get the
 // decorated function name, including return type and arguments, to
 // differentiate between overload sets.  ABSL_PRETTY_FUNCTION is a portable
 // version of these macros which forwards to the correct macro on each compiler.

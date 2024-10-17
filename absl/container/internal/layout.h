@@ -156,7 +156,7 @@
 //     std::unique_ptr<unsigned char[]> p_;
 //   };
 //
-//   int main() {
+//   int main(void) {
 //     CompactString s = "hello";
 //     assert(s.size() == 5);
 //     assert(strcmp(s.c_str(), "hello") == 0);

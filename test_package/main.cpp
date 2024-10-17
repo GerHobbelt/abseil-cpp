@@ -15,7 +15,7 @@
 #endif
 
 extern "C"
-int main()
+int main(void)
 {
     absl::flat_hash_set<std::string> set1;
     absl::flat_hash_map<int, std::string> map1;

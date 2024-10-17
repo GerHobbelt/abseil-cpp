@@ -158,7 +158,12 @@ static struct BeforeMain {
 ABSL_NAMESPACE_END
 }  // namespace absl
 
-int main(int argc, char *argv[]) {
+#if defined(BUILD_MONOLITHIC)
+#define main   abseil_internal_low_level_alloc_test_main
+#endif
+
+extern "C"
+int main(int argc, const char** argv) {
   // The actual test runs in the global constructor of `before_main`.
   printf("PASS\n");
 #ifdef __EMSCRIPTEN__

@@ -172,7 +172,12 @@ static bool ProcessOneTestFile(const char* filename) {
   return true;
 }
 
-int main(int argc, char** argv) {
+#if defined(BUILD_MONOLITHIC)
+#define main   abseil_atod_manual_test_main
+#endif
+
+extern "C"
+int main(int argc, const char** argv) {
   if (argc < 2) {
     absl::FPrintF(
         stderr,
