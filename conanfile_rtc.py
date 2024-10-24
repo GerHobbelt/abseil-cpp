@@ -17,6 +17,7 @@ class AbseilConan(ConanFile):
         # headers
         self.copy("*.h", src=base + "/absl", dst=relative + "/absl")
         self.copy("*.hpp", src=base + "/absl", dst=relative + "/absl")
+        self.copy("*.inc", src=base + "/absl", dst=relative + "/absl")
 
         # libraries
         output = "output/" + str(self.settings.platform_architecture_target) + "/staticlib"
