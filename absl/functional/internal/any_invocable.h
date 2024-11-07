@@ -71,6 +71,9 @@
 #include "absl/meta/type_traits.h"
 #include "absl/utility/utility.h"
 
+#pragma push_macro("new")
+#undef new
+
 namespace absl {
 ABSL_NAMESPACE_BEGIN
 
@@ -887,5 +890,7 @@ ABSL_INTERNAL_ANY_INVOCABLE_IMPL(const, &&, const&&);
 }  // namespace internal_any_invocable
 ABSL_NAMESPACE_END
 }  // namespace absl
+
+#pragma pop_macro("new")
 
 #endif  // ABSL_FUNCTIONAL_INTERNAL_ANY_INVOCABLE_H_

@@ -38,6 +38,9 @@
 #include <sanitizer/msan_interface.h>
 #endif
 
+#pragma push_macro("new")
+#undef new
+
 namespace absl {
 ABSL_NAMESPACE_BEGIN
 namespace container_internal {
@@ -361,7 +364,7 @@ struct map_slot_policy {
   static void emplace(slot_type* slot) {
     // The construction of union doesn't do anything at runtime but it allows us
     // to access its members without violating aliasing rules.
-    new (slot) slot_type;
+    ::new (slot) slot_type;
   }
   // If pair<const K, V> and pair<K, V> are layout-compatible, we can accept one
   // or the other via slot_type. We are also free to access the key via
@@ -488,5 +491,7 @@ size_t TypeErasedDerefAndApplyToSlotFn(const void* fn, void* slot_ptr) {
 }  // namespace container_internal
 ABSL_NAMESPACE_END
 }  // namespace absl
+
+#pragma pop_macro("new")
 
 #endif  // ABSL_CONTAINER_INTERNAL_CONTAINER_MEMORY_H_

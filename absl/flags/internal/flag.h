@@ -43,6 +43,9 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/utility/utility.h"
 
+#pragma push_macro("new")
+#undef new
+
 namespace absl {
 ABSL_NAMESPACE_BEGIN
 
@@ -958,5 +961,7 @@ uint64_t NumLeakedFlagValues();
 }  // namespace flags_internal
 ABSL_NAMESPACE_END
 }  // namespace absl
+
+#pragma pop_macro("new")
 
 #endif  // ABSL_FLAGS_INTERNAL_FLAG_H_
