@@ -21,7 +21,7 @@
 #include <tuple>
 #include <utility>
 
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 #include "absl/random/log_uniform_int_distribution.h"
 #include "absl/random/random.h"
 #include "absl/strings/str_cat.h"

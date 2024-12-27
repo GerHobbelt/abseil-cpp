@@ -20,7 +20,7 @@
 #include "absl/base/macros.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/str_cat.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace {
 

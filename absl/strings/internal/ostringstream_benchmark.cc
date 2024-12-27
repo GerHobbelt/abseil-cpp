@@ -17,7 +17,7 @@
 #include <sstream>
 #include <string>
 
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace {
 

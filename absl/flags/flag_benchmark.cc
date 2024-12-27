@@ -25,7 +25,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "absl/types/optional.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace {
 using String = std::string;

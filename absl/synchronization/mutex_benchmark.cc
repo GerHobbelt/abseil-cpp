@@ -23,7 +23,7 @@
 #include "absl/synchronization/blocking_counter.h"
 #include "absl/synchronization/internal/thread_pool.h"
 #include "absl/synchronization/mutex.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace {
 

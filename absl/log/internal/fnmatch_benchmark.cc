@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "absl/log/internal/fnmatch.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace {
 void BM_FNMatch(benchmark::State& state) {

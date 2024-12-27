@@ -17,7 +17,7 @@
 #include <cstring>
 #include <string>
 
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 #include "absl/base/internal/raw_logging.h"
 
 namespace {

@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "absl/hash/hash.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace {
 

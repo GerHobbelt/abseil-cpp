@@ -20,7 +20,7 @@
 #include "absl/base/internal/spinlock.h"
 #include "absl/base/no_destructor.h"
 #include "absl/synchronization/internal/create_thread_identity.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace {
 

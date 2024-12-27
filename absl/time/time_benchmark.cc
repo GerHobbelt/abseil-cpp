@@ -26,7 +26,7 @@
 
 #include "absl/time/clock.h"
 #include "absl/time/internal/test_util.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace {
 

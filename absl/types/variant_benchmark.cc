@@ -24,7 +24,7 @@
 #include <string>
 #include <tuple>
 
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 #include "absl/utility/utility.h"
 
 namespace absl {

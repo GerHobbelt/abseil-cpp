@@ -20,7 +20,7 @@
 #include <vector>
 #include <utility>
 
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace {
 

@@ -17,7 +17,7 @@
 #include <string>
 
 #include "absl/container/fixed_array.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace {
 

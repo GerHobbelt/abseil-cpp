@@ -19,7 +19,7 @@
 #include <random>
 #include <string>
 
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 #include "absl/base/internal/raw_logging.h"
 #include "absl/strings/internal/escaping_test_common.h"
 #include "absl/strings/str_cat.h"

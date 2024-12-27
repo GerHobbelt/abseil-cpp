@@ -21,7 +21,7 @@
 #include <cstdio>
 
 #include "absl/base/internal/cycleclock.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace {
 

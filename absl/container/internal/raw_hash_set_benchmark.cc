@@ -32,7 +32,7 @@
 #include "absl/container/internal/raw_hash_set.h"
 #include "absl/random/random.h"
 #include "absl/strings/str_format.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN

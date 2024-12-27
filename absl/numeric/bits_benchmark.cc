@@ -15,7 +15,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 #include "absl/base/optimization.h"
 #include "absl/numeric/bits.h"
 #include "absl/random/random.h"

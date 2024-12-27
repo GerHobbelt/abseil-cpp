@@ -30,7 +30,7 @@
 #include "absl/memory/memory.h"
 #include "absl/random/distributions.h"
 #include "absl/strings/str_cat.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN

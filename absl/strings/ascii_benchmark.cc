@@ -21,7 +21,7 @@
 #include <array>
 #include <random>
 
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace {
 

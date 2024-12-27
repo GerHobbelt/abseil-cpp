@@ -16,7 +16,7 @@
 #include "absl/base/config.h"
 #include "absl/base/optimization.h"
 #include "absl/debugging/stacktrace.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN

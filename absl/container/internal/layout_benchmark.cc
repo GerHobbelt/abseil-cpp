@@ -20,7 +20,7 @@
 
 #include "absl/base/internal/raw_logging.h"
 #include "absl/container/internal/layout.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN

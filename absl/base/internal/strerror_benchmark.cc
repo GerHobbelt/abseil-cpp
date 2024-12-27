@@ -17,7 +17,7 @@
 #include <string>
 
 #include "absl/base/internal/strerror.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace {
 void BM_AbslStrError(benchmark::State& state) {

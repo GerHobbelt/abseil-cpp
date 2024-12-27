@@ -16,7 +16,7 @@
 
 #include "absl/base/internal/raw_logging.h"
 #include "absl/base/no_destructor.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace {
 

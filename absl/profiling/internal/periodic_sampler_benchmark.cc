@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "absl/profiling/internal/periodic_sampler.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN

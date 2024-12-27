@@ -17,7 +17,7 @@
 #include <algorithm>
 #include <cstdlib>
 
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 #include "absl/strings/ascii.h"
 
 // We fill the haystack with aaaaaaaaaaaaaaaaaa...aaaab.

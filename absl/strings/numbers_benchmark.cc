@@ -19,7 +19,7 @@
 #include <type_traits>
 #include <vector>
 
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 #include "absl/base/internal/raw_logging.h"
 #include "absl/random/distributions.h"
 #include "absl/random/random.h"

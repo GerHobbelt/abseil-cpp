@@ -20,7 +20,7 @@
 #include "absl/base/attributes.h"
 #include "absl/flags/flag.h"
 #include "absl/time/time.h"
-#include "benchmark/benchmark.h"
+#include "absl/profiling/benchmark.h"
 
 ABSL_FLAG(absl::Duration, absl_duration_flag_for_benchmark,
           absl::Milliseconds(1),
