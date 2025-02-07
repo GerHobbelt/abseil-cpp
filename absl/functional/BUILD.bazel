@@ -33,6 +33,7 @@ package(
 licenses(["notice"])
 
 cc_library(
+    alwayslink = True,
     name = "any_invocable",
     srcs = ["internal/any_invocable.h"],
     hdrs = ["any_invocable.h"],
@@ -68,6 +69,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "bind_front",
     srcs = ["internal/front_binder.h"],
     hdrs = ["bind_front.h"],
@@ -95,6 +97,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "function_ref",
     srcs = ["internal/function_ref.h"],
     hdrs = ["function_ref.h"],
@@ -124,6 +127,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "overload",
     hdrs = ["overload.h"],
     copts = ABSL_DEFAULT_COPTS,

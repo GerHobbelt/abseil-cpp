@@ -33,6 +33,7 @@ package(
 licenses(["notice"])
 
 cc_library(
+    alwayslink = True,
     name = "time",
     srcs = [
         "civil_time.cc",

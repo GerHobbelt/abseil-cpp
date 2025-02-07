@@ -33,6 +33,7 @@ package(
 licenses(["notice"])
 
 cc_library(
+    alwayslink = True,
     name = "stacktrace",
     srcs = [
         "internal/stacktrace_aarch64-inl.inc",
@@ -73,6 +74,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "symbolize",
     srcs = [
         "symbolize.cc",
@@ -137,6 +139,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "examine_stack",
     srcs = [
         "internal/examine_stack.cc",
@@ -157,6 +160,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "failure_signal_handler",
     srcs = ["failure_signal_handler.cc"],
     hdrs = ["failure_signal_handler.h"],
@@ -194,6 +198,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "debugging_internal",
     srcs = [
         "internal/address_is_readable.cc",
@@ -218,6 +223,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "demangle_internal",
     srcs = ["internal/demangle.cc"],
     hdrs = ["internal/demangle.h"],
@@ -255,6 +261,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "bounded_utf8_length_sequence",
     hdrs = ["internal/bounded_utf8_length_sequence.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -279,6 +286,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "decode_rust_punycode",
     srcs = ["internal/decode_rust_punycode.cc"],
     hdrs = ["internal/decode_rust_punycode.h"],
@@ -306,6 +314,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "demangle_rust",
     srcs = ["internal/demangle_rust.cc"],
     hdrs = ["internal/demangle_rust.h"],
@@ -333,6 +342,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "utf8_for_code_point",
     srcs = ["internal/utf8_for_code_point.cc"],
     hdrs = ["internal/utf8_for_code_point.h"],
@@ -355,6 +365,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "leak_check",
     srcs = ["leak_check.cc"],
     hdrs = ["leak_check.h"],

@@ -36,6 +36,7 @@ package(
 licenses(["notice"])
 
 cc_library(
+    alwayslink = True,
     name = "status",
     srcs = [
         "internal/status_internal.cc",
@@ -86,6 +87,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "statusor",
     srcs = [
         "internal/statusor_internal.h",

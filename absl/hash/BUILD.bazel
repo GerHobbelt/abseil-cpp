@@ -33,6 +33,7 @@ package(
 licenses(["notice"])
 
 cc_library(
+    alwayslink = True,
     name = "hash",
     srcs = [
         "internal/hash.cc",
@@ -161,6 +162,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "city",
     srcs = ["internal/city.cc"],
     hdrs = [
@@ -188,6 +190,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "low_level_hash",
     srcs = ["internal/low_level_hash.cc"],
     hdrs = ["internal/low_level_hash.h"],

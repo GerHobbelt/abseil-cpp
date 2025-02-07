@@ -33,6 +33,7 @@ package(
 licenses(["notice"])
 
 cc_library(
+    alwayslink = True,
     name = "memory",
     hdrs = ["memory.h"],
     copts = ABSL_DEFAULT_COPTS,

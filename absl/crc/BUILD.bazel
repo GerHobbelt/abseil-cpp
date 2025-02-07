@@ -31,6 +31,7 @@ package(
 licenses(["notice"])
 
 cc_library(
+    alwayslink = True,
     name = "cpu_detect",
     srcs = [
         "internal/cpu_detect.cc",
@@ -46,6 +47,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "crc_internal",
     srcs = [
         "internal/crc.cc",
@@ -72,6 +74,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "crc32c",
     srcs = [
         "crc32c.cc",
@@ -117,6 +120,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "non_temporal_arm_intrinsics",
     hdrs = ["internal/non_temporal_arm_intrinsics.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -130,6 +134,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "non_temporal_memcpy",
     hdrs = ["internal/non_temporal_memcpy.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -177,6 +182,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "crc_cord_state",
     srcs = ["internal/crc_cord_state.cc"],
     hdrs = ["internal/crc_cord_state.h"],

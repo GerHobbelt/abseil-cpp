@@ -40,6 +40,7 @@ package(
 licenses(["notice"])
 
 cc_library(
+    alwayslink = True,
     name = "traits",
     hdrs = ["traits.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -52,6 +53,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "distribution_caller",
     hdrs = ["distribution_caller.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -64,6 +66,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "fast_uniform_bits",
     hdrs = [
         "fast_uniform_bits.h",
@@ -78,6 +81,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "seed_material",
     srcs = [
         "seed_material.cc",
@@ -107,6 +111,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "pool_urbg",
     srcs = [
         "pool_urbg.cc",
@@ -161,6 +166,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "salted_seed_seq",
     hdrs = [
         "salted_seed_seq.h",
@@ -177,6 +183,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "iostream_state_saver",
     hdrs = ["iostream_state_saver.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -188,6 +195,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "generate_real",
     hdrs = [
         "generate_real.h",
@@ -203,6 +211,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "fastmath",
     hdrs = [
         "fastmath.h",
@@ -213,6 +222,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "wide_multiply",
     hdrs = ["wide_multiply.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -226,6 +236,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "nonsecure_base",
     hdrs = ["nonsecure_base.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -242,6 +253,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "pcg_engine",
     hdrs = ["pcg_engine.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -257,6 +269,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "randen_engine",
     hdrs = ["randen_engine.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -272,6 +285,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "platform",
     srcs = [
         "randen_round_keys.cc",
@@ -288,6 +302,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "randen",
     srcs = [
         "randen.cc",
@@ -306,6 +321,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "randen_slow",
     srcs = ["randen_slow.cc"],
     hdrs = ["randen_slow.h"],
@@ -323,6 +339,7 @@ cc_library(
 absl_random_randen_copts_init()
 
 cc_library(
+    alwayslink = True,
     name = "randen_hwaes",
     srcs = [
         "randen_detect.cc",
@@ -342,6 +359,7 @@ cc_library(
 
 # build with --save_temps to see assembly language output.
 cc_library(
+    alwayslink = True,
     name = "randen_hwaes_impl",
     srcs = [
         "randen_hwaes.cc",
@@ -523,6 +541,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "mock_helpers",
     hdrs = ["mock_helpers.h"],
     linkopts = ABSL_DEFAULT_LINKOPTS,
@@ -692,6 +711,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "nanobenchmark",
     srcs = ["nanobenchmark.cc"],
     linkopts = ABSL_DEFAULT_LINKOPTS,
@@ -706,6 +726,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "uniform_helper",
     hdrs = ["uniform_helper.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -718,6 +739,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "mock_validators",
     hdrs = ["mock_validators.h"],
     deps = [

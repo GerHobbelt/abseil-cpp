@@ -32,6 +32,7 @@ package(
 licenses(["notice"])
 
 cc_library(
+    alwayslink = True,
     name = "string_view",
     srcs = ["string_view.cc"],
     hdrs = ["string_view.h"],
@@ -47,6 +48,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "strings",
     srcs = [
         "ascii.cc",
@@ -115,6 +117,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "internal",
     srcs = [
         "internal/escaping.cc",
@@ -203,6 +206,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "has_ostream_operator",
     hdrs = ["has_ostream_operator.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -384,6 +388,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "charset",
     hdrs = [
         "charset.h",
@@ -411,6 +416,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "cord_internal",
     srcs = [
         "internal/cord_internal.cc",
@@ -541,6 +547,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "cordz_update_tracker",
     hdrs = ["internal/cordz_update_tracker.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -565,6 +572,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "cord",
     srcs = [
         "cord.cc",
@@ -606,6 +614,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "cordz_handle",
     srcs = ["internal/cordz_handle.cc"],
     hdrs = ["internal/cordz_handle.h"],
@@ -623,6 +632,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "cordz_info",
     srcs = ["internal/cordz_info.cc"],
     hdrs = ["internal/cordz_info.h"],
@@ -650,6 +660,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "cordz_update_scope",
     hdrs = ["internal/cordz_update_scope.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -683,6 +694,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "cordz_sample_token",
     srcs = ["internal/cordz_sample_token.cc"],
     hdrs = ["internal/cordz_sample_token.h"],
@@ -699,6 +711,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "cordz_functions",
     srcs = ["internal/cordz_functions.cc"],
     hdrs = ["internal/cordz_functions.h"],
@@ -716,6 +729,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "cordz_statistics",
     hdrs = ["internal/cordz_statistics.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -1251,6 +1265,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "str_format",
     hdrs = [
         "str_format.h",
@@ -1268,6 +1283,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "str_format_internal",
     srcs = [
         "internal/str_format/arg.cc",

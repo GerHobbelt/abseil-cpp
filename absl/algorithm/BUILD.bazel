@@ -33,6 +33,7 @@ package(
 licenses(["notice"])
 
 cc_library(
+    alwayslink = True,
     name = "algorithm",
     hdrs = ["algorithm.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -57,6 +58,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "container",
     hdrs = [
         "container.h",

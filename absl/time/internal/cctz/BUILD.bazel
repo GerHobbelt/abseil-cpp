@@ -23,6 +23,7 @@ licenses(["notice"])
 ### libraries
 
 cc_library(
+    alwayslink = True,
     name = "civil_time",
     srcs = ["src/civil_time_detail.cc"],
     hdrs = [
@@ -34,6 +35,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "time_zone",
     srcs = [
         "src/time_zone_fixed.cc",

@@ -34,6 +34,7 @@ licenses(["notice"])
 
 # Internal data structure for efficiently detecting mutex dependency cycles
 cc_library(
+    alwayslink = True,
     name = "graphcycles_internal",
     srcs = [
         "internal/graphcycles.cc",
@@ -56,6 +57,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "kernel_timeout_internal",
     srcs = ["internal/kernel_timeout.cc"],
     hdrs = ["internal/kernel_timeout.h"],
@@ -91,6 +93,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "synchronization",
     srcs = [
         "barrier.cc",

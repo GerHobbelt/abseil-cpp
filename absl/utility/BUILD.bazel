@@ -33,6 +33,7 @@ package(
 licenses(["notice"])
 
 cc_library(
+    alwayslink = True,
     name = "utility",
     hdrs = [
         "utility.h",
@@ -62,6 +63,7 @@ cc_test(
 )
 
 cc_library(
+    alwayslink = True,
     name = "if_constexpr",
     hdrs = [
         "internal/if_constexpr.h",

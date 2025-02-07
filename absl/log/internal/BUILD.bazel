@@ -35,6 +35,7 @@ package(
 licenses(["notice"])
 
 cc_library(
+    alwayslink = True,
     name = "check_impl",
     hdrs = ["check_impl.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -49,6 +50,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "check_op",
     srcs = ["check_op.cc"],
     hdrs = ["check_op.h"],
@@ -68,6 +70,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "conditions",
     srcs = ["conditions.cc"],
     hdrs = ["conditions.h"],
@@ -82,6 +85,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "config",
     hdrs = ["config.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -96,6 +100,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "flags",
     hdrs = ["flags.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -106,6 +111,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "format",
     srcs = ["log_format.cc"],
     hdrs = ["log_format.h"],
@@ -126,6 +132,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "globals",
     srcs = ["globals.cc"],
     hdrs = ["globals.h"],
@@ -145,6 +152,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "log_impl",
     hdrs = ["log_impl.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -158,6 +166,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "log_message",
     srcs = ["log_message.cc"],
     hdrs = ["log_message.h"],
@@ -194,6 +203,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "append_truncated",
     hdrs = ["append_truncated.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -206,6 +216,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "log_sink_set",
     srcs = ["log_sink_set.cc"],
     hdrs = ["log_sink_set.h"],
@@ -234,6 +245,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "nullguard",
     srcs = ["nullguard.cc"],
     hdrs = ["nullguard.h"],
@@ -246,6 +258,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "nullstream",
     hdrs = ["nullstream.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -259,6 +272,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "strip",
     hdrs = ["strip.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -272,6 +286,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "structured",
     hdrs = ["structured.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -345,6 +360,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "voidify",
     hdrs = ["voidify.h"],
     copts = ABSL_DEFAULT_COPTS,
@@ -353,6 +369,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "proto",
     srcs = ["proto.cc"],
     hdrs = ["proto.h"],
@@ -368,6 +385,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "fnmatch",
     srcs = ["fnmatch.cc"],
     hdrs = ["fnmatch.h"],
@@ -380,6 +398,7 @@ cc_library(
 )
 
 cc_library(
+    alwayslink = True,
     name = "vlog_config",
     srcs = ["vlog_config.cc"],
     hdrs = ["vlog_config.h"],
