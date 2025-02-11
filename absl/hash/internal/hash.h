@@ -75,8 +75,7 @@
 #include <vector>
 #endif
 
-#if defined(__cpp_lib_filesystem) && __cpp_lib_filesystem >= 201703L && \
-    !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
+#if defined(__cpp_lib_filesystem) && __cpp_lib_filesystem >= 201703L
 #include <filesystem>  // NOLINT
 #endif
 
@@ -611,7 +610,6 @@ H AbslHashValue(H hash_state, std::basic_string_view<Char> str) {
 #endif  // ABSL_HAVE_STD_STRING_VIEW
 
 #if defined(__cpp_lib_filesystem) && __cpp_lib_filesystem >= 201703L && \
-    !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY) && \
     (!defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__) ||        \
      __ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__ >= 130000) &&       \
     (!defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) ||         \
