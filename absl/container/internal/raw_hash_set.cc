@@ -338,7 +338,7 @@ void EraseMetaOnly(CommonFields& c, size_t index, size_t slot_size) {
 }
 
 void ClearBackingArray(CommonFields& c, const PolicyFunctions& policy,
-                       bool reuse, bool soo_enabled) {
+                       void* alloc, bool reuse, bool soo_enabled) {
   c.set_size(0);
   if (reuse) {
     assert(!soo_enabled || c.capacity() > SooCapacity());
@@ -350,7 +350,9 @@ void ClearBackingArray(CommonFields& c, const PolicyFunctions& policy,
     // infoz.
     c.infoz().RecordClearedReservation();
     c.infoz().RecordStorageChanged(0, soo_enabled ? SooCapacity() : 0);
-    (*policy.dealloc)(c, policy);
+    c.infoz().Unregister();
+    (*policy.dealloc)(alloc, c.capacity(), c.control(), policy.slot_size,
+                      policy.slot_align, c.has_infoz());
     c = soo_enabled ? CommonFields{soo_tag_t{}} : CommonFields{non_soo_tag_t{}};
   }
 }
