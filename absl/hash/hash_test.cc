@@ -166,8 +166,6 @@ TEST(HashValueTest, Pointer) {
       std::make_tuple(&i, ptr, nullptr, ptr + 1, n)));
 }
 
-// The test is flaky in ASan and on Apple platforms.
-#if !defined(ABSL_HAVE_ADDRESS_SANITIZER) && !defined(__APPLE__)
 TEST(HashValueTest, PointerAlignment) {
   // We want to make sure that pointer alignment will not cause too many bits to
   // be stuck.
@@ -194,12 +192,11 @@ TEST(HashValueTest, PointerAlignment) {
     // Limit the scope to the bits we would be using for Swisstable.
     constexpr size_t kMask = (1 << (kLog2NumValues + 7)) - 1;
     size_t stuck_bits = (~bits_or | bits_and) & kMask;
-    // Test that there are less than 3 stuck bits. Sometimes we see stuck_bits
+    // Test that there are at most 2 stuck bits. Sometimes we see stuck_bits
     // of 0x3.
-    EXPECT_LT(absl::popcount(stuck_bits), 3) << "0x" << std::hex << stuck_bits;
+    EXPECT_LE(absl::popcount(stuck_bits), 2) << "0x" << std::hex << stuck_bits;
   }
 }
-#endif  // !defined(ABSL_HAVE_ADDRESS_SANITIZER) && !defined(__APPLE__)
 
 TEST(HashValueTest, PointerToMember) {
   struct Bass {
@@ -1198,6 +1195,24 @@ std::false_type HashOfExplicitParameter(size_t) {
 
 TEST(HashOf, CantPassExplicitTemplateParameters) {
   EXPECT_FALSE(HashOfExplicitParameter<int>(0));
+}
+
+struct TypeErasedHashStateUser {
+  int a;
+  std::string b;
+
+  template <typename H>
+  friend H AbslHashValue(H state, const TypeErasedHashStateUser& value) {
+    absl::HashState type_erased_state = absl::HashState::Create(&state);
+    absl::HashState::combine(std::move(type_erased_state), value.a, value.b);
+    return state;
+  }
+};
+
+TEST(HashOf, MatchesTypeErasedHashState) {
+  std::string s = "s";
+  EXPECT_EQ(absl::HashOf(1, s), absl::Hash<TypeErasedHashStateUser>{}(
+                                    TypeErasedHashStateUser{1, s}));
 }
 
 }  // namespace
