@@ -124,7 +124,7 @@ void BM_MutexEnqueue(benchmark::State& state) {
   // NOTE: The actual scheduler priority is not modified in this benchmark:
   // all of the threads get CPU slices with the same priority. Only the
   // Mutex queueing behavior is modified.
-  const bool multiple_priorities = state.range(0);
+  const bool multiple_priorities = !!state.range(0);
   ScopedThreadMutexPriority priority_setter(
       (multiple_priorities && state.thread_index() != 0) ? 1 : 0);
 
