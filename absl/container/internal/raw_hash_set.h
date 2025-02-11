@@ -4153,7 +4153,7 @@ class raw_hash_set {
         (std::is_same<SlotAlloc, std::allocator<slot_type>>::value
              ? &DeallocateStandard<alignof(slot_type)>
              : &raw_hash_set::dealloc_fn),
-        &raw_hash_set::resize_impl,
+        &raw_hash_set::resize_impl
     };
     return value;
   }
