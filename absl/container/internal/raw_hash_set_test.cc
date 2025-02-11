@@ -107,6 +107,23 @@ using ::testing::UnorderedElementsAre;
 // Convenience function to static cast to ctrl_t.
 ctrl_t CtrlT(int i) { return static_cast<ctrl_t>(i); }
 
+// Enables sampling with 1 percent sampling rate and
+// resets the rate counter for the current thread.
+void SetSamplingRateTo1Percent() {
+  SetHashtablezEnabled(true);
+  SetHashtablezSampleParameter(100);  // Sample ~1% of tables.
+  // Reset rate counter for the current thread.
+  TestOnlyRefreshSamplingStateForCurrentThread();
+}
+
+// Disables sampling and resets the rate counter for the current thread.
+void DisableSampling() {
+  SetHashtablezEnabled(false);
+  SetHashtablezSampleParameter(1 << 16);
+  // Reset rate counter for the current thread.
+  TestOnlyRefreshSamplingStateForCurrentThread();
+}
+
 TEST(GrowthInfoTest, GetGrowthLeft) {
   GrowthInfo gi;
   gi.InitGrowthLeftNoDeleted(5);
@@ -1069,6 +1086,7 @@ TYPED_TEST(SmallTableResizeTest, ResizeGrowSmallTables) {
 }
 
 TYPED_TEST(SmallTableResizeTest, ResizeReduceSmallTables) {
+  DisableSampling();
   for (size_t source_size = 0; source_size < 32; ++source_size) {
     for (size_t target_size = 0; target_size <= source_size; ++target_size) {
       TypeParam t;
@@ -2316,7 +2334,7 @@ TYPED_TEST(SooTest, FindFullDeletedRegression) {
 
 TYPED_TEST(SooTest, ReplacingDeletedSlotDoesNotRehash) {
   // We need to disable hashtablez to avoid issues related to SOO and sampling.
-  SetHashtablezEnabled(false);
+  DisableSampling();
 
   size_t n;
   {
@@ -2684,7 +2702,7 @@ TYPED_TEST(SooTest, IterationOrderChangesOnRehash) {
 // This prevents dependency on pointer stability on small tables.
 TYPED_TEST(SooTest, UnstablePointers) {
   // We need to disable hashtablez to avoid issues related to SOO and sampling.
-  SetHashtablezEnabled(false);
+  DisableSampling();
 
   TypeParam table;
 
@@ -2822,12 +2840,17 @@ TYPED_TEST_SUITE(RawHashSamplerTest, RawHashSamplerTestTypes);
 TYPED_TEST(RawHashSamplerTest, Sample) {
   constexpr bool soo_enabled = std::is_same<SooIntTable, TypeParam>::value;
   // Enable the feature even if the prod default is off.
-  SetHashtablezEnabled(true);
-  SetHashtablezSampleParameter(100);  // Sample ~1% of tables.
+  SetSamplingRateTo1Percent();
 
   auto& sampler = GlobalHashtablezSampler();
   size_t start_size = 0;
-  absl::flat_hash_set<const HashtablezInfo*> preexisting_info;
+
+  // Reserve these utility tables, so that if they sampled, they'll be
+  // preexisting.
+  absl::flat_hash_set<const HashtablezInfo*> preexisting_info(10);
+  absl::flat_hash_map<size_t, int> observed_checksums(10);
+  absl::flat_hash_map<ssize_t, int> reservations(10);
+
   start_size += sampler.Iterate([&](const HashtablezInfo& info) {
     preexisting_info.insert(&info);
     ++start_size;
@@ -2854,8 +2877,6 @@ TYPED_TEST(RawHashSamplerTest, Sample) {
     }
   }
   size_t end_size = 0;
-  absl::flat_hash_map<size_t, int> observed_checksums;
-  absl::flat_hash_map<ssize_t, int> reservations;
   end_size += sampler.Iterate([&](const HashtablezInfo& info) {
     ++end_size;
     if (preexisting_info.contains(&info)) return;
@@ -2894,12 +2915,12 @@ TYPED_TEST(RawHashSamplerTest, Sample) {
 std::vector<const HashtablezInfo*> SampleSooMutation(
     absl::FunctionRef<void(SooIntTable&)> mutate_table) {
   // Enable the feature even if the prod default is off.
-  SetHashtablezEnabled(true);
-  SetHashtablezSampleParameter(100);  // Sample ~1% of tables.
+  SetSamplingRateTo1Percent();
 
   auto& sampler = GlobalHashtablezSampler();
   size_t start_size = 0;
-  absl::flat_hash_set<const HashtablezInfo*> preexisting_info;
+  // Reserve the table, so that if it sampled, it'll be preexisting.
+  absl::flat_hash_set<const HashtablezInfo*> preexisting_info(10);
   start_size += sampler.Iterate([&](const HashtablezInfo& info) {
     preexisting_info.insert(&info);
     ++start_size;
@@ -3023,8 +3044,7 @@ TEST(RawHashSamplerTest, SooTableRehashShrinkWhenSizeFitsInSoo) {
 
 TEST(RawHashSamplerTest, DoNotSampleCustomAllocators) {
   // Enable the feature even if the prod default is off.
-  SetHashtablezEnabled(true);
-  SetHashtablezSampleParameter(100);  // Sample ~1% of tables.
+  SetSamplingRateTo1Percent();
 
   auto& sampler = GlobalHashtablezSampler();
   size_t start_size = 0;
@@ -3713,7 +3733,7 @@ TEST(Table, RehashToSooUnsampled) {
 
   // We disable hashtablez sampling for this test to ensure that the table isn't
   // sampled. When the table is sampled, it won't rehash down to SOO.
-  SetHashtablezEnabled(false);
+  DisableSampling();
 
   t.reserve(100);
   t.insert(0);
