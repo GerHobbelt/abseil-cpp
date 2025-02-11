@@ -40,6 +40,7 @@
 #include <ios>
 #include <limits>
 #include <string>
+#include <type_traits>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -92,6 +93,8 @@ MATCHER_P(TimevalMatcher, tv, "") {
 }
 
 TEST(Time, ConstExpr) {
+  static_assert(std::is_trivially_destructible<absl::Time>::value,
+                "Time is documented as being trivially destructible");
   constexpr absl::Time t0 = absl::UnixEpoch();
   static_assert(t0 == absl::UnixEpoch(), "UnixEpoch");
   constexpr absl::Time t1 = absl::InfiniteFuture();
