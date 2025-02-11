@@ -1229,6 +1229,9 @@ class RawHashSetLayout {
   // Given the capacity of a table, computes the total size of the backing
   // array.
   size_t alloc_size(size_t slot_size) const {
+    ABSL_SWISSTABLE_ASSERT(
+        slot_size <=
+        ((std::numeric_limits<size_t>::max)() - slot_offset_) / capacity_);
     return slot_offset_ + capacity_ * slot_size;
   }
 
@@ -1546,6 +1549,15 @@ void ConvertDeletedToEmptyAndFullToDeleted(ctrl_t* ctrl, size_t capacity);
 inline size_t NormalizeCapacity(size_t n) {
   return n ? ~size_t{} >> countl_zero(n) : 1;
 }
+
+template <size_t kSlotSize>
+size_t MaxValidCapacity() {
+  return NormalizeCapacity((std::numeric_limits<size_t>::max)() / 4 /
+                           kSlotSize);
+}
+
+// Use a non-inlined function to avoid code bloat.
+[[noreturn]] void HashTableSizeOverflow();
 
 // General notes on capacity/growth methods below:
 // - We use 7/8th as maximum load factor. For 16-wide groups, that gives an
@@ -2648,6 +2660,10 @@ class raw_hash_set {
       : settings_(CommonFields::CreateDefault<SooEnabled()>(), hash, eq,
                   alloc) {
     if (bucket_count > DefaultCapacity()) {
+      if (ABSL_PREDICT_FALSE(bucket_count >
+                             MaxValidCapacity<sizeof(slot_type)>())) {
+        HashTableSizeOverflow();
+      }
       resize(NormalizeCapacity(bucket_count));
     }
   }
@@ -2920,7 +2936,9 @@ class raw_hash_set {
     ABSL_ASSUME(cap >= kDefaultCapacity);
     return cap;
   }
-  size_t max_size() const { return (std::numeric_limits<size_t>::max)(); }
+  size_t max_size() const {
+    return CapacityToGrowth(MaxValidCapacity<sizeof(slot_type)>());
+  }
 
   ABSL_ATTRIBUTE_REINITIALIZES void clear() {
     if (SwisstableGenerationsEnabled() &&
@@ -3206,35 +3224,10 @@ class raw_hash_set {
     return 1;
   }
 
-  // Erases the element pointed to by `it`.
-  //
-  // Unlike `std::unordered_set::erase`, this returns `void` to reduce
-  // algorithmic complexity to O(1). When erasing multiple elements, proper
-  // iterator management is crucial to avoid invalidation errors. The preferred
-  // method is `absl::erase_if`, which manages this complexity and simplifies
-  // the code. However, if specific requirements prevent using `absl::erase_if`
-  // (such as needing to perform extra operations on each element), the iterator
-  // must be manually advanced. Techniques like post-increment iteration with
-  // `erase` can ensure the iterator remains valid during the removal process.
-  //
-  // Example using absl::erase_if:
-  //
-  // absl::flat_hash_set<std::string> email_addresses = GetEmailAddresses();
-  // absl::erase_if(email_addresses,
-  //             [](const auto& a) { return !IsValidAddress(a); });
-  //
-  // Example using post-increment iteration:
-  //
-  // absl::flat_hash_set<std::string> email_addresses = GetEmailAddresses();
-  // for (auto it = email_addresses.begin(); it != email_addresses.end();) {
-  //   if (!IsValidAddress(*it)) {
-  //     process_element_being_erased(*it);
-  //     email_addresses.erase(it++);
-  //   } else {
-  //     process_element_being_kept(*it);
-  //     ++it;
-  //   }
-  // }
+  // Erases the element pointed to by `it`. Unlike `std::unordered_set::erase`,
+  // this method returns void to reduce algorithmic complexity to O(1). The
+  // iterator is invalidated so any increment should be done before calling
+  // erase (e.g. `erase(it++)`).
   void erase(const_iterator cit) { erase(cit.inner_); }
 
   // This overload is necessary because otherwise erase<K>(const K&) would be
@@ -3379,6 +3372,9 @@ class raw_hash_set {
     auto m = NormalizeCapacity(n | GrowthToLowerboundCapacity(size()));
     // n == 0 unconditionally rehashes as per the standard.
     if (n == 0 || m > cap) {
+      if (ABSL_PREDICT_FALSE(m > MaxValidCapacity<sizeof(slot_type)>())) {
+        HashTableSizeOverflow();
+      }
       resize(m);
 
       // This is after resize, to ensure that we have completed the allocation
@@ -3398,6 +3394,9 @@ class raw_hash_set {
     const size_t max_size_before_growth =
         is_soo() ? SooCapacity() : size() + growth_left();
     if (n > max_size_before_growth) {
+      if (ABSL_PREDICT_FALSE(n > max_size())) {
+        HashTableSizeOverflow();
+      }
       size_t m = GrowthToLowerboundCapacity(n);
       resize(NormalizeCapacity(m));
 
