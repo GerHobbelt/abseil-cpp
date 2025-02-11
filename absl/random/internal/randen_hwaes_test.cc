@@ -94,7 +94,7 @@ int main(int argc, const char** argv) {
   LOG(INFO) << "HasRandenHwAesImplementation = " << x;
 
   int y = absl::random_internal::CPUSupportsRandenHwAes();
-  LOG(INFO) << "CPUSupportsRandenHwAes = " << y;
+  LOG(INFO) << "CPUSupportsRandenHwAes = " << x;
 
   if (!x || !y) {
     LOG(INFO) << "Skipping Randen HWAES tests.";
