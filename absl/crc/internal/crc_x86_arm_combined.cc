@@ -416,7 +416,9 @@ class CRC32AcceleratedX86ARMCombinedMultipleStreams
         ABSL_INTERNAL_STEP8BY3(l64, l641, l642, p, p1, p2);
         ABSL_INTERNAL_STEP8BY3(l64, l641, l642, p, p1, p2);
         ABSL_INTERNAL_STEP8BY2(l64, l641, p, p1);
-
+#if defined(_M_IX86) && defined(_MSC_VER) && !defined(__clang__)
+        _asm nop; // workaround for msvc miscompilation bug
+#endif
         V128 magic = *(reinterpret_cast<const V128*>(kClmulConstants) + bs - 1);
 
         V128 tmp = V128_From64WithZeroFill(l64);
