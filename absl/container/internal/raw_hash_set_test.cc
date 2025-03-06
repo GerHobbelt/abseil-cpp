@@ -201,15 +201,15 @@ TEST(GrowthInfoTest, OverwriteEmptyAsFull) {
   EXPECT_FALSE(gi.HasNoDeleted());
 }
 
-TEST(GrowthInfoTest, OverwriteControlAsEmpty) {
+TEST(GrowthInfoTest, OverwriteControlAsFull) {
   GrowthInfo gi;
   gi.InitGrowthLeftNoDeleted(5);
-  gi.OverwriteControlAsEmpty(ctrl_t::kEmpty);
-  EXPECT_EQ(gi.GetGrowthLeft(), 5);
-  gi.OverwriteControlAsEmpty(ctrl_t::kDeleted);
-  EXPECT_EQ(gi.GetGrowthLeft(), 6);
+  gi.OverwriteControlAsFull(ctrl_t::kEmpty);
+  EXPECT_EQ(gi.GetGrowthLeft(), 4);
+  gi.OverwriteControlAsFull(ctrl_t::kDeleted);
+  EXPECT_EQ(gi.GetGrowthLeft(), 4);
   gi.OverwriteFullAsDeleted();
-  gi.OverwriteControlAsEmpty(ctrl_t::kDeleted);
+  gi.OverwriteControlAsFull(ctrl_t::kDeleted);
   // We do not count number of deleted, so the bit sticks till the next rehash.
   EXPECT_FALSE(gi.HasNoDeletedAndGrowthLeft());
   EXPECT_FALSE(gi.HasNoDeleted());
@@ -221,7 +221,10 @@ TEST(GrowthInfoTest, HasNoGrowthLeftAssumingMayHaveDeleted) {
   gi.OverwriteFullAsDeleted();
   EXPECT_EQ(gi.GetGrowthLeft(), 1);
   EXPECT_FALSE(gi.HasNoGrowthLeftAssumingMayHaveDeleted());
-  gi.OverwriteControlAsEmpty(ctrl_t::kDeleted);
+  gi.OverwriteControlAsFull(ctrl_t::kDeleted);
+  EXPECT_EQ(gi.GetGrowthLeft(), 1);
+  EXPECT_FALSE(gi.HasNoGrowthLeftAssumingMayHaveDeleted());
+  gi.OverwriteFullAsEmpty();
   EXPECT_EQ(gi.GetGrowthLeft(), 2);
   EXPECT_FALSE(gi.HasNoGrowthLeftAssumingMayHaveDeleted());
   gi.OverwriteEmptyAsFull();
@@ -230,6 +233,40 @@ TEST(GrowthInfoTest, HasNoGrowthLeftAssumingMayHaveDeleted) {
   gi.OverwriteEmptyAsFull();
   EXPECT_EQ(gi.GetGrowthLeft(), 0);
   EXPECT_TRUE(gi.HasNoGrowthLeftAssumingMayHaveDeleted());
+}
+
+TEST(Util, OptimalMemcpySizeForSooSlotTransfer) {
+  EXPECT_EQ(1, OptimalMemcpySizeForSooSlotTransfer(1));
+  ASSERT_EQ(4, OptimalMemcpySizeForSooSlotTransfer(2));
+  ASSERT_EQ(4, OptimalMemcpySizeForSooSlotTransfer(3));
+  for (size_t slot_size = 4; slot_size <= 8; ++slot_size) {
+    ASSERT_EQ(8, OptimalMemcpySizeForSooSlotTransfer(slot_size));
+  }
+  // If maximum amount of memory is 16, then we can copy up to 16 bytes.
+  for (size_t slot_size = 9; slot_size <= 16; ++slot_size) {
+    ASSERT_EQ(16,
+              OptimalMemcpySizeForSooSlotTransfer(slot_size,
+                                                  /*max_soo_slot_size=*/16));
+    ASSERT_EQ(16,
+              OptimalMemcpySizeForSooSlotTransfer(slot_size,
+                                                  /*max_soo_slot_size=*/24));
+  }
+  // But we shouldn't try to copy more than maximum amount of memory.
+  for (size_t slot_size = 9; slot_size <= 12; ++slot_size) {
+    ASSERT_EQ(12, OptimalMemcpySizeForSooSlotTransfer(
+                      slot_size, /*max_soo_slot_size=*/12));
+  }
+  for (size_t slot_size = 17; slot_size <= 24; ++slot_size) {
+    ASSERT_EQ(24,
+              OptimalMemcpySizeForSooSlotTransfer(slot_size,
+                                                  /*max_soo_slot_size=*/24));
+  }
+  // We shouldn't copy more than maximum.
+  for (size_t slot_size = 17; slot_size <= 20; ++slot_size) {
+    ASSERT_EQ(20,
+              OptimalMemcpySizeForSooSlotTransfer(slot_size,
+                                                  /*max_soo_slot_size=*/20));
+  }
 }
 
 TEST(Util, NormalizeCapacity) {

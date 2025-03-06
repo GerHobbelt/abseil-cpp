@@ -1148,9 +1148,11 @@ class GrowthInfo {
     growth_left_info_ -= count;
   }
 
-  // Overwrites specified control element with empty slot.
-  void OverwriteControlAsEmpty(ctrl_t ctrl) {
-    growth_left_info_ += static_cast<size_t>(!IsEmpty(ctrl));
+  // Overwrites specified control element with full slot.
+  void OverwriteControlAsFull(ctrl_t ctrl) {
+    ABSL_SWISSTABLE_ASSERT(GetGrowthLeft() >=
+                           static_cast<size_t>(IsEmpty(ctrl)));
+    growth_left_info_ -= static_cast<size_t>(IsEmpty(ctrl));
   }
 
   // Overwrites single full slot with a deleted slot.
@@ -1390,9 +1392,6 @@ class CommonFields : public CommonFieldsGenerationInfo {
   // The inline data for SOO is written on top of control_/slots_.
   const void* soo_data() const { return heap_or_soo_.get_soo_data(); }
   void* soo_data() { return heap_or_soo_.get_soo_data(); }
-
-  HeapOrSoo heap_or_soo() const { return heap_or_soo_; }
-  const HeapOrSoo& heap_or_soo_ref() const { return heap_or_soo_; }
 
   ctrl_t* control() const { return heap_or_soo_.control(); }
   void set_control(ctrl_t* c) { heap_or_soo_.control() = c; }
@@ -2145,7 +2144,9 @@ InitializeThreeElementsControlBytesAfterSoo(size_t hash, ctrl_t* new_ctrl) {
 // The result must not exceed MaxSooSlotSize().
 // Some of the cases are merged to minimize the number of function
 // instantiations.
-constexpr size_t OptimalMemcpySizeForSooSlotTransfer(size_t slot_size) {
+constexpr size_t OptimalMemcpySizeForSooSlotTransfer(
+    size_t slot_size, size_t max_soo_slot_size = MaxSooSlotSize()) {
+  static_assert(MaxSooSlotSize() >= 8, "unexpectedly small SOO slot size");
   if (slot_size == 1) {
     return 1;
   }
@@ -2157,8 +2158,17 @@ constexpr size_t OptimalMemcpySizeForSooSlotTransfer(size_t slot_size) {
   if (slot_size <= 8) {
     return 8;
   }
-  static_assert(MaxSooSlotSize() <= 16, "unexpectedly large SOO slot size");
-  return 16;
+  if (max_soo_slot_size <= 16) {
+    return max_soo_slot_size;
+  }
+  if (slot_size <= 16) {
+    return 16;
+  }
+  if (max_soo_slot_size <= 24) {
+    return max_soo_slot_size;
+  }
+  static_assert(MaxSooSlotSize() <= 24, "unexpectedly large SOO slot size");
+  return 24;
 }
 
 // Resizes a full SOO table to the NextCapacity(SooCapacity()).
@@ -2280,8 +2290,8 @@ void* GetRefForEmptyClass(CommonFields& common);
 // REQUIRES: Table is not SOO.
 // REQUIRES: At least one non-full slot available.
 // REQUIRES: `target` is a valid empty position to insert.
-size_t PrepareInsertNonSoo(CommonFields& common, size_t hash, FindInfo target,
-                           const PolicyFunctions& policy);
+size_t PrepareInsertNonSoo(CommonFields& common, size_t hash,
+                           const PolicyFunctions& policy, FindInfo target);
 
 // A SwissTable.
 //
@@ -3789,8 +3799,8 @@ class raw_hash_set {
         size_t target = seq.offset(
             GetInsertionOffset(mask_empty, capacity(), hash, control()));
         return {iterator_at(PrepareInsertNonSoo(common(), hash,
-                                                FindInfo{target, seq.index()},
-                                                GetPolicyFunctions())),
+                                                GetPolicyFunctions(),
+                                                FindInfo{target, seq.index()})),
                 true};
       }
       seq.next();
