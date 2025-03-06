@@ -260,8 +260,9 @@ size_t FindFirstFullSlot(size_t start, size_t end, const ctrl_t* ctrl) {
   ABSL_UNREACHABLE();
 }
 
-void DropDeletesWithoutResize(CommonFields& common,
-                              const PolicyFunctions& policy) {
+size_t DropDeletesWithoutResizeAndPrepareInsert(CommonFields& common,
+                                                size_t new_hash,
+                                                const PolicyFunctions& policy) {
   void* set = &common;
   void* slot_array = common.slot_array();
   const size_t capacity = common.capacity();
@@ -321,7 +322,7 @@ void DropDeletesWithoutResize(CommonFields& common,
 
     // Element doesn't move.
     if (ABSL_PREDICT_TRUE(probe_index(new_i) == probe_index(i))) {
-      SetCtrl(common, i, H2(hash), slot_size);
+      SetCtrlInLargeTable(common, i, H2(hash), slot_size);
       continue;
     }
 
@@ -330,14 +331,14 @@ void DropDeletesWithoutResize(CommonFields& common,
       // Transfer element to the empty spot.
       // SetCtrl poisons/unpoisons the slots so we have to call it at the
       // right time.
-      SetCtrl(common, new_i, H2(hash), slot_size);
+      SetCtrlInLargeTable(common, new_i, H2(hash), slot_size);
       (*transfer)(set, new_slot_ptr, slot_ptr, 1);
-      SetCtrl(common, i, ctrl_t::kEmpty, slot_size);
+      SetCtrlInLargeTable(common, i, ctrl_t::kEmpty, slot_size);
       // Initialize or change empty space id.
       tmp_space_id = i;
     } else {
       assert(IsDeleted(ctrl[new_i]));
-      SetCtrl(common, new_i, H2(hash), slot_size);
+      SetCtrlInLargeTable(common, new_i, H2(hash), slot_size);
       // Until we are done rehashing, DELETED marks previously FULL slots.
 
       if (tmp_space_id == kUnknownId) {
@@ -358,8 +359,14 @@ void DropDeletesWithoutResize(CommonFields& common,
       slot_ptr = PrevSlot(slot_ptr, slot_size);
     }
   }
+  // Prepare insert for the new element.
+  PrepareInsertCommon(common);
   ResetGrowthLeft(common);
+  FindInfo find_info = find_first_non_full(common, new_hash);
+  SetCtrlInLargeTable(common, find_info.offset, H2(new_hash), policy.slot_size);
+  common.infoz().RecordInsert(new_hash, find_info.probe_length);
   common.infoz().RecordRehash(total_probe_length);
+  return find_info.offset;
 }
 
 static bool WasNeverFull(CommonFields& c, size_t index) {
@@ -417,7 +424,7 @@ void EraseMetaOnly(CommonFields& c, size_t index, size_t slot_size) {
   }
 
   c.growth_info().OverwriteFullAsDeleted();
-  SetCtrl(c, index, ctrl_t::kDeleted, slot_size);
+  SetCtrlInLargeTable(c, index, ctrl_t::kDeleted, slot_size);
 }
 
 void ClearBackingArray(CommonFields& c, const PolicyFunctions& policy,
@@ -471,7 +478,7 @@ void ResizeNonSooImpl(CommonFields& common, size_t new_capacity,
 
   common.set_capacity(new_capacity);
   RawHashSetLayout layout(new_capacity, slot_size, slot_align, has_infoz);
-  void* alloc = policy.alloc_fn(common);
+  void* alloc = policy.get_char_alloc(common);
   char* mem = static_cast<char*>(policy.alloc(alloc, layout.alloc_size()));
   const GenerationType old_generation = common.generation();
   common.set_generation_ptr(
@@ -583,7 +590,7 @@ void ResizeFullSooTable(CommonFields& common, size_t new_capacity,
   common.set_capacity(new_capacity);
 
   RawHashSetLayout layout(new_capacity, slot_size, slot_align, has_infoz);
-  void* alloc = policy.alloc_fn(common);
+  void* alloc = policy.get_char_alloc(common);
   char* mem = static_cast<char*>(policy.alloc(alloc, layout.alloc_size()));
   const GenerationType old_generation = common.generation();
   common.set_generation_ptr(
@@ -761,7 +768,7 @@ size_t GrowToNextCapacityAndPrepareInsert(CommonFields& common, size_t new_hash,
   const bool has_infoz = infoz.IsSampled();
 
   RawHashSetLayout layout(new_capacity, slot_size, slot_align, has_infoz);
-  void* alloc = policy.alloc_fn(common);
+  void* alloc = policy.get_char_alloc(common);
   char* mem = static_cast<char*>(policy.alloc(alloc, layout.alloc_size()));
   const GenerationType old_generation = common.generation();
   common.set_generation_ptr(
@@ -803,7 +810,7 @@ size_t GrowToNextCapacityAndPrepareInsert(CommonFields& common, size_t new_hash,
       total_probe_length = policy.find_new_positions_and_transfer_slots(
           common, old_ctrl, old_slots, old_capacity);
       find_info = find_first_non_full(common, new_hash);
-      SetCtrl(common, find_info.offset, new_h2, policy.slot_size);
+      SetCtrlInLargeTable(common, find_info.offset, new_h2, policy.slot_size);
     }
     assert(old_capacity > policy.soo_capacity);
     (*policy.dealloc)(alloc, old_capacity, old_ctrl, slot_size, slot_align,
@@ -826,7 +833,7 @@ size_t GrowToNextCapacityAndPrepareInsert(CommonFields& common, size_t new_hash,
 // tombstones via rehash or growth to next capacity.
 ABSL_ATTRIBUTE_NOINLINE
 size_t RehashOrGrowToNextCapacityAndPrepareInsert(
-    CommonFields& common, size_t hash, const PolicyFunctions& policy) {
+    CommonFields& common, size_t new_hash, const PolicyFunctions& policy) {
   const size_t cap = common.capacity();
   ABSL_ASSUME(cap > 0);
   if (cap > Group::kWidth &&
@@ -873,16 +880,10 @@ size_t RehashOrGrowToNextCapacityAndPrepareInsert(
     //  762 | 149836       0.37        13 | 148559       0.74       190
     //  807 | 149736       0.39        14 | 151107       0.39        14
     //  852 | 150204       0.42        15 | 151019       0.42        15
-    DropDeletesWithoutResize(common, policy);
-    FindInfo find_info = find_first_non_full(common, hash);
-    PrepareInsertCommon(common);
-    common.growth_info().OverwriteEmptyAsFull();
-    SetCtrl(common, find_info.offset, H2(hash), policy.slot_size);
-    common.infoz().RecordInsert(hash, find_info.probe_length);
-    return find_info.offset;
+    return DropDeletesWithoutResizeAndPrepareInsert(common, new_hash, policy);
   } else {
     // Otherwise grow the container.
-    return GrowToNextCapacityAndPrepareInsert(common, hash, policy);
+    return GrowToNextCapacityAndPrepareInsert(common, new_hash, policy);
   }
 }
 
@@ -928,8 +929,8 @@ void Rehash(CommonFields& common, size_t n, const PolicyFunctions& policy) {
   const size_t cap = common.capacity();
 
   auto clear_backing_array = [&]() {
-    ClearBackingArray(common, policy, policy.alloc_fn(common), /*reuse=*/false,
-                      policy.soo_capacity > 0);
+    ClearBackingArray(common, policy, policy.get_char_alloc(common),
+                      /*reuse=*/false, policy.soo_capacity > 0);
   };
 
   const size_t slot_size = policy.slot_size;
@@ -956,9 +957,9 @@ void Rehash(CommonFields& common, size_t n, const PolicyFunctions& policy) {
       assert(policy.slot_align <= alignof(HeapOrSoo));
       HeapOrSoo tmp_slot;
       size_t begin_offset = FindFirstFullSlot(0, cap, common.control());
-      policy.transfer(
-          &common, &tmp_slot,
-          SlotAddress(common.slot_array(), begin_offset, slot_size), 1);
+      policy.transfer(&common, &tmp_slot,
+                      SlotAddress(common.slot_array(), begin_offset, slot_size),
+                      1);
       clear_backing_array();
       policy.transfer(&common, common.soo_data(), &tmp_slot, 1);
       common.set_full_soo();
@@ -1019,47 +1020,45 @@ void ReserveAllocatedTable(CommonFields& common, size_t n,
 
 size_t PrepareInsertNonSoo(CommonFields& common, size_t hash, FindInfo target,
                            const PolicyFunctions& policy) {
+  const bool rehash_for_bug_detection =
+      common.should_rehash_for_bug_detection_on_insert() &&
+      // Required to allow use of ResizeAllocatedTable.
+      common.capacity() > 0;
+  if (rehash_for_bug_detection) {
+    // Move to a different heap allocation in order to detect bugs.
+    const size_t cap = common.capacity();
+    ResizeAllocatedTable(
+        common, common.growth_left() > 0 ? cap : NextCapacity(cap), policy);
+    target = find_first_non_full(common, hash);
+  }
+
+  const GrowthInfo growth_info = common.growth_info();
   // When there are no deleted slots in the table
   // and growth_left is positive, we can insert at the first
   // empty slot in the probe sequence (target).
-  const bool use_target_hint =
-      // Optimization is disabled when generations are enabled.
-      // We have to rehash even sparse tables randomly in such mode.
-      !SwisstableGenerationsEnabled() &&
-      common.growth_info().HasNoDeletedAndGrowthLeft();
-  if (ABSL_PREDICT_FALSE(!use_target_hint)) {
-    // Notes about optimized mode when generations are disabled:
-    // We do not enter this branch if table has no deleted slots
-    // and growth_left is positive.
-    // We enter this branch in the following cases listed in decreasing
-    // frequency:
-    // 1. Table without deleted slots (>95% cases) that needs to be resized.
-    // 2. Table with deleted slots that has space for the inserting element.
-    // 3. Table with deleted slots that needs to be rehashed or resized.
-    if (ABSL_PREDICT_TRUE(common.growth_info().HasNoGrowthLeftAndNoDeleted())) {
+  if (ABSL_PREDICT_FALSE(!growth_info.HasNoDeletedAndGrowthLeft())) {
+    if (ABSL_PREDICT_TRUE(growth_info.HasNoGrowthLeftAndNoDeleted())) {
+      // Table without deleted slots (>95% cases) that needs to be resized.
+      assert(growth_info.HasNoDeleted() && growth_info.GetGrowthLeft() == 0);
       return GrowToNextCapacityAndPrepareInsert(common, hash, policy);
     } else {
-      // Note: the table may have no deleted slots here when generations
-      // are enabled.
-      const bool rehash_for_bug_detection =
-          common.should_rehash_for_bug_detection_on_insert() &&
-          // Required to allow use of ResizeAllocatedTable.
-          common.capacity() > 0;
-      if (rehash_for_bug_detection) {
-        // Move to a different heap allocation in order to detect bugs.
-        const size_t cap = common.capacity();
-        ResizeAllocatedTable(
-            common, common.growth_left() > 0 ? cap : NextCapacity(cap), policy);
-      }
-      if (ABSL_PREDICT_TRUE(common.growth_left() > 0)) {
-        target = find_first_non_full(common, hash);
-      } else {
+      if (ABSL_PREDICT_FALSE(
+              growth_info.HasNoGrowthLeftAssumingMayHaveDeleted())) {
+        // Table with deleted slots that needs to be rehashed or resized.
         return RehashOrGrowToNextCapacityAndPrepareInsert(common, hash, policy);
       }
+      // Table with deleted slots that has space for the inserting element.
+      target = find_first_non_full(common, hash);
+      // We need to overwrite the control byte to full, but we do that in two
+      // steps: overwrite to empty and then to full.
+      // This is done in order to avoid reading the control byte in the most
+      // common case below.
+      common.growth_info().OverwriteControlAsEmpty(
+          common.control()[target.offset]);
     }
   }
   PrepareInsertCommon(common);
-  common.growth_info().OverwriteControlAsFull(common.control()[target.offset]);
+  common.growth_info().OverwriteEmptyAsFull();
   SetCtrl(common, target.offset, H2(hash), policy.slot_size);
   common.infoz().RecordInsert(hash, target.probe_length);
   return target.offset;

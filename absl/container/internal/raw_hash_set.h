@@ -279,6 +279,15 @@ constexpr bool SwisstableGenerationsEnabled() { return false; }
 constexpr size_t NumGenerationBytes() { return 0; }
 #endif
 
+// Returns true if we should assert that the table is not accessed after it has
+// been destroyed or during the destruction of the table.
+constexpr bool SwisstableAssertAccessToDestroyedTable() {
+#ifndef NDEBUG
+  return true;
+#endif
+  return SwisstableGenerationsEnabled();
+}
+
 template <typename AllocType>
 void SwapAlloc(AllocType& lhs, AllocType& rhs,
                std::true_type /* propagate_on_container_swap */) {
@@ -1139,11 +1148,9 @@ class GrowthInfo {
     growth_left_info_ -= count;
   }
 
-  // Overwrites specified control element with full slot.
-  void OverwriteControlAsFull(ctrl_t ctrl) {
-    ABSL_SWISSTABLE_ASSERT(GetGrowthLeft() >=
-                           static_cast<size_t>(IsEmpty(ctrl)));
-    growth_left_info_ -= static_cast<size_t>(IsEmpty(ctrl));
+  // Overwrites specified control element with empty slot.
+  void OverwriteControlAsEmpty(ctrl_t ctrl) {
+    growth_left_info_ += static_cast<size_t>(!IsEmpty(ctrl));
   }
 
   // Overwrites single full slot with a deleted slot.
@@ -1161,7 +1168,14 @@ class GrowthInfo {
   // 2. There is no growth left.
   bool HasNoGrowthLeftAndNoDeleted() const { return growth_left_info_ == 0; }
 
-  // Returns true if table guaranteed to have no k
+  // Returns true if GetGrowthLeft() == 0, but must be called only if
+  // HasNoDeleted() is false. It is slightly more efficient.
+  bool HasNoGrowthLeftAssumingMayHaveDeleted() const {
+    ABSL_SWISSTABLE_ASSERT(!HasNoDeleted());
+    return growth_left_info_ == kDeletedBit;
+  }
+
+  // Returns true if table guaranteed to have no kDeleted slots.
   bool HasNoDeleted() const {
     return static_cast<std::make_signed_t<size_t>>(growth_left_info_) >= 0;
   }
@@ -1355,6 +1369,13 @@ class CommonFields : public CommonFieldsGenerationInfo {
   // Not copyable
   CommonFields(const CommonFields&) = delete;
   CommonFields& operator=(const CommonFields&) = delete;
+
+  // Copy with guarantee that it is not SOO.
+  CommonFields(non_soo_tag_t, const CommonFields& that)
+      : capacity_(that.capacity_),
+        size_(that.size_),
+        heap_or_soo_(that.heap_or_soo_) {
+  }
 
   // Movable
   CommonFields(CommonFields&& that) = default;
@@ -1903,6 +1924,22 @@ inline void SetCtrlInSingleGroupTable(const CommonFields& c, size_t i, h2_t h,
   SetCtrlInSingleGroupTable(c, i, static_cast<ctrl_t>(h), slot_size);
 }
 
+// Like SetCtrl, but in a table with capacity >= Group::kWidth - 1,
+// we can save some operations when setting the cloned control byte.
+inline void SetCtrlInLargeTable(const CommonFields& c, size_t i, ctrl_t h,
+                                size_t slot_size) {
+  ABSL_SWISSTABLE_ASSERT(c.capacity() >= Group::kWidth - 1);
+  DoSanitizeOnSetCtrl(c, i, h, slot_size);
+  ctrl_t* ctrl = c.control();
+  ctrl[i] = h;
+  ctrl[((i - NumClonedBytes()) & c.capacity()) + NumClonedBytes()] = h;
+}
+// Overload for setting to an occupied `h2_t` rather than a special `ctrl_t`.
+inline void SetCtrlInLargeTable(const CommonFields& c, size_t i, h2_t h,
+                                size_t slot_size) {
+  SetCtrlInLargeTable(c, i, static_cast<ctrl_t>(h), slot_size);
+}
+
 // growth_info (which is a size_t) is stored with the backing array.
 constexpr size_t BackingArrayAlignment(size_t align_of_slot) {
   return (std::max)(align_of_slot, alignof(GrowthInfo));
@@ -1994,8 +2031,8 @@ struct PolicyFunctions {
   // TODO(b/382423690): consider having separate `transfer` and `transfer_n`.
   void (*transfer)(void* set, void* dst_slot, void* src_slot, size_t count);
 
-  // Returns the pointer to the allocator stored in the set.
-  void* (*alloc_fn)(CommonFields& common);
+  // Returns the pointer to the CharAlloc stored in the set.
+  void* (*get_char_alloc)(CommonFields& common);
 
   // Allocates n bytes for the backing store for common.
   void* (*alloc)(void* alloc, size_t n);
@@ -2141,7 +2178,7 @@ void GrowFullSooTableToNextCapacity(CommonFields& common, size_t soo_slot_hash,
   // The decision to sample was already made during the first insertion.
   RawHashSetLayout layout(kNewCapacity, slot_size, slot_align,
                           /*has_infoz=*/false);
-  void* alloc = policy.alloc_fn(common);
+  void* alloc = policy.get_char_alloc(common);
   char* mem = static_cast<char*>(policy.alloc(alloc, layout.alloc_size()));
   const GenerationType old_generation = common.generation();
   common.set_generation_ptr(
@@ -2275,9 +2312,6 @@ class raw_hash_set {
  public:
   using init_type = typename PolicyTraits::init_type;
   using key_type = typename PolicyTraits::key_type;
-  // TODO(sbenza): Hide slot_type as it is an implementation detail. Needs user
-  // code fixes!
-  using slot_type = typename PolicyTraits::slot_type;
   using allocator_type = Alloc;
   using size_type = size_t;
   using difference_type = ptrdiff_t;
@@ -2299,6 +2333,8 @@ class raw_hash_set {
   // transparent case.
   template <class K>
   using key_arg = typename KeyArgImpl::template type<K, key_type>;
+
+  using slot_type = typename PolicyTraits::slot_type;
 
   // TODO(b/289225379): we could add extra SOO space inside raw_hash_set
   // after CommonFields to allow inlining larger slot_types (e.g. std::string),
@@ -2658,7 +2694,7 @@ class raw_hash_set {
 
   raw_hash_set(const raw_hash_set& that)
       : raw_hash_set(that, AllocTraits::select_on_container_copy_construction(
-                               that.alloc_ref())) {}
+                               allocator_type(that.char_alloc_ref()))) {}
 
   raw_hash_set(const raw_hash_set& that, const allocator_type& a)
       : raw_hash_set(GrowthToLowerboundCapacity(that.size()), that.hash_ref(),
@@ -2741,7 +2777,7 @@ class raw_hash_set {
         settings_(PolicyTraits::transfer_uses_memcpy() || !that.is_full_soo()
                       ? std::move(that.common())
                       : CommonFields{full_soo_tag_t{}},
-                  that.hash_ref(), that.eq_ref(), that.alloc_ref()) {
+                  that.hash_ref(), that.eq_ref(), that.char_alloc_ref()) {
     if (!PolicyTraits::transfer_uses_memcpy() && that.is_full_soo()) {
       transfer(soo_slot(), that.soo_slot());
     }
@@ -2752,7 +2788,7 @@ class raw_hash_set {
   raw_hash_set(raw_hash_set&& that, const allocator_type& a)
       : settings_(CommonFields::CreateDefault<SooEnabled()>(), that.hash_ref(),
                   that.eq_ref(), a) {
-    if (a == that.alloc_ref()) {
+    if (CharAlloc(a) == that.char_alloc_ref()) {
       swap_common(that);
       annotate_for_bug_detection_on_move(that);
     } else {
@@ -2769,7 +2805,9 @@ class raw_hash_set {
     // is an exact match for that.size(). If this->capacity() is too big, then
     // it would make iteration very slow to reuse the allocation. Maybe we can
     // do the same heuristic as clear() and reuse if it's small enough.
-    raw_hash_set tmp(that, propagate_alloc ? that.alloc_ref() : alloc_ref());
+    allocator_type alloc(propagate_alloc ? that.char_alloc_ref()
+                                         : char_alloc_ref());
+    raw_hash_set tmp(that, alloc);
     // NOLINTNEXTLINE: not returning *this for performance.
     return assign_impl<propagate_alloc>(std::move(tmp));
   }
@@ -2788,9 +2826,9 @@ class raw_hash_set {
 
   ~raw_hash_set() {
     destructor_impl();
-#ifndef NDEBUG
-    common().set_capacity(InvalidCapacity::kDestroyed);
-#endif
+    if constexpr (SwisstableAssertAccessToDestroyedTable()) {
+      common().set_capacity(InvalidCapacity::kDestroyed);
+    }
   }
 
   iterator begin() ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -3095,7 +3133,8 @@ class raw_hash_set {
     auto res = find_or_prepare_insert(key);
     if (res.second) {
       slot_type* slot = res.first.slot();
-      std::forward<F>(f)(constructor(&alloc_ref(), &slot));
+      allocator_type alloc(char_alloc_ref());
+      std::forward<F>(f)(constructor(&alloc, &slot));
       ABSL_SWISSTABLE_ASSERT(!slot);
     }
     return res.first;
@@ -3199,7 +3238,8 @@ class raw_hash_set {
     AssertNotDebugCapacity();
     AssertIsFull(position.control(), position.inner_.generation(),
                  position.inner_.generation_ptr(), "extract()");
-    auto node = CommonAccess::Transfer<node_type>(alloc_ref(), position.slot());
+    allocator_type alloc(char_alloc_ref());
+    auto node = CommonAccess::Transfer<node_type>(alloc, position.slot());
     if (is_soo()) {
       common().set_empty_soo();
     } else {
@@ -3225,7 +3265,7 @@ class raw_hash_set {
     swap_common(that);
     swap(hash_ref(), that.hash_ref());
     swap(eq_ref(), that.eq_ref());
-    SwapAlloc(alloc_ref(), that.alloc_ref(),
+    SwapAlloc(char_alloc_ref(), that.char_alloc_ref(),
               typename AllocTraits::propagate_on_container_swap{});
   }
 
@@ -3360,7 +3400,9 @@ class raw_hash_set {
 
   hasher hash_function() const { return hash_ref(); }
   key_equal key_eq() const { return eq_ref(); }
-  allocator_type get_allocator() const { return alloc_ref(); }
+  allocator_type get_allocator() const {
+    return allocator_type(char_alloc_ref());
+  }
 
   friend bool operator==(const raw_hash_set& a, const raw_hash_set& b) {
     if (a.size() != b.size()) return false;
@@ -3427,7 +3469,7 @@ class raw_hash_set {
   struct EqualElement {
     template <class K2, class... Args>
     bool operator()(const K2& lhs, Args&&...) const {
-      return eq(lhs, rhs);
+      ABSL_SWISSTABLE_IGNORE_UNINITIALIZED_RETURN(eq(lhs, rhs));
     }
     const K1& rhs;
     const key_equal& eq;
@@ -3465,16 +3507,21 @@ class raw_hash_set {
   template <typename... Args>
   inline void construct(slot_type* slot, Args&&... args) {
     common().RunWithReentrancyGuard([&] {
-      PolicyTraits::construct(&alloc_ref(), slot, std::forward<Args>(args)...);
+      allocator_type alloc(char_alloc_ref());
+      PolicyTraits::construct(&alloc, slot, std::forward<Args>(args)...);
     });
   }
   inline void destroy(slot_type* slot) {
-    common().RunWithReentrancyGuard(
-        [&] { PolicyTraits::destroy(&alloc_ref(), slot); });
+    common().RunWithReentrancyGuard([&] {
+      allocator_type alloc(char_alloc_ref());
+      PolicyTraits::destroy(&alloc, slot);
+    });
   }
   inline void transfer(slot_type* to, slot_type* from) {
-    common().RunWithReentrancyGuard(
-        [&] { PolicyTraits::transfer(&alloc_ref(), to, from); });
+    common().RunWithReentrancyGuard([&] {
+      allocator_type alloc(char_alloc_ref());
+      PolicyTraits::transfer(&alloc, to, from);
+    });
   }
 
   // TODO(b/289225379): consider having a helper class that has the impls for
@@ -3518,18 +3565,24 @@ class raw_hash_set {
 
   void clear_backing_array(bool reuse) {
     ABSL_SWISSTABLE_ASSERT(capacity() > DefaultCapacity());
-    CharAlloc alloc(alloc_ref());
-    ClearBackingArray(common(), GetPolicyFunctions(), &alloc, reuse,
+    ClearBackingArray(common(), GetPolicyFunctions(), &char_alloc_ref(), reuse,
                       SooEnabled());
   }
 
   void destroy_slots() {
     ABSL_SWISSTABLE_ASSERT(!is_soo());
     if (PolicyTraits::template destroy_is_trivial<Alloc>()) return;
-    IterateOverFullSlots(common(), sizeof(slot_type),
-                         [&](const ctrl_t*, void* slot) {
-                           this->destroy(static_cast<slot_type*>(slot));
-                         });
+    auto destroy_slot = [&](const ctrl_t*, void* slot) {
+      this->destroy(static_cast<slot_type*>(slot));
+    };
+    if constexpr (SwisstableAssertAccessToDestroyedTable()) {
+      CommonFields common_copy(non_soo_tag_t{}, this->common());
+      common().set_capacity(InvalidCapacity::kDestroyed);
+      IterateOverFullSlots(common_copy, sizeof(slot_type), destroy_slot);
+      common().set_capacity(common_copy.capacity());
+    } else {
+      IterateOverFullSlots(common(), sizeof(slot_type), destroy_slot);
+    }
   }
 
   void dealloc() {
@@ -3537,9 +3590,8 @@ class raw_hash_set {
     // Unpoison before returning the memory to the allocator.
     SanitizerUnpoisonMemoryRegion(slot_array(), sizeof(slot_type) * capacity());
     infoz().Unregister();
-    CharAlloc alloc(alloc_ref());
     DeallocateBackingArray<BackingArrayAlignment(alignof(slot_type)),
-                           CharAlloc>(&alloc, capacity(), control(),
+                           CharAlloc>(&char_alloc_ref(), capacity(), control(),
                                       sizeof(slot_type), alignof(slot_type),
                                       common().has_infoz());
   }
@@ -3594,7 +3646,7 @@ class raw_hash_set {
   static slot_type* to_slot(void* buf) { return static_cast<slot_type*>(buf); }
 
   // Requires that lhs does not have a full SOO slot.
-  static void move_common(bool rhs_is_full_soo, allocator_type& rhs_alloc,
+  static void move_common(bool rhs_is_full_soo, CharAlloc& rhs_alloc,
                           CommonFields& lhs, CommonFields&& rhs) {
     if (PolicyTraits::transfer_uses_memcpy() || !rhs_is_full_soo) {
       lhs = std::move(rhs);
@@ -3619,10 +3671,12 @@ class raw_hash_set {
     }
     CommonFields tmp = CommonFields(uninitialized_tag_t{});
     const bool that_is_full_soo = that.is_full_soo();
-    move_common(that_is_full_soo, that.alloc_ref(), tmp,
+    move_common(that_is_full_soo, that.char_alloc_ref(), tmp,
                 std::move(that.common()));
-    move_common(is_full_soo(), alloc_ref(), that.common(), std::move(common()));
-    move_common(that_is_full_soo, that.alloc_ref(), common(), std::move(tmp));
+    move_common(is_full_soo(), char_alloc_ref(), that.common(),
+                std::move(common()));
+    move_common(that_is_full_soo, that.char_alloc_ref(), common(),
+                std::move(tmp));
   }
 
   void annotate_for_bug_detection_on_move(
@@ -3649,11 +3703,11 @@ class raw_hash_set {
     // We don't bother checking for this/that aliasing. We just need to avoid
     // breaking the invariants in that case.
     destructor_impl();
-    move_common(that.is_full_soo(), that.alloc_ref(), common(),
+    move_common(that.is_full_soo(), that.char_alloc_ref(), common(),
                 std::move(that.common()));
     hash_ref() = that.hash_ref();
     eq_ref() = that.eq_ref();
-    CopyAlloc(alloc_ref(), that.alloc_ref(),
+    CopyAlloc(char_alloc_ref(), that.char_alloc_ref(),
               std::integral_constant<bool, propagate_alloc>());
     that.common() = CommonFields::CreateDefault<SooEnabled()>();
     annotate_for_bug_detection_on_move(that);
@@ -3680,7 +3734,7 @@ class raw_hash_set {
   }
   raw_hash_set& move_assign(raw_hash_set&& that,
                             std::false_type /*propagate_alloc*/) {
-    if (alloc_ref() == that.alloc_ref()) {
+    if (char_alloc_ref() == that.char_alloc_ref()) {
       return assign_impl<false>(std::move(that));
     }
     // Aliasing can't happen here because allocs would compare equal above.
@@ -3766,8 +3820,11 @@ class raw_hash_set {
     assert(capacity() != InvalidCapacity::kReentrance &&
            "Reentrant container access during element construction/destruction "
            "is not allowed.");
-    assert(capacity() != InvalidCapacity::kDestroyed &&
-           "Use of destroyed hash table.");
+    if constexpr (SwisstableAssertAccessToDestroyedTable()) {
+      if (capacity() == InvalidCapacity::kDestroyed) {
+        ABSL_RAW_LOG(FATAL, "Use of destroyed hash table.");
+      }
+    }
     if (SwisstableGenerationsEnabled() &&
         ABSL_PREDICT_FALSE(capacity() >= InvalidCapacity::kMovedFrom)) {
       if (capacity() == InvalidCapacity::kSelfMovedFrom) {
@@ -3911,10 +3968,12 @@ class raw_hash_set {
   }
   slot_type* soo_slot() {
     ABSL_SWISSTABLE_ASSERT(is_soo());
-    return static_cast<slot_type*>(common().soo_data());
+    ABSL_SWISSTABLE_IGNORE_UNINITIALIZED_RETURN(
+        static_cast<slot_type*>(common().soo_data()));
   }
   const slot_type* soo_slot() const {
-    return const_cast<raw_hash_set*>(this)->soo_slot();
+    ABSL_SWISSTABLE_IGNORE_UNINITIALIZED_RETURN(
+        const_cast<raw_hash_set*>(this)->soo_slot());
   }
   iterator soo_iterator() {
     return {SooControl(), soo_slot(), common().generation_ptr()};
@@ -3932,15 +3991,15 @@ class raw_hash_set {
   const hasher& hash_ref() const { return settings_.template get<1>(); }
   key_equal& eq_ref() { return settings_.template get<2>(); }
   const key_equal& eq_ref() const { return settings_.template get<2>(); }
-  allocator_type& alloc_ref() { return settings_.template get<3>(); }
-  const allocator_type& alloc_ref() const {
+  CharAlloc& char_alloc_ref() { return settings_.template get<3>(); }
+  const CharAlloc& char_alloc_ref() const {
     return settings_.template get<3>();
   }
 
  private:
-  static void* get_alloc_ref_fn(CommonFields& common) {
+  static void* get_char_alloc_ref_fn(CommonFields& common) {
     auto* h = reinterpret_cast<raw_hash_set*>(&common);
-    return &h->alloc_ref();
+    return &h->char_alloc_ref();
   }
   static void* get_hash_ref_fn(CommonFields& common) {
     auto* h = reinterpret_cast<raw_hash_set*>(&common);
@@ -3989,11 +4048,6 @@ class raw_hash_set {
     static_assert(sizeof(value_type) <= (std::numeric_limits<uint32_t>::max)());
     static constexpr size_t kBackingArrayAlignment =
         BackingArrayAlignment(alignof(slot_type));
-    // TODO(b/397461659): store CharAlloc in the table instead of Alloc.
-    // If both allocators are empty, we can use the same pointer for both
-    // allocators.
-    static constexpr bool kAllocAndCharAllocPointersCompatible =
-        std::is_empty_v<CharAlloc> && std::is_empty_v<Alloc>;
     static constexpr PolicyFunctions value = {
         sizeof(key_type), sizeof(value_type), sizeof(slot_type),
         alignof(slot_type), SooEnabled() ? SooCapacity() : 0,
@@ -4007,13 +4061,9 @@ class raw_hash_set {
             ? TransferRelocatable<sizeof(slot_type)>
             : &raw_hash_set::transfer_slots_fn,
         std::is_empty_v<Alloc> ? &GetRefForEmptyClass
-                               : &raw_hash_set::get_alloc_ref_fn,
-        kAllocAndCharAllocPointersCompatible
-            ? &AllocateBackingArray<kBackingArrayAlignment, CharAlloc>
-            : &AllocateBackingArray<kBackingArrayAlignment, Alloc>,
-        kAllocAndCharAllocPointersCompatible
-            ? &DeallocateBackingArray<kBackingArrayAlignment, CharAlloc>
-            : &DeallocateBackingArray<kBackingArrayAlignment, Alloc>,
+                               : &raw_hash_set::get_char_alloc_ref_fn,
+        &AllocateBackingArray<kBackingArrayAlignment, CharAlloc>,
+        &DeallocateBackingArray<kBackingArrayAlignment, CharAlloc>,
         &raw_hash_set::find_new_positions_and_transfer_slots_fn};
     return value;
   }
@@ -4022,9 +4072,9 @@ class raw_hash_set {
   // CompressedTuple will ensure that sizeof is not affected by any of the empty
   // fields that occur after CommonFields.
   absl::container_internal::CompressedTuple<CommonFields, hasher, key_equal,
-                                            allocator_type>
+                                            CharAlloc>
       settings_{CommonFields::CreateDefault<SooEnabled()>(), hasher{},
-                key_equal{}, allocator_type{}};
+                key_equal{}, CharAlloc{}};
 };
 
 // Friend access for free functions in raw_hash_set.h.

@@ -105,6 +105,7 @@ using ::testing::Ge;
 using ::testing::Lt;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
+using ::testing::UnorderedElementsAreArray;
 
 // Convenience function to static cast to ctrl_t.
 ctrl_t CtrlT(int i) { return static_cast<ctrl_t>(i); }
@@ -200,18 +201,35 @@ TEST(GrowthInfoTest, OverwriteEmptyAsFull) {
   EXPECT_FALSE(gi.HasNoDeleted());
 }
 
-TEST(GrowthInfoTest, OverwriteControlAsFull) {
+TEST(GrowthInfoTest, OverwriteControlAsEmpty) {
   GrowthInfo gi;
   gi.InitGrowthLeftNoDeleted(5);
-  gi.OverwriteControlAsFull(ctrl_t::kEmpty);
-  EXPECT_EQ(gi.GetGrowthLeft(), 4);
-  gi.OverwriteControlAsFull(ctrl_t::kDeleted);
-  EXPECT_EQ(gi.GetGrowthLeft(), 4);
+  gi.OverwriteControlAsEmpty(ctrl_t::kEmpty);
+  EXPECT_EQ(gi.GetGrowthLeft(), 5);
+  gi.OverwriteControlAsEmpty(ctrl_t::kDeleted);
+  EXPECT_EQ(gi.GetGrowthLeft(), 6);
   gi.OverwriteFullAsDeleted();
-  gi.OverwriteControlAsFull(ctrl_t::kDeleted);
+  gi.OverwriteControlAsEmpty(ctrl_t::kDeleted);
   // We do not count number of deleted, so the bit sticks till the next rehash.
   EXPECT_FALSE(gi.HasNoDeletedAndGrowthLeft());
   EXPECT_FALSE(gi.HasNoDeleted());
+}
+
+TEST(GrowthInfoTest, HasNoGrowthLeftAssumingMayHaveDeleted) {
+  GrowthInfo gi;
+  gi.InitGrowthLeftNoDeleted(1);
+  gi.OverwriteFullAsDeleted();
+  EXPECT_EQ(gi.GetGrowthLeft(), 1);
+  EXPECT_FALSE(gi.HasNoGrowthLeftAssumingMayHaveDeleted());
+  gi.OverwriteControlAsEmpty(ctrl_t::kDeleted);
+  EXPECT_EQ(gi.GetGrowthLeft(), 2);
+  EXPECT_FALSE(gi.HasNoGrowthLeftAssumingMayHaveDeleted());
+  gi.OverwriteEmptyAsFull();
+  EXPECT_EQ(gi.GetGrowthLeft(), 1);
+  EXPECT_FALSE(gi.HasNoGrowthLeftAssumingMayHaveDeleted());
+  gi.OverwriteEmptyAsFull();
+  EXPECT_EQ(gi.GetGrowthLeft(), 0);
+  EXPECT_TRUE(gi.HasNoGrowthLeftAssumingMayHaveDeleted());
 }
 
 TEST(Util, NormalizeCapacity) {
@@ -564,8 +582,6 @@ struct ValuePolicy {
 using IntPolicy = ValuePolicy<int64_t>;
 using Uint8Policy = ValuePolicy<uint8_t>;
 
-using TranferableIntPolicy = ValuePolicy<int64_t, /*kTransferable=*/true>;
-
 // For testing SOO.
 template <int N>
 class SizedValue {
@@ -723,10 +739,11 @@ struct StringTable
   using Base::Base;
 };
 
-template <typename T, bool kTransferable = false, bool kSoo = false>
+template <typename T, bool kTransferable = false, bool kSoo = false,
+          class Alloc = std::allocator<T>>
 struct ValueTable
     : raw_hash_set<ValuePolicy<T, kTransferable, kSoo>, hash_default_hash<T>,
-                   std::equal_to<T>, std::allocator<T>> {
+                   std::equal_to<T>, Alloc> {
   using Base = typename ValueTable::raw_hash_set;
   using Base::Base;
 };
@@ -735,11 +752,6 @@ using IntTable = ValueTable<int64_t>;
 using Uint8Table = ValueTable<uint8_t>;
 
 using TransferableIntTable = ValueTable<int64_t, /*kTransferable=*/true>;
-
-constexpr size_t kNonSooSize = sizeof(HeapOrSoo) + 8;
-static_assert(sizeof(SizedValue<kNonSooSize>) >= kNonSooSize, "too small");
-using NonSooIntTable = ValueTable<SizedValue<kNonSooSize>>;
-using SooIntTable = ValueTable<int64_t, /*kTransferable=*/true, /*kSoo=*/true>;
 
 template <typename T>
 struct CustomAlloc : std::allocator<T> {
@@ -858,12 +870,26 @@ struct BadHashFreezableIntTable
   using Base::Base;
 };
 
-struct BadTable : raw_hash_set<IntPolicy, BadFastHash, std::equal_to<int>,
+struct BadTable : raw_hash_set<IntPolicy, BadFastHash, std::equal_to<int64_t>,
                                std::allocator<int>> {
   using Base = typename BadTable::raw_hash_set;
   BadTable() = default;
   using Base::Base;
 };
+
+constexpr size_t kNonSooSize = sizeof(HeapOrSoo) + 8;
+using NonSooIntTableSlotType = SizedValue<kNonSooSize>;
+static_assert(sizeof(NonSooIntTableSlotType) >= kNonSooSize, "too small");
+using NonSooIntTable = ValueTable<NonSooIntTableSlotType>;
+using SooIntTable = ValueTable<int64_t, /*kTransferable=*/true, /*kSoo=*/true>;
+using NonMemcpyableSooIntTable =
+    ValueTable<int64_t, /*kTransferable=*/false, /*kSoo=*/true>;
+using MemcpyableSooIntCustomAllocTable =
+    ValueTable<int64_t, /*kTransferable=*/true, /*kSoo=*/true,
+               ChangingSizeAndTrackingTypeAlloc<int64_t>>;
+using NonMemcpyableSooIntCustomAllocTable =
+    ValueTable<int64_t, /*kTransferable=*/false, /*kSoo=*/true,
+               ChangingSizeAndTrackingTypeAlloc<int64_t>>;
 
 TEST(Table, EmptyFunctorOptimization) {
   static_assert(std::is_empty<std::equal_to<absl::string_view>>::value, "");
@@ -917,7 +943,10 @@ TEST(Table, EmptyFunctorOptimization) {
 template <class TableType>
 class SooTest : public testing::Test {};
 
-using SooTableTypes = ::testing::Types<SooIntTable, NonSooIntTable>;
+using SooTableTypes =
+    ::testing::Types<SooIntTable, NonSooIntTable, NonMemcpyableSooIntTable,
+                     MemcpyableSooIntCustomAllocTable,
+                     NonMemcpyableSooIntCustomAllocTable>;
 TYPED_TEST_SUITE(SooTest, SooTableTypes);
 
 TYPED_TEST(SooTest, Empty) {
@@ -1435,7 +1464,7 @@ struct Modulo1000Hash {
 };
 
 struct Modulo1000HashTable
-    : public raw_hash_set<IntPolicy, Modulo1000Hash, std::equal_to<int>,
+    : public raw_hash_set<IntPolicy, Modulo1000Hash, std::equal_to<int64_t>,
                           std::allocator<int>> {
 };
 
@@ -1568,14 +1597,14 @@ TYPED_TEST(SooTest, InsertEraseStressTest) {
   std::deque<int> keys;
   size_t i = 0;
   for (; i < MaxDensitySize(kMinElementCount); ++i) {
-    t.emplace(i);
+    t.emplace(static_cast<int64_t>(i));
     keys.push_back(i);
   }
   const size_t kNumIterations = 1000000;
   for (; i < kNumIterations; ++i) {
     ASSERT_EQ(1, t.erase(keys.front()));
     keys.pop_front();
-    t.emplace(i);
+    t.emplace(static_cast<int64_t>(i));
     keys.push_back(i);
   }
 }
@@ -2189,6 +2218,29 @@ TYPED_TEST(SooTest, CopyConstruct) {
     TypeParam u = t;
     EXPECT_EQ(1, u.size());
     EXPECT_THAT(*u.find(0), 0);
+  }
+}
+
+TYPED_TEST(SooTest, CopyAssignment) {
+  std::vector<size_t> sizes = {0, 1, 7, 25};
+  for (size_t source_size : sizes) {
+    for (size_t target_size : sizes) {
+      SCOPED_TRACE(absl::StrCat("source_size: ", source_size,
+                                " target_size: ", target_size));
+      TypeParam source;
+      std::vector<int> source_elements;
+      for (size_t i = 0; i < source_size; ++i) {
+        source.emplace(static_cast<int>(i) * 2);
+        source_elements.push_back(static_cast<int>(i) * 2);
+      }
+      TypeParam target;
+      for (size_t i = 0; i < target_size; ++i) {
+        target.emplace(static_cast<int>(i) * 3);
+      }
+      target = source;
+      ASSERT_EQ(target.size(), source_size);
+      ASSERT_THAT(target, UnorderedElementsAreArray(source_elements));
+    }
   }
 }
 
@@ -3640,7 +3692,7 @@ TEST(Table, CountedHash) {
 // IterateOverFullSlots doesn't support SOO.
 TEST(Table, IterateOverFullSlotsEmpty) {
   NonSooIntTable t;
-  using SlotType = typename NonSooIntTable::slot_type;
+  using SlotType = NonSooIntTableSlotType;
   auto fail_if_any = [](const ctrl_t*, void* i) {
     FAIL() << "expected no slots " << **static_cast<SlotType*>(i);
   };
@@ -3655,7 +3707,7 @@ TEST(Table, IterateOverFullSlotsEmpty) {
 
 TEST(Table, IterateOverFullSlotsFull) {
   NonSooIntTable t;
-  using SlotType = typename NonSooIntTable::slot_type;
+  using SlotType = NonSooIntTableSlotType;
 
   std::vector<int64_t> expected_slots;
   for (int64_t idx = 0; idx < 128; ++idx) {
@@ -3685,7 +3737,7 @@ TEST(Table, IterateOverFullSlotsDeathOnRemoval) {
     if (reserve_size == -1) reserve_size = size;
     for (int64_t idx = 0; idx < size; ++idx) {
       NonSooIntTable t;
-      using SlotType = typename NonSooIntTable::slot_type;
+      using SlotType = NonSooIntTableSlotType;
       t.reserve(static_cast<size_t>(reserve_size));
       for (int val = 0; val <= idx; ++val) {
         t.insert(val);
@@ -3720,7 +3772,7 @@ TEST(Table, IterateOverFullSlotsDeathOnInsert) {
     int64_t size = reserve_size / size_divisor;
     for (int64_t idx = 1; idx <= size; ++idx) {
       NonSooIntTable t;
-      using SlotType = typename NonSooIntTable::slot_type;
+      using SlotType = NonSooIntTableSlotType;
       t.reserve(static_cast<size_t>(reserve_size));
       for (int val = 1; val <= idx; ++val) {
         t.insert(val);
@@ -3921,19 +3973,68 @@ TEST(Table, ReentrantCallsFail) {
 #endif
 }
 
+// TODO(b/328794765): this check is very useful to run with ASAN in opt mode.
 TEST(Table, DestroyedCallsFail) {
 #ifdef NDEBUG
-  GTEST_SKIP() << "Destroyed checks only enabled in debug mode.";
-#elif !defined(__clang__) && defined(__GNUC__)
-  GTEST_SKIP() << "Flaky on GCC.";
+  ASSERT_EQ(SwisstableAssertAccessToDestroyedTable(),
+            SwisstableGenerationsEnabled());
 #else
+  ASSERT_TRUE(SwisstableAssertAccessToDestroyedTable());
+#endif
+  if (!SwisstableAssertAccessToDestroyedTable()) {
+    GTEST_SKIP() << "Validation not enabled.";
+  }
+#if !defined(__clang__) && defined(__GNUC__)
+  GTEST_SKIP() << "Flaky on GCC.";
+#endif
   absl::optional<IntTable> t;
   t.emplace({1});
   IntTable* t_ptr = &*t;
   EXPECT_TRUE(t_ptr->contains(1));
   t.reset();
-  EXPECT_DEATH_IF_SUPPORTED(t_ptr->contains(1), "");
+  std::string expected_death_message =
+#if defined(ABSL_HAVE_MEMORY_SANITIZER)
+      "use-of-uninitialized-value";
+#else
+      "destroyed hash table";
 #endif
+  EXPECT_DEATH_IF_SUPPORTED(t_ptr->contains(1), expected_death_message);
+}
+
+TEST(Table, DestroyedCallsFailDuringDestruction) {
+  if (!SwisstableAssertAccessToDestroyedTable()) {
+    GTEST_SKIP() << "Validation not enabled.";
+  }
+#if !defined(__clang__) && defined(__GNUC__)
+  GTEST_SKIP() << "Flaky on GCC.";
+#endif
+  // When EXPECT_DEATH_IF_SUPPORTED is not executed, the code after it is not
+  // executed as well.
+  // We need to destruct the table correctly in such a case.
+  // Must be defined before the table for correct destruction order.
+  bool do_lookup = false;
+
+  using Table = absl::flat_hash_map<int, std::shared_ptr<int>>;
+  absl::optional<Table> t = Table();
+  Table* t_ptr = &*t;
+  auto destroy = [&](int* ptr) {
+    if (do_lookup) {
+      ASSERT_TRUE(t_ptr->contains(*ptr));
+    }
+    delete ptr;
+  };
+  t->insert({0, std::shared_ptr<int>(new int(0), destroy)});
+  auto destroy_with_lookup = [&] {
+    do_lookup = true;
+    t.reset();
+  };
+  std::string expected_death_message =
+#ifdef NDEBUG
+      "destroyed hash table";
+#else
+      "Reentrant container access";
+#endif
+  EXPECT_DEATH_IF_SUPPORTED(destroy_with_lookup(), expected_death_message);
 }
 
 TEST(Table, MovedFromCallsFail) {
