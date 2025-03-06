@@ -217,7 +217,6 @@ absl_cc_library(
     "internal/hide_ptr.h"
     "internal/identity.h"
     "internal/inline_variable.h"
-    "internal/invoke.h"
     "internal/scheduling_mode.h"
   COPTS
     ${ABSL_DEFAULT_COPTS}
@@ -437,21 +436,6 @@ absl_cc_test(
     ${ABSL_TEST_COPTS}
   DEPS
     absl::base_internal
-    GTest::gtest_main
-)
-
-absl_cc_test(
-  NAME
-    invoke_test
-  SRCS
-    "invoke_test.cc"
-  COPTS
-    ${ABSL_TEST_COPTS}
-  DEPS
-    absl::base_internal
-    absl::memory
-    absl::strings
-    GTest::gmock
     GTest::gtest_main
 )
 
@@ -833,4 +817,45 @@ absl_cc_test(
     absl::base
     absl::tracing_internal
     GTest::gtest_main
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    iterator_traits_internal
+  HDRS
+    "internal/iterator_traits.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::config
+    absl::type_traits
+  PUBLIC
+)
+
+absl_cc_test(
+  NAME
+    iterator_traits_test
+  SRCS
+    "internal/iterator_traits_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+    absl::iterator_traits_internal
+    absl::iterator_traits_test_helper_internal
+    GTest::gtest_main
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    iterator_traits_test_helper_internal
+  HDRS
+    "internal/iterator_traits_test_helper.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::config
+  PUBLIC
 )

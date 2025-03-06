@@ -65,7 +65,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
-#include "absl/base/internal/invoke.h"
 #include "absl/base/macros.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
@@ -76,15 +75,6 @@
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
-
-// Helper macro used to prevent spelling `noexcept` in language versions older
-// than C++17, where it is not part of the type system, in order to avoid
-// compilation failures and internal compiler errors.
-#if ABSL_INTERNAL_CPLUSPLUS_LANG >= 201703L
-#define ABSL_INTERNAL_NOEXCEPT_SPEC(noex) noexcept(noex)
-#else
-#define ABSL_INTERNAL_NOEXCEPT_SPEC(noex)
-#endif
 
 // Defined in functional/any_invocable.h
 template <class Sig>
@@ -126,31 +116,22 @@ template <class T>
 using RemoveCVRef =
     typename std::remove_cv<typename std::remove_reference<T>::type>::type;
 
-////////////////////////////////////////////////////////////////////////////////
-//
-// An implementation of the C++ standard INVOKE<R> pseudo-macro, operation is
-// equivalent to std::invoke except that it forces an implicit conversion to the
-// specified return type. If "R" is void, the function is executed and the
-// return value is simply ignored.
-template <class ReturnType, class F, class... P,
-          typename = absl::enable_if_t<std::is_void<ReturnType>::value>>
-void InvokeR(F&& f, P&&... args) {
-  absl::base_internal::invoke(std::forward<F>(f), std::forward<P>(args)...);
-}
-
-template <class ReturnType, class F, class... P,
-          absl::enable_if_t<!std::is_void<ReturnType>::value, int> = 0>
+// An implementation of std::invoke_r of C++23.
+template <class ReturnType, class F, class... P>
 ReturnType InvokeR(F&& f, P&&... args) {
-  // GCC 12 has a false-positive -Wmaybe-uninitialized warning here.
+  if constexpr (std::is_void_v<ReturnType>) {
+    std::invoke(std::forward<F>(f), std::forward<P>(args)...);
+  } else {
+    // GCC 12 has a false-positive -Wmaybe-uninitialized warning here.
 #if ABSL_INTERNAL_HAVE_MIN_GNUC_VERSION(12, 0)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
-  return absl::base_internal::invoke(std::forward<F>(f),
-                                     std::forward<P>(args)...);
+    return std::invoke(std::forward<F>(f), std::forward<P>(args)...);
 #if ABSL_INTERNAL_HAVE_MIN_GNUC_VERSION(12, 0)
 #pragma GCC diagnostic pop
 #endif
+  }
 }
 
 //
@@ -237,14 +218,14 @@ T& ObjectInLocalStorage(TypeErasedState* const state) {
 // NOTE: When specifying `FunctionToCall::`dispose, the same state must be
 // passed as both "from" and "to".
 using ManagerType = void(FunctionToCall /*operation*/,
-                         TypeErasedState* /*from*/, TypeErasedState* /*to*/)
-    ABSL_INTERNAL_NOEXCEPT_SPEC(true);
+                         TypeErasedState* /*from*/,
+                         TypeErasedState* /*to*/) noexcept(true);
 
 // The type for functions issuing the actual invocation of the object
 // A pointer to such a function is contained in each AnyInvocable instance.
 template <bool SigIsNoexcept, class ReturnType, class... P>
-using InvokerType = ReturnType(TypeErasedState*, ForwardedParameterType<P>...)
-    ABSL_INTERNAL_NOEXCEPT_SPEC(SigIsNoexcept);
+using InvokerType = ReturnType(
+    TypeErasedState*, ForwardedParameterType<P>...) noexcept(SigIsNoexcept);
 
 // The manager that is used when AnyInvocable is empty
 inline void EmptyManager(FunctionToCall /*operation*/,
@@ -726,7 +707,7 @@ using CanAssignReferenceWrapper = TrueAlias<
               UnwrapStdReferenceWrapper<absl::decay_t<F>> inv_quals, P...>,  \
           std::is_same<                                                      \
               ReturnType,                                                    \
-              absl::base_internal::invoke_result_t<                          \
+              std::invoke_result_t<                                          \
                   UnwrapStdReferenceWrapper<absl::decay_t<F>> inv_quals,     \
                   P...>>>>::value>
 
@@ -742,13 +723,13 @@ using CanAssignReferenceWrapper = TrueAlias<
 // noex is "true" if the function type is noexcept, or false if it is not.
 //
 // The CallIsValid condition is more complicated than simply using
-// absl::base_internal::is_invocable_r because we can't rely on it to give the
-// right result when ReturnType is non-moveable in toolchains that don't treat
-// non-moveable result types correctly. For example this was the case in libc++
-// before commit c3a24882 (2022-05).
+// std::is_invocable_r because we can't rely on it to give the right result
+// when ReturnType is non-moveable in toolchains that don't treat non-moveable
+// result types correctly. For example this was the case in libc++ before commit
+// c3a24882 (2022-05).
 #define ABSL_INTERNAL_ANY_INVOCABLE_IMPL_(cv, ref, inv_quals, noex)            \
   template <class ReturnType, class... P>                                      \
-  class Impl<ReturnType(P...) cv ref ABSL_INTERNAL_NOEXCEPT_SPEC(noex)>        \
+  class Impl<ReturnType(P...) cv ref noexcept(noex)>                           \
       : public CoreImpl<noex, ReturnType, P...> {                              \
    public:                                                                     \
     /*The base class, which contains the datamembers and core operations*/     \
@@ -757,11 +738,10 @@ using CanAssignReferenceWrapper = TrueAlias<
     /*SFINAE constraint to check if F is invocable with the proper signature*/ \
     template <class F>                                                         \
     using CallIsValid = TrueAlias<absl::enable_if_t<absl::disjunction<         \
-        absl::base_internal::is_invocable_r<ReturnType,                        \
-                                            absl::decay_t<F> inv_quals, P...>, \
-        std::is_same<ReturnType,                                               \
-                     absl::base_internal::invoke_result_t<                     \
-                         absl::decay_t<F> inv_quals, P...>>>::value>>;         \
+        std::is_invocable_r<ReturnType, absl::decay_t<F> inv_quals, P...>,     \
+        std::is_same<                                                          \
+            ReturnType,                                                        \
+            std::invoke_result_t<absl::decay_t<F> inv_quals, P...>>>::value>>; \
                                                                                \
     /*SFINAE constraint to check if F is nothrow-invocable when necessary*/    \
     template <class F>                                                         \
@@ -789,8 +769,7 @@ using CanAssignReferenceWrapper = TrueAlias<
                                                                                \
     /*Raises a fatal error when the AnyInvocable is invoked after a move*/     \
     static ReturnType InvokedAfterMove(                                        \
-      TypeErasedState*,                                                        \
-      ForwardedParameterType<P>...) noexcept(noex) {                           \
+        TypeErasedState*, ForwardedParameterType<P>...) noexcept(noex) {       \
       ABSL_HARDENING_ASSERT(false && "AnyInvocable use-after-move");           \
       std::terminate();                                                        \
     }                                                                          \
@@ -818,18 +797,11 @@ using CanAssignReferenceWrapper = TrueAlias<
     }                                                                          \
   }
 
-// Define the `noexcept(true)` specialization only for C++17 and beyond, when
-// `noexcept` is part of the type system.
-#if ABSL_INTERNAL_CPLUSPLUS_LANG >= 201703L
 // A convenience macro that defines specializations for the noexcept(true) and
 // noexcept(false) forms, given the other properties.
 #define ABSL_INTERNAL_ANY_INVOCABLE_IMPL(cv, ref, inv_quals)    \
   ABSL_INTERNAL_ANY_INVOCABLE_IMPL_(cv, ref, inv_quals, false); \
   ABSL_INTERNAL_ANY_INVOCABLE_IMPL_(cv, ref, inv_quals, true)
-#else
-#define ABSL_INTERNAL_ANY_INVOCABLE_IMPL(cv, ref, inv_quals) \
-  ABSL_INTERNAL_ANY_INVOCABLE_IMPL_(cv, ref, inv_quals, false)
-#endif
 
 // Non-ref-qualified partial specializations
 ABSL_INTERNAL_ANY_INVOCABLE_IMPL(, , &);
@@ -849,7 +821,6 @@ ABSL_INTERNAL_ANY_INVOCABLE_IMPL(const, &&, const&&);
 #undef ABSL_INTERNAL_ANY_INVOCABLE_NOEXCEPT_CONSTRAINT_false
 #undef ABSL_INTERNAL_ANY_INVOCABLE_NOEXCEPT_CONSTRAINT_true
 #undef ABSL_INTERNAL_ANY_INVOCABLE_NOEXCEPT_CONSTRAINT
-#undef ABSL_INTERNAL_NOEXCEPT_SPEC
 
 }  // namespace internal_any_invocable
 ABSL_NAMESPACE_END
