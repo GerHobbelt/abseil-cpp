@@ -122,15 +122,7 @@ ReturnType InvokeR(F&& f, P&&... args) {
   if constexpr (std::is_void_v<ReturnType>) {
     std::invoke(std::forward<F>(f), std::forward<P>(args)...);
   } else {
-    // GCC 12 has a false-positive -Wmaybe-uninitialized warning here.
-#if ABSL_INTERNAL_HAVE_MIN_GNUC_VERSION(12, 0)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
     return std::invoke(std::forward<F>(f), std::forward<P>(args)...);
-#if ABSL_INTERNAL_HAVE_MIN_GNUC_VERSION(12, 0)
-#pragma GCC diagnostic pop
-#endif
   }
 }
 
@@ -192,25 +184,7 @@ union TypeErasedState {
 template <class T>
 T& ObjectInLocalStorage(TypeErasedState* const state) {
   // We launder here because the storage may be reused with the same type.
-#if defined(__cpp_lib_launder) && __cpp_lib_launder >= 201606L
   return *std::launder(reinterpret_cast<T*>(&state->storage));
-#elif ABSL_HAVE_BUILTIN(__builtin_launder)
-  return *__builtin_launder(reinterpret_cast<T*>(&state->storage));
-#else
-
-  // When `std::launder` or equivalent are not available, we rely on undefined
-  // behavior, which works as intended on Abseil's officially supported
-  // platforms as of Q2 2022.
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstrict-aliasing"
-#endif
-  return *reinterpret_cast<T*>(&state->storage);
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
-
-#endif
 }
 
 // The type for functions issuing lifetime-related operations: move and dispose
@@ -436,13 +410,12 @@ class CoreImpl {
 
     if constexpr (std::is_pointer<DecayedT>::value ||
                   std::is_member_pointer<DecayedT>::value) {
-      // This condition handles types that decay into pointers, which includes
-      // function references. Since function references cannot be null, GCC
-      // warns against comparing their decayed form with nullptr. Since this is
-      // template-heavy code, we prefer to disable these warnings locally
-      // instead of adding yet another overload of this function.
-      //
-      // TODO(b/290784225): Avoid warnings using constexpr programming instead.
+      // This condition handles types that decay into pointers. This includes
+      // function references, which cannot be null. GCC warns against comparing
+      // their decayed form with nullptr (https://godbolt.org/z/9r9TMTcPK).
+      // We could work around this warning with constexpr programming, using
+      // std::is_function_v<std::remove_reference_t<F>>, but we choose to ignore
+      // it instead of writing more code.
 #if !defined(__clang__) && defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpragmas"
