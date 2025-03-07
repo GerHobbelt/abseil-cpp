@@ -3878,7 +3878,7 @@ TYPED_TEST(SooTable, Basic) {
 TEST(Table, RehashToSooUnsampled) {
   SooIntTable t;
   if (t.capacity() != SooCapacity()) {
-		ABSL_CHECK_LT(sizeof(void*), 8) << "missing SOO coverage";
+    ABSL_CHECK_LT(sizeof(void*), 8) << "missing SOO coverage";
     GTEST_SKIP() << "not SOO on this platform";
   }
 

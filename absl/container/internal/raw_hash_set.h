@@ -178,6 +178,7 @@
 #ifndef ABSL_CONTAINER_INTERNAL_RAW_HASH_SET_H_
 #define ABSL_CONTAINER_INTERNAL_RAW_HASH_SET_H_
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
@@ -2826,13 +2827,6 @@ class raw_hash_set {
     }
     common().reset_reserved_growth(n);
     common().set_reservation_size(n);
-  }
-
-  void reserveFixed(size_t n) {
-      resize(NormalizeCapacity(n));
-      infoz().RecordReservation(n);
-      common().reset_reserved_growth(n);
-      common().set_reservation_size(n);
   }
 
   size_t get_size() {
