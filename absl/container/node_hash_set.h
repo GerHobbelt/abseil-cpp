@@ -447,7 +447,6 @@ class ABSL_ATTRIBUTE_OWNER node_hash_set
   // node_hash_set::get_allocator()
   //
   // Returns the allocator function associated with this `node_hash_set`.
-  using Base::alloc_ref;
   using Base::get_allocator;
 
   // node_hash_set::hash_function()

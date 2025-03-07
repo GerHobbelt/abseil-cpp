@@ -548,7 +548,6 @@ class ABSL_ATTRIBUTE_OWNER flat_hash_map
   // flat_hash_map::get_allocator()
   //
   // Returns the allocator function associated with this `flat_hash_map`.
-  using Base::alloc_ref;
   using Base::get_allocator;
 
   // flat_hash_map::hash_function()

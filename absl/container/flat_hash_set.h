@@ -453,7 +453,6 @@ class ABSL_ATTRIBUTE_OWNER flat_hash_set
   // flat_hash_set::get_allocator()
   //
   // Returns the allocator function associated with this `flat_hash_set`.
-  using Base::alloc_ref;
   using Base::get_allocator;
 
   // flat_hash_set::hash_function()
