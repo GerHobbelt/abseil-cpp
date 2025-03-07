@@ -1747,9 +1747,6 @@ class CordTestAccess {
   static uint8_t LengthToTag(size_t s);
 };
 }  // namespace strings_internal
-
-#include "absl/container/internal/hash_function_cord.h"
-
 ABSL_NAMESPACE_END
 }  // namespace absl
 
