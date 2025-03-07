@@ -2944,12 +2944,12 @@ TEST(Btree,
      SupportsTransparentComparatorThatDoesNotImplementAllVisibleOperators) {
   absl::btree_set<MultiKey, TransparentPassThroughComp<MultiKeyComp>> set;
   set.insert(MultiKey{1, 2});
-  EXPECT_TRUE(set.contains(1));
+  GTEST_EXPECT_TRUE(set.contains(1));
 }
 
 TEST(Btree, ConstructImplicitlyWithUnadaptedComparator) {
   absl::btree_set<MultiKey, MultiKeyComp> set = {{}, MultiKeyComp{}};
-  EXPECT_TRUE(set.empty());
+  GTEST_EXPECT_TRUE(set.empty());
 }
 
 TEST(Btree, InvalidComparatorsCaught) {
