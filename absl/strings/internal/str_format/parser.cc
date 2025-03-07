@@ -31,8 +31,11 @@ namespace absl {
 ABSL_NAMESPACE_BEGIN
 namespace str_format_internal {
 
+// warning C5041: 'value': out-of-line definition for constexpr static data member is not needed and is deprecated in C++17
+#if (__cplusplus < 201703L)
 // Define the array for non-constexpr uses.
 constexpr ConvTag ConvTagHolder::value[256];
+#endif
 
 ABSL_ATTRIBUTE_NOINLINE const char* ConsumeUnboundConversionNoInline(
     const char* p, const char* end, UnboundConversion* conv, int* next_arg) {
