@@ -2024,7 +2024,7 @@ TEST(DemangleRegression, ShortOutputBuffer) {
       absl::debugging_internal::Demangle("_ZZ2wwE", buffer, sizeof(buffer)));
 }
 
-#ifdef ABSL_INTERNAL_HAS_RTTI
+#if ABSL_INTERNAL_HAS_RTTI
 struct Base {
   virtual ~Base() = default;
 };

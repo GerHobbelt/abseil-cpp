@@ -748,6 +748,9 @@ static_assert(ABSL_INTERNAL_INLINE_NAMESPACE_STR[0] != 'h' ||
 #elif !defined(__GNUC__) && !defined(_MSC_VER)
 // Unknown compiler, default to RTTI
 #define ABSL_INTERNAL_HAS_RTTI 1
+#else
+// no RTTI
+#define ABSL_INTERNAL_HAS_RTTI 0
 #endif
 
 // `ABSL_INTERNAL_HAS_CXA_DEMANGLE` determines whether `abi::__cxa_demangle` is

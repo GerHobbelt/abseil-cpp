@@ -160,7 +160,7 @@ inline ptrdiff_t ValueOffset(FlagOpFn op) {
 // Returns an address of RTTI's typeid(T).
 template <typename T>
 inline const std::type_info* GenRuntimeTypeId() {
-#ifdef ABSL_INTERNAL_HAS_RTTI
+#if ABSL_INTERNAL_HAS_RTTI
   return &typeid(T);
 #else
   return nullptr;

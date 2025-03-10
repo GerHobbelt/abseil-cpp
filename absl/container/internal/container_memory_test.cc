@@ -37,7 +37,6 @@ namespace {
 
 using ::absl::test_internal::CopyableMovableInstance;
 using ::absl::test_internal::InstanceTracker;
-using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::Gt;
 using ::testing::Pair;
@@ -63,7 +62,7 @@ std::map<std::type_index, int>& AllocationMap() {
   return *map;
 }
 
-#ifdef ABSL_INTERNAL_HAS_RTTI
+#if ABSL_INTERNAL_HAS_RTTI
 
 template <typename T>
 struct TypeCountingAllocator {
@@ -92,6 +91,7 @@ TEST(Memory, AllocateDeallocateMatchType) {
   // Verify that the deallocation matched.
   EXPECT_THAT(AllocationMap(), ElementsAre(Pair(_, 0)));
 }
+
 #endif // ABSL_INTERNAL_HAS_RTTI
 
 class Fixture : public ::testing::Test {
