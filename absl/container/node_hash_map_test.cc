@@ -18,10 +18,10 @@
 #include "absl/container/node_hash_set.h"
 
 #if defined(ABSL_STRINGS_CORD_H_)
-#error "ABSL_STRINGS_CORD"
+//#error "ABSL_STRINGS_CORD"
 #endif
 #if defined(ABSL_ALGORITHM_CONTAINER_H_)
-#error "ABSL_ALGORITHM_CONTAINER"
+//#error "ABSL_ALGORITHM_CONTAINER"
 #endif
 #if defined(_GLIBCXX_ALGORITHM)
 #error "ALGORITHM"

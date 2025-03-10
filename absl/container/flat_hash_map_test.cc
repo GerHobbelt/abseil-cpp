@@ -46,7 +46,7 @@ namespace container_internal {
 namespace {
 using ::absl::container_internal::hash_internal::Enum;
 using ::absl::container_internal::hash_internal::EnumClass;
-using ::testing::_;
+using ::testing::__;
 using ::testing::IsEmpty;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
@@ -167,7 +167,7 @@ TEST(FlatHashMap, IteratesMsan) {
     absl::flat_hash_map<int, balast> t;
     for (int j = 0; j < 100; ++j) {
       t[j];
-      for (const auto& p : t) EXPECT_THAT(p, Pair(_, _));
+      for (const auto& p : t) EXPECT_THAT(p, Pair(__, __));
     }
     garbage.push_back(std::move(t));
   }

@@ -25,7 +25,6 @@
 #include "absl/log/scoped_mock_log.h"
 
 namespace {
-using ::testing::_;
 using ::testing::StrEq;
 
 auto* test_env ABSL_ATTRIBUTE_UNUSED = ::testing::AddGlobalTestEnvironment(

@@ -35,7 +35,6 @@ namespace absl {
 ABSL_NAMESPACE_BEGIN
 namespace log_internal {
 namespace {
-using ::testing::_;
 using ::testing::AllOf;
 using ::testing::Ge;
 using ::testing::HasSubstr;
