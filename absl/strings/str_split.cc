@@ -126,8 +126,7 @@ absl::string_view ByAnyChar::Find(absl::string_view text, size_t pos) const {
 // ByLength
 //
 ByLength::ByLength(ptrdiff_t length) : length_(length) {
-  if (!(length > 0))
-	  throw "abseil assertion failed: length > 0";
+  ABSL_RAW_CHECK(length > 0, "");
 }
 
 absl::string_view ByLength::Find(absl::string_view text, size_t pos) const {
