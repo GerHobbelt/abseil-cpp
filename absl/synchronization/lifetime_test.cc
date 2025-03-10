@@ -171,6 +171,11 @@ ABSL_CONST_INIT absl::Mutex late_const_init_mutex(absl::kConstInit);
 
 }  // namespace
 
+#if defined(BUILD_MONOLITHIC)
+#define main   abseil_synchronization_lifetime_test_main
+#endif
+
+extern "C"
 int main(void) {
   TestLocals();
   TestConstInitGlobal();
