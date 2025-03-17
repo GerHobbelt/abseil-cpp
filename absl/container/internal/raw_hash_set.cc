@@ -84,11 +84,6 @@ void ValidateMaxSize(size_t size, size_t slot_size) {
 inline size_t RandomSeed() {
 #ifdef ABSL_HAVE_THREAD_LOCAL
   static thread_local size_t counter = 0;
-  // On Linux kernels >= 5.4 the MSAN runtime has a false-positive when
-  // accessing thread local storage data from loaded libraries
-  // (https://github.com/google/sanitizers/issues/1265), for this reason counter
-  // needs to be annotated as initialized.
-  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(&counter, sizeof(size_t));
   size_t value = ++counter;
 #else   // ABSL_HAVE_THREAD_LOCAL
   static std::atomic<size_t> counter(0);
@@ -1097,6 +1092,19 @@ size_t PrepareInsertNonSoo(CommonFields& common, size_t hash,
   common.infoz().RecordInsert(hash, target.probe_length);
   return target.offset;
 }
+
+template void GrowFullSooTableToNextCapacity<0, false>(CommonFields&, size_t,
+                                                       const PolicyFunctions&);
+template void GrowFullSooTableToNextCapacity<1, true>(CommonFields&, size_t,
+                                                      const PolicyFunctions&);
+template void GrowFullSooTableToNextCapacity<4, true>(CommonFields&, size_t,
+                                                      const PolicyFunctions&);
+template void GrowFullSooTableToNextCapacity<8, true>(CommonFields&, size_t,
+                                                      const PolicyFunctions&);
+#if UINTPTR_MAX == UINT64_MAX
+template void GrowFullSooTableToNextCapacity<16, true>(CommonFields&, size_t,
+                                                       const PolicyFunctions&);
+#endif
 
 }  // namespace container_internal
 ABSL_NAMESPACE_END
