@@ -21,6 +21,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
+#include "absl/debugging/internal/decode_rust_punycode.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
@@ -83,7 +84,7 @@ class RustSymbolParser {
   // structure was not recognized or exceeded implementation limits, such as by
   // nesting structures too deep.  In either case *this should not be used
   // again.
-  ABSL_MUST_USE_RESULT bool Parse() && {
+  [[nodiscard]] bool Parse() && {
     // Recursively parses the grammar production named by callee, then resumes
     // execution at the next statement.
     //
@@ -503,7 +504,7 @@ class RustSymbolParser {
 
  private:
   // Enumerates resumption points for ABSL_DEMANGLER_RECURSE calls.
-  enum ReturnAddress : std::uint8_t {
+  enum ReturnAddress : uint8_t {
     kInstantiatingCrate,
     kVendorSpecificSuffix,
     kIdentifierInUppercaseNamespace,
@@ -563,7 +564,7 @@ class RustSymbolParser {
 
   // If the next input character is the given character, consumes it and returns
   // true; otherwise returns false without consuming a character.
-  ABSL_MUST_USE_RESULT bool Eat(char want) {
+  [[nodiscard]] bool Eat(char want) {
     if (encoding_[pos_] != want) return false;
     ++pos_;
     return true;
@@ -572,7 +573,7 @@ class RustSymbolParser {
   // Provided there is enough remaining output space, appends c to the output,
   // writing a fresh NUL terminator afterward, and returns true.  Returns false
   // if the output buffer had less than two bytes free.
-  ABSL_MUST_USE_RESULT bool EmitChar(char c) {
+  [[nodiscard]] bool EmitChar(char c) {
     if (silence_depth_ > 0) return true;
     if (out_end_ - out_ < 2) return false;
     *out_++ = c;
@@ -583,11 +584,11 @@ class RustSymbolParser {
   // Provided there is enough remaining output space, appends the C string token
   // to the output, followed by a NUL character, and returns true.  Returns
   // false if not everything fit into the output buffer.
-  ABSL_MUST_USE_RESULT bool Emit(const char* token) {
+  [[nodiscard]] bool Emit(const char* token) {
     if (silence_depth_ > 0) return true;
-    const std::size_t token_length = std::strlen(token);
-    const std::size_t bytes_to_copy = token_length + 1;  // token and final NUL
-    if (static_cast<std::size_t>(out_end_ - out_) < bytes_to_copy) return false;
+    const size_t token_length = std::strlen(token);
+    const size_t bytes_to_copy = token_length + 1;  // token and final NUL
+    if (static_cast<size_t>(out_end_ - out_) < bytes_to_copy) return false;
     std::memcpy(out_, token, bytes_to_copy);
     out_ += token_length;
     return true;
@@ -597,14 +598,14 @@ class RustSymbolParser {
   // of disambiguator (if it's nonnegative) or "?" (if it's negative) to the
   // output, followed by a NUL character, and returns true.  Returns false if
   // not everything fit into the output buffer.
-  ABSL_MUST_USE_RESULT bool EmitDisambiguator(int disambiguator) {
+  [[nodiscard]] bool EmitDisambiguator(int disambiguator) {
     if (disambiguator < 0) return EmitChar('?');  // parsed but too large
     if (disambiguator == 0) return EmitChar('0');
     // Convert disambiguator to decimal text.  Three digits per byte is enough
     // because 999 > 256.  The bound will remain correct even if future
     // maintenance changes the type of the disambiguator variable.
     char digits[3 * sizeof(disambiguator)] = {};
-    std::size_t leading_digit_index = sizeof(digits) - 1;
+    size_t leading_digit_index = sizeof(digits) - 1;
     for (; disambiguator > 0; disambiguator /= 10) {
       digits[--leading_digit_index] =
           static_cast<char>('0' + disambiguator % 10);
@@ -617,7 +618,7 @@ class RustSymbolParser {
   // On success returns true and fills value with the encoded value if it was
   // not too big, otherwise with -1.  If the optional disambiguator was omitted,
   // value is 0.  On parse failure returns false and sets value to -1.
-  ABSL_MUST_USE_RESULT bool ParseDisambiguator(int& value) {
+  [[nodiscard]] bool ParseDisambiguator(int& value) {
     value = -1;
 
     // disambiguator = s base-62-number
@@ -638,7 +639,7 @@ class RustSymbolParser {
   // On success returns true and fills value with the encoded value if it was
   // not too big, otherwise with -1.  On parse failure returns false and sets
   // value to -1.
-  ABSL_MUST_USE_RESULT bool ParseBase62Number(int& value) {
+  [[nodiscard]] bool ParseBase62Number(int& value) {
     value = -1;
 
     // base-62-number = (digit | lower | upper)* _
@@ -685,7 +686,7 @@ class RustSymbolParser {
   // A nonzero uppercase_namespace specifies the character after the N in a
   // nested-identifier, e.g., 'C' for a closure, allowing ParseIdentifier to
   // write out the name with the conventional decoration for that namespace.
-  ABSL_MUST_USE_RESULT bool ParseIdentifier(char uppercase_namespace = '\0') {
+  [[nodiscard]] bool ParseIdentifier(char uppercase_namespace = '\0') {
     // identifier -> disambiguator? undisambiguated-identifier
     int disambiguator = 0;
     if (!ParseDisambiguator(disambiguator)) return false;
@@ -702,7 +703,7 @@ class RustSymbolParser {
   //
   // At other appearances of undisambiguated-identifier in the grammar, this
   // treatment is not applicable, and the call site omits both arguments.
-  ABSL_MUST_USE_RESULT bool ParseUndisambiguatedIdentifier(
+  [[nodiscard]] bool ParseUndisambiguatedIdentifier(
       char uppercase_namespace = '\0', int disambiguator = 0) {
     // undisambiguated-identifier -> u? decimal-number _? bytes
     const bool is_punycoded = Eat('u');
@@ -710,13 +711,19 @@ class RustSymbolParser {
     int num_bytes = 0;
     if (!ParseDecimalNumber(num_bytes)) return false;
     (void)Eat('_');  // optional separator, needed if a digit follows
+    if (is_punycoded) {
+      DecodeRustPunycodeOptions options;
+      options.punycode_begin = &encoding_[pos_];
+      options.punycode_end = &encoding_[pos_] + num_bytes;
+      options.out_begin = out_;
+      options.out_end = out_end_;
+      out_ = DecodeRustPunycode(options);
+      if (out_ == nullptr) return false;
+      pos_ += static_cast<size_t>(num_bytes);
+    }
 
     // Emit the beginnings of braced forms like {shim:vtable#0}.
-    if (uppercase_namespace == '\0') {
-      // Decoding of Punycode is not yet implemented.  For now we emit
-      // "{Punycode ...}" with the raw encoding inside.
-      if (is_punycoded && !Emit("{Punycode ")) return false;
-    } else {
+    if (uppercase_namespace != '\0') {
       switch (uppercase_namespace) {
         case 'C':
           if (!Emit("{closure")) return false;
@@ -732,24 +739,24 @@ class RustSymbolParser {
     }
 
     // Emit the name itself.
-    for (int i = 0; i < num_bytes; ++i) {
-      const char c = Take();
-      if (!IsIdentifierChar(c) &&
-          // The spec gives toolchains the choice of Punycode or raw UTF-8 for
-          // identifiers containing code points above 0x7f, so accept bytes with
-          // the high bit set if this is not a u... encoding.
-          (is_punycoded || (c & 0x80) == 0)) {
-        return false;
+    if (!is_punycoded) {
+      for (int i = 0; i < num_bytes; ++i) {
+        const char c = Take();
+        if (!IsIdentifierChar(c) &&
+            // The spec gives toolchains the choice of Punycode or raw UTF-8 for
+            // identifiers containing code points above 0x7f, so accept bytes
+            // with the high bit set.
+            (c & 0x80) == 0) {
+          return false;
+        }
+        if (!EmitChar(c)) return false;
       }
-      if (!EmitChar(c)) return false;
     }
 
-    // Emit the endings of braced forms: "#42}" or "}".
+    // Emit the endings of braced forms, e.g., "#42}".
     if (uppercase_namespace != '\0') {
       if (!EmitChar('#')) return false;
       if (!EmitDisambiguator(disambiguator)) return false;
-    }
-    if (uppercase_namespace != '\0' || is_punycoded) {
       if (!EmitChar('}')) return false;
     }
 
@@ -759,7 +766,7 @@ class RustSymbolParser {
   // Consumes a decimal number like 0 or 123 from the input.  On success returns
   // true and fills value with the encoded value.  If the encoded value is too
   // large or otherwise unparsable, returns false and sets value to -1.
-  ABSL_MUST_USE_RESULT bool ParseDecimalNumber(int& value) {
+  [[nodiscard]] bool ParseDecimalNumber(int& value) {
     value = -1;
     if (!IsDigit(Peek())) return false;
     int encoded_number = Take() - '0';
@@ -781,7 +788,7 @@ class RustSymbolParser {
   // Consumes a binder of higher-ranked lifetimes if one is present.  On success
   // returns true and discards the encoded lifetime count.  On parse failure
   // returns false.
-  ABSL_MUST_USE_RESULT bool ParseOptionalBinder() {
+  [[nodiscard]] bool ParseOptionalBinder() {
     // binder -> G base-62-number
     if (!Eat('G')) return true;
     int ignored_binding_count;
@@ -795,7 +802,7 @@ class RustSymbolParser {
   // things we omit from output, such as the entire contents of generic-args.
   //
   // On parse failure returns false.
-  ABSL_MUST_USE_RESULT bool ParseOptionalLifetime() {
+  [[nodiscard]] bool ParseOptionalLifetime() {
     // lifetime -> L base-62-number
     if (!Eat('L')) return true;
     int ignored_de_bruijn_index;
@@ -804,14 +811,14 @@ class RustSymbolParser {
 
   // Consumes a lifetime just like ParseOptionalLifetime, but returns false if
   // there is no lifetime here.
-  ABSL_MUST_USE_RESULT bool ParseRequiredLifetime() {
+  [[nodiscard]] bool ParseRequiredLifetime() {
     if (Peek() != 'L') return false;
     return ParseOptionalLifetime();
   }
 
   // Pushes ns onto the namespace stack and returns true if the stack is not
   // full, else returns false.
-  ABSL_MUST_USE_RESULT bool PushNamespace(char ns) {
+  [[nodiscard]] bool PushNamespace(char ns) {
     if (namespace_depth_ == kNamespaceStackSize) return false;
     namespace_stack_[namespace_depth_++] = ns;
     return true;
@@ -823,7 +830,7 @@ class RustSymbolParser {
 
   // Pushes position onto the position stack and returns true if the stack is
   // not full, else returns false.
-  ABSL_MUST_USE_RESULT bool PushPosition(int position) {
+  [[nodiscard]] bool PushPosition(int position) {
     if (position_depth_ == kPositionStackSize) return false;
     position_stack_[position_depth_++] = position;
     return true;
@@ -838,7 +845,7 @@ class RustSymbolParser {
   // beginning of the backref target.  Returns true on success.  Returns false
   // if parsing failed, the stack is exhausted, or the backref target position
   // is out of range.
-  ABSL_MUST_USE_RESULT bool BeginBackref() {
+  [[nodiscard]] bool BeginBackref() {
     // backref = B base-62-number (B already consumed)
     //
     // Reject backrefs that don't parse, overflow int, or don't point backward.
@@ -909,7 +916,7 @@ class RustSymbolParser {
 }  // namespace
 
 bool DemangleRustSymbolEncoding(const char* mangled, char* out,
-                                std::size_t out_size) {
+                                size_t out_size) {
   return RustSymbolParser(mangled, out, out + out_size).Parse();
 }
 
