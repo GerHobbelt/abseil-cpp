@@ -223,7 +223,15 @@ list(APPEND ABSL_RANDOM_HWAES_ARM64_FLAGS
 list(APPEND ABSL_RANDOM_HWAES_MSVC_X64_FLAGS
 )
 
-list(APPEND ABSL_RANDOM_HWAES_X64_FLAGS
-    "-maes"
-    "-msse4.1"
-)
+
+if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+    list(APPEND ABSL_RANDOM_HWAES_X64_FLAGS
+        "-maes"
+        "-msse4.2"
+    )
+else()
+    list(APPEND ABSL_RANDOM_HWAES_X64_FLAGS
+        "-maes"
+        "-msse4.1"
+    )
+endif()
