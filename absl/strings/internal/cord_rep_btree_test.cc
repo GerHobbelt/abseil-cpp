@@ -310,7 +310,7 @@ TEST(CordRepBtreeTest, Btree) {
   EXPECT_THAT(rep->btree(), Eq(rep));
   EXPECT_THAT(static_cast<const CordRep*>(rep)->btree(), Eq(rep));
   CordRep::Unref(rep);
-#if defined(GTEST_HAS_DEATH_TEST) && !defined(NDEBUG)
+#if GTEST_HAS_DEATH_TEST && !defined(NDEBUG)
   rep = MakeFlat("Hello world");
   EXPECT_DEATH(rep->btree(), ".*");
   EXPECT_DEATH(static_cast<const CordRep*>(rep)->btree(), ".*");
@@ -343,7 +343,7 @@ TEST(CordRepBtreeTest, EdgeData) {
   EXPECT_THAT(EdgeData(substr2), Eq("ello e"));
 
   EXPECT_FALSE(IsDataEdge(bad_substr));
-#if defined(GTEST_HAS_DEATH_TEST) && !defined(NDEBUG)
+#if GTEST_HAS_DEATH_TEST && !defined(NDEBUG)
   EXPECT_DEATH(EdgeData(bad_substr), ".*");
 #endif
 
@@ -1078,7 +1078,7 @@ TEST(CordRepBtreeTest, IsFlatMultiFlat) {
   CordRep::Unref(tree);
 }
 
-#if defined(GTEST_HAS_DEATH_TEST) && !defined(NDEBUG)
+#if GTEST_HAS_DEATH_TEST && !defined(NDEBUG)
 
 TEST_P(CordRepBtreeHeightTest, GetAppendBufferNotPrivate) {
   CordRepBtree* tree = CordRepBtree::Create(MakeExternal("Foo"));
@@ -1088,7 +1088,7 @@ TEST_P(CordRepBtreeHeightTest, GetAppendBufferNotPrivate) {
   CordRepBtree::Unref(tree);
 }
 
-#endif  // defined(GTEST_HAS_DEATH_TEST) && !defined(NDEBUG)
+#endif  // GTEST_HAS_DEATH_TEST && !defined(NDEBUG)
 
 TEST_P(CordRepBtreeHeightTest, GetAppendBufferNotFlat) {
   CordRepBtree* tree = CordRepBtree::Create(MakeExternal("Foo"));
@@ -1335,7 +1335,7 @@ TEST(CordRepBtreeTest, AssertValid) {
   EXPECT_THAT(CordRepBtree::AssertValid(tree), Eq(tree));
   EXPECT_THAT(CordRepBtree::AssertValid(ctree), Eq(ctree));
 
-#if defined(GTEST_HAS_DEATH_TEST)
+#if GTEST_HAS_DEATH_TEST
   CordRepBtree* nulltree = nullptr;
   const CordRepBtree* cnulltree = nullptr;
   EXPECT_DEBUG_DEATH(
@@ -1378,7 +1378,7 @@ TEST(CordRepBtreeTest, CheckAssertValidShallowVsDeep) {
   EXPECT_FALSE(CordRepBtree::IsValid(tree, false));
   CordRepBtree::AssertValid(tree);
   CordRepBtree::AssertValid(tree, true);
-#if defined(GTEST_HAS_DEATH_TEST)
+#if GTEST_HAS_DEATH_TEST
   EXPECT_DEBUG_DEATH(CordRepBtree::AssertValid(tree, false), ".*");
 #endif
 
@@ -1386,7 +1386,7 @@ TEST(CordRepBtreeTest, CheckAssertValidShallowVsDeep) {
   EXPECT_FALSE(CordRepBtree::IsValid(tree));
   EXPECT_FALSE(CordRepBtree::IsValid(tree, true));
   EXPECT_FALSE(CordRepBtree::IsValid(tree, false));
-#if defined(GTEST_HAS_DEATH_TEST)
+#if GTEST_HAS_DEATH_TEST
   EXPECT_DEBUG_DEATH(CordRepBtree::AssertValid(tree), ".*");
   EXPECT_DEBUG_DEATH(CordRepBtree::AssertValid(tree, true), ".*");
 #endif

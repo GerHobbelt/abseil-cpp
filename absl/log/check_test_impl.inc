@@ -506,6 +506,8 @@ TEST(CHECKTest, TestCheckInMethod) {
   v.MethodWithCheck(1);
 }
 
+#if GTEST_HAS_DEATH_TEST
+
 TEST(CHECKDeathTest, TestUserDefinedStreaming) {
   ComparableType v1{1};
   ComparableType v2{2};
@@ -515,6 +517,8 @@ TEST(CHECKDeathTest, TestUserDefinedStreaming) {
       HasSubstr(
           "Check failed: v1 == v2 (ComparableType{1} vs. ComparableType{2})"));
 }
+
+#endif
 
 // A type that can be printed using AbslStringify.
 struct StringifiableType {
@@ -565,6 +569,8 @@ TEST(CHECKTest, TestUserDefinedAbslStringify) {
   ABSL_TEST_CHECK_GE(v2, v1);
 }
 
+#if GTEST_HAS_DEATH_TEST
+
 TEST(CHECKDeathTest, TestUserDefinedAbslStringify) {
   const StringifiableType v1(1);
   const StringifiableType v2(2);
@@ -585,6 +591,8 @@ TEST(CHECKDeathTest, TestUserDefinedAbslStringify) {
   EXPECT_DEATH(ABSL_TEST_CHECK_GT(v1, v2), expected_output(1, ">", 2));
   EXPECT_DEATH(ABSL_TEST_CHECK_GE(v1, v2), expected_output(1, ">=", 2));
 }
+
+#endif
 
 // A type that can be printed using both AbslStringify and operator<<.
 struct StringifiableStreamableType {
@@ -613,6 +621,8 @@ struct StringifiableStreamableType {
   StringifiableStreamableType(const StringifiableStreamableType&) = delete;
 };
 
+#if GTEST_HAS_DEATH_TEST
+
 TEST(CHECKDeathTest, TestStreamingPreferredOverAbslStringify) {
   StringifiableStreamableType v1(1);
   StringifiableStreamableType v2(2);
@@ -622,12 +632,16 @@ TEST(CHECKDeathTest, TestStreamingPreferredOverAbslStringify) {
       HasSubstr("Check failed: v1 == v2 (Streamed{1} vs. Streamed{2})"));
 }
 
+#endif
+
 // A type whose pointer can be passed to AbslStringify.
 struct PointerIsStringifiable {};
 template <typename Sink>
 void AbslStringify(Sink& sink, const PointerIsStringifiable* var) {
   sink.Append("PointerIsStringifiable");
 }
+
+#if GTEST_HAS_DEATH_TEST
 
 // Verifies that a pointer is printed as a number despite having AbslStringify
 // defined. Users may implement AbslStringify that dereferences the pointer, and
@@ -642,6 +656,8 @@ TEST(CHECKDeathTest, TestPointerPrintedAsNumberDespiteAbslStringify) {
         HasSubstr("Check failed: p == nullptr (0x1234 vs. (null))")
       ));
 }
+
+#endif
 
 // An uncopyable object with operator<<.
 struct Uncopyable {
@@ -659,6 +675,8 @@ struct Uncopyable {
   }
 };
 
+#if GTEST_HAS_DEATH_TEST
+
 // Test that an uncopyable object can be used.
 // Will catch us if implementation has an unintended copy.
 TEST(CHECKDeathTest, TestUncopyable) {
@@ -669,6 +687,8 @@ TEST(CHECKDeathTest, TestUncopyable) {
       ABSL_TEST_CHECK_EQ(v1, v2),
       HasSubstr("Check failed: v1 == v2 (Uncopyable{1} vs. Uncopyable{2})"));
 }
+
+#endif
 
 }  // namespace absl_log_internal
 

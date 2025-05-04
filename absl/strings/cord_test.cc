@@ -3356,7 +3356,7 @@ TEST(CordThreeWayComparisonTest, CompareCordsAndStringViews) {
 #endif
 }
 
-#if defined(GTEST_HAS_DEATH_TEST) && defined(ABSL_INTERNAL_CORD_HAVE_SANITIZER)
+#if GTEST_HAS_DEATH_TEST && defined(ABSL_INTERNAL_CORD_HAVE_SANITIZER)
 
 // Returns an expected poison / uninitialized death message expression.
 const char* MASanDeathExpr() {

@@ -152,7 +152,7 @@ TEST(FunctionRef, MemberFunRefqualified) {
   EXPECT_EQ(22, ref(std::move(s)));
 }
 
-#if !defined(_WIN32) && defined(GTEST_HAS_DEATH_TEST)
+#if !defined(_WIN32) && GTEST_HAS_DEATH_TEST
 
 TEST(FunctionRef, MemberFunRefqualifiedNull) {
   struct S {

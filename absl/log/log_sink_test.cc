@@ -127,6 +127,8 @@ TEST(LogSinkTest, FlushSinks) {
   absl::FlushLogSinks();
 }
 
+#if GTEST_HAS_DEATH_TEST
+
 TEST(LogSinkDeathTest, DeathInSend) {
   class FatalSendSink : public absl::LogSink {
    public:
@@ -137,6 +139,8 @@ TEST(LogSinkDeathTest, DeathInSend) {
   EXPECT_EXIT({ LOG(INFO).ToSinkAlso(&sink) << "hello world"; }, DiedOfFatal,
               _);
 }
+
+#endif
 
 // Tests for explicit log sink redirection.
 // ---------------------------------------

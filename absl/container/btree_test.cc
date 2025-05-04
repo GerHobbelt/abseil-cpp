@@ -2949,6 +2949,8 @@ TEST(Btree, ConstructImplicitlyWithUnadaptedComparator) {
   GTEST_EXPECT_TRUE(set.empty());
 }
 
+#if GTEST_HAS_DEATH_TEST
+
 TEST(Btree, InvalidComparatorsCaught) {
   if (!IsAssertEnabled()) GTEST_SKIP() << "Assertions not enabled.";
 
@@ -3071,6 +3073,8 @@ TEST(Btree, MutatedKeysCaught) {
     EXPECT_DEATH(set.insert(&arr[0]), "is_ordered_correctly");
   }
 }
+
+#endif
 
 #ifndef _MSC_VER
 // This test crashes on MSVC.

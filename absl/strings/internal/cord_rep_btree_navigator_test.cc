@@ -101,7 +101,7 @@ TEST(CordRepBtreeNavigatorTest, Uninitialized) {
   CordRepBtreeNavigator nav;
   EXPECT_FALSE(nav);
   EXPECT_THAT(nav.btree(), Eq(nullptr));
-#if defined(GTEST_HAS_DEATH_TEST) && !defined(NDEBUG)
+#if GTEST_HAS_DEATH_TEST && !defined(NDEBUG)
   EXPECT_DEATH(nav.Current(), ".*");
 #endif
 }
@@ -173,7 +173,7 @@ TEST(CordRepBtreeNavigatorTest, Reset) {
   nav.Reset();
   EXPECT_FALSE(nav);
   EXPECT_THAT(nav.btree(), Eq(nullptr));
-#if defined(GTEST_HAS_DEATH_TEST) && !defined(NDEBUG)
+#if GTEST_HAS_DEATH_TEST && !defined(NDEBUG)
   EXPECT_DEATH(nav.Current(), ".*");
 #endif
   CordRep::Unref(tree);

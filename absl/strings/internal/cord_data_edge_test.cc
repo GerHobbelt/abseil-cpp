@@ -98,7 +98,7 @@ TEST(CordDataEdgeTest, EdgeDataOnSubstringOfExternal) {
   CordRep::Unref(substr);
 }
 
-#if defined(GTEST_HAS_DEATH_TEST) && !defined(NDEBUG)
+#if GTEST_HAS_DEATH_TEST && !defined(NDEBUG)
 
 TEST(CordDataEdgeTest, IsDataEdgeOnNullPtr) {
   EXPECT_DEATH(IsDataEdge(nullptr), ".*");
