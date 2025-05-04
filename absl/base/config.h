@@ -299,7 +299,7 @@ static_assert(ABSL_INTERNAL_INLINE_NAMESPACE_STR[0] != 'h' ||
 #ifdef ABSL_HAVE_INTRINSIC_INT128
 #error ABSL_HAVE_INTRINSIC_INT128 cannot be directly set
 #elif defined(__SIZEOF_INT128__)
-#if (defined(__clang__) && !defined(_WIN32)) ||           \
+#if (defined(__clang__) && (!defined(_MSC_VER) || defined(__INTEL_LLVM_COMPILER))) || \
     (defined(__CUDACC__) && __CUDACC_VER_MAJOR__ >= 9) || \
     (defined(__GNUC__) && !defined(__clang__) && !defined(__CUDACC__))
 #define ABSL_HAVE_INTRINSIC_INT128 1
