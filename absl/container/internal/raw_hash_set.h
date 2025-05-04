@@ -214,6 +214,7 @@
 #include "absl/container/internal/hashtablez_sampler.h"
 #include "absl/functional/function_ref.h"
 #include "absl/hash/hash.h"
+#include "absl/hash/internal/weakly_mixed_integer.h"
 #include "absl/memory/memory.h"
 #include "absl/meta/type_traits.h"
 #include "absl/numeric/bits.h"
@@ -2169,7 +2170,7 @@ class raw_hash_set {
       std::is_nothrow_default_constructible<key_equal>::value &&
       std::is_nothrow_default_constructible<allocator_type>::value) {}
 
-  ABSL_ATTRIBUTE_NOINLINE explicit raw_hash_set(
+  explicit raw_hash_set(
       size_t bucket_count, const hasher& hash = hasher(),
       const key_equal& eq = key_equal(),
       const allocator_type& alloc = allocator_type())
@@ -2417,7 +2418,7 @@ class raw_hash_set {
 
   iterator begin() ABSL_ATTRIBUTE_LIFETIME_BOUND {
     if (ABSL_PREDICT_FALSE(empty())) return end();
-    if (is_soo()) return soo_iterator();
+    if (capacity() == 1) return single_iterator();
     iterator it = {control(), common().slots_union(),
                    common().generation_ptr()};
     it.skip_empty_or_deleted();
@@ -2909,9 +2910,9 @@ class raw_hash_set {
   template <class K = key_type>
   iterator find(const key_arg<K>& key) ABSL_ATTRIBUTE_LIFETIME_BOUND {
     AssertOnFind(key);
-    if (is_soo()) return find_soo(key);
+    if (capacity() <= 1) return find_small(key);
     prefetch_heap_block();
-    return find_non_soo(key, hash_ref()(key));
+    return find_large(key, hash_ref()(key));
   }
 
   template <class K = key_type>
@@ -2995,7 +2996,7 @@ class raw_hash_set {
                                  H>::type
   AbslHashValue(H h, const raw_hash_set& s) {
     return H::combine(H::combine_unordered(std::move(h), s.begin(), s.end()),
-                      s.size());
+                      hash_internal::WeaklyMixedInteger{s.size()});
   }
 
   friend void swap(raw_hash_set& a,
@@ -3088,16 +3089,18 @@ class raw_hash_set {
   // TODO(b/289225379): consider having a helper class that has the impls for
   // SOO functionality.
   template <class K = key_type>
-  iterator find_soo(const key_arg<K>& key) {
-    ABSL_SWISSTABLE_ASSERT(is_soo());
-    return empty() || !PolicyTraits::apply(EqualElement<K>{key, eq_ref()},
-                                           PolicyTraits::element(soo_slot()))
+  iterator find_small(const key_arg<K>& key) {
+    ABSL_SWISSTABLE_ASSERT(capacity() <= 1);
+    return empty() || !PolicyTraits::apply(
+                          EqualElement<K>{key, eq_ref()},
+                          PolicyTraits::element(single_slot()))
                ? end()
-               : soo_iterator();
+               : single_iterator();
   }
 
   template <class K = key_type>
-  iterator find_non_soo(const key_arg<K>& key, size_t hash) {
+  iterator find_large(const key_arg<K>& key, size_t hash) {
+    ABSL_SWISSTABLE_ASSERT(capacity() > 1);
     ABSL_SWISSTABLE_ASSERT(!is_soo());
     auto seq = probe(common(), hash);
     const h2_t h2 = H2(hash);
@@ -3461,7 +3464,10 @@ class raw_hash_set {
   void emplace_at(iterator iter, Args&&... args) {
     construct(iter.slot(), std::forward<Args>(args)...);
 
-    assert(PolicyTraits::apply(FindElement{*this}, *iter) == iter &&
+    // When capacity is 1, find calls find_small and if size is 0, then it will
+    // return an end iterator. This can happen in the raw_hash_set copy ctor.
+    assert((capacity() == 1 ||
+            PolicyTraits::apply(FindElement{*this}, *iter) == iter) &&
            "constructed value does not match the lookup key");
   }
 
@@ -3538,6 +3544,20 @@ class raw_hash_set {
   }
   const_iterator soo_iterator() const {
     return const_cast<raw_hash_set*>(this)->soo_iterator();
+  }
+  slot_type* single_slot() {
+    ABSL_SWISSTABLE_ASSERT(capacity() <= 1);
+    return SooEnabled() ? soo_slot() : slot_array();
+  }
+  const slot_type* single_slot() const {
+    return const_cast<raw_hash_set*>(this)->single_slot();
+  }
+  iterator single_iterator() {
+    return {SooEnabled() ? SooControl() : control(), single_slot(),
+            common().generation_ptr()};
+  }
+  const_iterator single_iterator() const {
+    return const_cast<raw_hash_set*>(this)->single_iterator();
   }
   HashtablezInfoHandle infoz() {
     ABSL_SWISSTABLE_ASSERT(!is_soo());

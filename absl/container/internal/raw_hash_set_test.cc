@@ -53,6 +53,7 @@
 #include "absl/container/internal/container_memory.h"
 #include "absl/container/internal/hash_function_defaults.h"
 #include "absl/container/internal/hash_policy_testing.h"
+#include "absl/random/random.h"
 // TODO(b/382423690): Separate tests that depend only on
 // hashtable_control_bytes.
 #include "absl/container/internal/hashtable_control_bytes.h"
@@ -2005,8 +2006,7 @@ ProbeStats CollectProbeStatsOnLinearlyTransformedKeys(
     const std::vector<int64_t>& keys, size_t num_iters) {
   ProbeStats stats;
 
-  std::random_device rd;
-  std::mt19937 rng(rd());
+  absl::InsecureBitGen rng;
   auto linear_transform = [](size_t x, size_t y) { return x * 17 + y * 13; };
   std::uniform_int_distribution<size_t> dist(0, keys.size() - 1);
   while (num_iters--) {
@@ -3743,16 +3743,16 @@ TEST(Table, CountedHash) {
     t.insert(1);
     EXPECT_EQ(HashCount(t), 1);
     t.erase(1);
-    EXPECT_EQ(HashCount(t), 2);
+    EXPECT_LE(HashCount(t), 2);
   }
   {
     Table t;
     t.insert(3);
     EXPECT_EQ(HashCount(t), 1);
     auto node = t.extract(3);
-    EXPECT_EQ(HashCount(t), 2);
+    EXPECT_LE(HashCount(t), 2);
     t.insert(std::move(node));
-    EXPECT_EQ(HashCount(t), 3);
+    EXPECT_LE(HashCount(t), 3);
   }
   {
     Table t;
