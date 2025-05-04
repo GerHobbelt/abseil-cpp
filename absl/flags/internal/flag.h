@@ -831,7 +831,7 @@ class Flag {
     U u;
 
 #if !defined(NDEBUG)
-    impl_.AssertValidType(base_internal::FastTypeId<T>(), &GenRuntimeTypeId<T>);
+    impl_.AssertValidType(absl::FastTypeId<T>(), &GenRuntimeTypeId<T>);
 #endif
 
     if (ABSL_PREDICT_FALSE(!value_.Get(impl_.seq_lock_, u.value))) {
@@ -840,7 +840,7 @@ class Flag {
     return std::move(u.value);
   }
   void Set(const T& v) {
-    impl_.AssertValidType(base_internal::FastTypeId<T>(), &GenRuntimeTypeId<T>);
+    impl_.AssertValidType(absl::FastTypeId<T>(), &GenRuntimeTypeId<T>);
     impl_.Write(&v);
   }
 
@@ -905,7 +905,7 @@ void* FlagOps(FlagOp op, const void* v1, void* v2, void* v3) {
     case FlagOp::kSizeof:
       return reinterpret_cast<void*>(static_cast<uintptr_t>(sizeof(T)));
     case FlagOp::kFastTypeId:
-      return const_cast<void*>(base_internal::FastTypeId<T>());
+      return const_cast<void*>(absl::FastTypeId<T>());
     case FlagOp::kRuntimeTypeId:
       return const_cast<std::type_info*>(GenRuntimeTypeId<T>());
     case FlagOp::kParse: {

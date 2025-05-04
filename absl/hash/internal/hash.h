@@ -1248,8 +1248,8 @@ class ABSL_DLL MixingHashState : public HashStateBase<MixingHashState> {
                                                size_t len);
 
   // Reads 9 to 16 bytes from p.
-  // The least significant 8 bytes are in .first, the rest (zero padded) bytes
-  // are in .second.
+  // The least significant 8 bytes are in .first, and the rest of the bytes are
+  // in .second along with duplicated bytes from .first if len<16.
   static std::pair<uint64_t, uint64_t> Read9To16(const unsigned char* p,
                                                  size_t len) {
     uint64_t low_mem = Read8(p);
@@ -1392,8 +1392,9 @@ inline uint64_t MixingHashState::CombineContiguousImpl(
     return CombineSmallContiguousImpl(state, first, len);
   }
   if (ABSL_PREDICT_TRUE(len <= PiecewiseChunkSize())) {
-    return Mix(state, hash_internal::CityHash32(
-                          reinterpret_cast<const char*>(first), len));
+    return Mix(state ^ hash_internal::CityHash32(
+                           reinterpret_cast<const char*>(first), len),
+               kMul);
   }
   return CombineLargeContiguousImpl32(state, first, len);
 }
@@ -1414,7 +1415,7 @@ inline uint64_t MixingHashState::CombineContiguousImpl(
     return CombineContiguousImpl17to32(state, first, len);
   }
   if (ABSL_PREDICT_TRUE(len <= PiecewiseChunkSize())) {
-    return Mix(state, Hash64(first, len));
+    return Mix(state ^ Hash64(first, len), kMul);
   }
   return CombineLargeContiguousImpl64(state, first, len);
 }
