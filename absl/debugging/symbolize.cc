@@ -17,6 +17,15 @@
 #include "absl/debugging/symbolize.h"
 
 #ifdef _WIN32
+#include <ntstatus.h>
+
+// We need to prevent winnt.h from defining the core STATUS codes,
+// otherwise they will conflict with what we're getting from ntstatus.h
+#define UMDF_USING_NTSTATUS 1
+#define WIN32_NO_STATUS     1
+
+#include <windows.h>
+#include <winnt.h>
 #include <winapifamily.h>
 #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 // UWP doesn't have access to win32 APIs.
