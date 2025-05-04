@@ -48,16 +48,28 @@
 #include "absl/base/port.h"
 #include "absl/debugging/internal/stacktrace_config.h"
 
+#ifdef ABSL_INTERNAL_HAVE_ALLOCA
+#error ABSL_INTERNAL_HAVE_ALLOCA cannot be directly set
+#endif
+
 #ifdef _WIN32
 #include <malloc.h>
+#define ABSL_INTERNAL_HAVE_ALLOCA 1
 #else
 #ifdef __has_include
 #if __has_include(<alloca.h>)
 #include <alloca.h>
+#define ABSL_INTERNAL_HAVE_ALLOCA 1
 #elif !defined(alloca)
-extern "C" void* alloca(size_t) noexcept;
+static void* alloca(size_t) noexcept { return nullptr; }
 #endif
 #endif
+#endif
+
+#ifdef ABSL_INTERNAL_HAVE_ALLOCA
+static constexpr bool kHaveAlloca = true;
+#else
+static constexpr bool kHaveAlloca = false;
 #endif
 
 #if defined(ABSL_STACKTRACE_INL_HEADER)
@@ -143,13 +155,16 @@ internal_stacktrace::GetStackFramesWithContext(void** result, uintptr_t* frames,
 ABSL_ATTRIBUTE_NOINLINE ABSL_ATTRIBUTE_NO_TAIL_CALL int GetStackTrace(
     void** result, int max_depth, int skip_count) {
   if (internal_stacktrace::ShouldFixUpStack()) {
-    const size_t nmax = static_cast<size_t>(max_depth);
-    uintptr_t* frames = static_cast<uintptr_t*>(alloca(nmax * sizeof(*frames)));
-    int* sizes = static_cast<int*>(alloca(nmax * sizeof(*sizes)));
-    size_t depth = static_cast<size_t>(Unwind<true, false>(
-        result, frames, sizes, max_depth, skip_count, nullptr, nullptr));
-    internal_stacktrace::FixUpStack(result, frames, sizes, nmax, depth);
-    return static_cast<int>(depth);
+    if constexpr (kHaveAlloca) {
+      const size_t nmax = static_cast<size_t>(max_depth);
+      uintptr_t* frames =
+          static_cast<uintptr_t*>(alloca(nmax * sizeof(*frames)));
+      int* sizes = static_cast<int*>(alloca(nmax * sizeof(*sizes)));
+      size_t depth = static_cast<size_t>(Unwind<true, false>(
+          result, frames, sizes, max_depth, skip_count, nullptr, nullptr));
+      internal_stacktrace::FixUpStack(result, frames, sizes, nmax, depth);
+      return static_cast<int>(depth);
+    }
   }
 
   return Unwind<false, false>(result, nullptr, nullptr, max_depth, skip_count,
@@ -160,13 +175,17 @@ ABSL_ATTRIBUTE_NOINLINE ABSL_ATTRIBUTE_NO_TAIL_CALL int
 GetStackTraceWithContext(void** result, int max_depth, int skip_count,
                          const void* uc, int* min_dropped_frames) {
   if (internal_stacktrace::ShouldFixUpStack()) {
-    const size_t nmax = static_cast<size_t>(max_depth);
-    uintptr_t* frames = static_cast<uintptr_t*>(alloca(nmax * sizeof(*frames)));
-    int* sizes = static_cast<int*>(alloca(nmax * sizeof(*sizes)));
-    size_t depth = static_cast<size_t>(Unwind<true, true>(
-        result, frames, sizes, max_depth, skip_count, uc, min_dropped_frames));
-    internal_stacktrace::FixUpStack(result, frames, sizes, nmax, depth);
-    return static_cast<int>(depth);
+    if constexpr (kHaveAlloca) {
+      const size_t nmax = static_cast<size_t>(max_depth);
+      uintptr_t* frames =
+          static_cast<uintptr_t*>(alloca(nmax * sizeof(*frames)));
+      int* sizes = static_cast<int*>(alloca(nmax * sizeof(*sizes)));
+      size_t depth = static_cast<size_t>(
+          Unwind<true, true>(result, frames, sizes, max_depth, skip_count, uc,
+                             min_dropped_frames));
+      internal_stacktrace::FixUpStack(result, frames, sizes, nmax, depth);
+      return static_cast<int>(depth);
+    }
   }
 
   return Unwind<false, true>(result, nullptr, nullptr, max_depth, skip_count,
