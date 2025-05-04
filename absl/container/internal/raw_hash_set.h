@@ -1157,7 +1157,7 @@ class CommonFields : public CommonFieldsGenerationInfo {
   // TODO(b/289225379): we could put size_ into HeapOrSoo and make capacity_
   // encode the size in SOO case. We would be making size()/capacity() more
   // expensive in order to have more SOO space.
-  HashtableSize size_ = 0;
+  HashtableSize size_;
 
   // Either the control/slots pointers or the SOO slot.
   HeapOrSoo heap_or_soo_;
@@ -2817,7 +2817,6 @@ class raw_hash_set {
     return AllocSize(common().capacity(), sizeof(slot_type), alignof(slot_type),
                     true);
   }
-  
 
   // Extension API: support for heterogeneous keys.
   //
