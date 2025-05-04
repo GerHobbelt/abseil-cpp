@@ -11,6 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
 #include "absl/time/clock.h"
 
 #if !defined(_WIN32)
@@ -21,7 +22,6 @@
 #include <cstdio>
 
 #include "absl/base/internal/cycleclock.h"
-#include "absl/profiling/benchmark.h"
 
 namespace {
 

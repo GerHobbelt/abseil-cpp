@@ -16,9 +16,9 @@
 #include <cstdint>
 #include <string>
 
+#include "absl/profiling/benchmark.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
-#include "benchmark/benchmark.h"
 
 namespace {
 

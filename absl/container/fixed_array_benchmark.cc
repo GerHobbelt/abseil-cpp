@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <stddef.h>
 
 #include <string>
 
 #include "absl/container/fixed_array.h"
-#include "absl/profiling/benchmark.h"
 
 namespace {
 

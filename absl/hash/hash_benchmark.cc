@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -31,7 +33,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_test_helpers.h"
 #include "absl/strings/string_view.h"
-#include "absl/profiling/benchmark.h"
 
 namespace {
 

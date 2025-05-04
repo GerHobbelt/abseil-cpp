@@ -18,8 +18,8 @@
 #include <utility>
 #include <vector>
 
-#include "absl/strings/str_join.h"
 #include "absl/profiling/benchmark.h"
+#include "absl/strings/str_join.h"
 
 namespace {
 

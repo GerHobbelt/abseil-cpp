@@ -14,8 +14,8 @@
 
 #include <string>
 
+#include "absl/profiling/benchmark.h"
 #include "absl/strings/internal/damerau_levenshtein_distance.h"
-#include "benchmark/benchmark.h"
 
 namespace {
 

@@ -11,6 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -20,7 +22,6 @@
 #include "absl/base/attributes.h"
 #include "absl/flags/flag.h"
 #include "absl/time/time.h"
-#include "absl/profiling/benchmark.h"
 
 ABSL_FLAG(absl::Duration, absl_duration_flag_for_benchmark,
           absl::Milliseconds(1),

@@ -14,10 +14,10 @@
 
 #include <limits>
 
+#include "absl/profiling/benchmark.h"
 #include "absl/base/no_destructor.h"
 #include "absl/synchronization/blocking_counter.h"
 #include "absl/synchronization/internal/thread_pool.h"
-#include "absl/profiling/benchmark.h"
 
 namespace {
 

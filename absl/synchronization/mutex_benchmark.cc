@@ -16,6 +16,7 @@
 #include <mutex>  // NOLINT(build/c++11)
 #include <vector>
 
+#include "absl/profiling/benchmark.h"
 #include "absl/base/config.h"
 #include "absl/base/internal/cycleclock.h"
 #include "absl/base/internal/spinlock.h"
@@ -23,7 +24,6 @@
 #include "absl/synchronization/blocking_counter.h"
 #include "absl/synchronization/internal/thread_pool.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/profiling/benchmark.h"
 
 namespace {
 

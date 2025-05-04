@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/base/optimization.h"
 #include "absl/debugging/stacktrace.h"
-#include "absl/profiling/benchmark.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "absl/log/internal/fnmatch.h"
 #include "absl/profiling/benchmark.h"
+#include "absl/log/internal/fnmatch.h"
 
 namespace {
 void BM_FNMatch(benchmark::State& state) {

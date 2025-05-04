@@ -14,9 +14,9 @@
 
 #include <cstdint>
 
+#include "absl/profiling/benchmark.h"
 #include "absl/base/internal/raw_logging.h"
 #include "absl/base/no_destructor.h"
-#include "absl/profiling/benchmark.h"
 
 namespace {
 

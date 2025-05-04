@@ -15,6 +15,8 @@
 // Benchmarks for absl random distributions as well as a selection of the
 // C++ standard library random distributions.
 
+#include "absl/profiling/benchmark.h"
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -38,7 +40,6 @@
 #include "absl/random/uniform_int_distribution.h"
 #include "absl/random/uniform_real_distribution.h"
 #include "absl/random/zipf_distribution.h"
-#include "absl/profiling/benchmark.h"
 
 namespace {
 

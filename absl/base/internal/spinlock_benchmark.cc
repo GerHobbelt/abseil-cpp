@@ -15,12 +15,12 @@
 // See also //absl/synchronization:mutex_benchmark for a comparison of SpinLock
 // and Mutex performance under varying levels of contention.
 
+#include "absl/profiling/benchmark.h"
 #include "absl/base/internal/raw_logging.h"
 #include "absl/base/internal/scheduling_mode.h"
 #include "absl/base/internal/spinlock.h"
 #include "absl/base/no_destructor.h"
 #include "absl/synchronization/internal/create_thread_identity.h"
-#include "absl/profiling/benchmark.h"
 
 namespace {
 

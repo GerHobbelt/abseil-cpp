@@ -14,11 +14,11 @@
 
 #include <string>
 
+#include "absl/profiling/benchmark.h"
 #include "absl/crc/crc32c.h"
 #include "absl/crc/internal/crc32c.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
-#include "absl/profiling/benchmark.h"
 
 namespace {
 

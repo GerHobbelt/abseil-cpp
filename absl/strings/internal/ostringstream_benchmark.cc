@@ -15,8 +15,8 @@
 #include <sstream>
 #include <string>
 
-#include "absl/strings/internal/ostringstream.h"
 #include "absl/profiling/benchmark.h"
+#include "absl/strings/internal/ostringstream.h"
 
 namespace {
 

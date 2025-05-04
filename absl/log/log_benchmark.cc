@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
 #include "absl/base/attributes.h"
 #include "absl/base/log_severity.h"
 #include "absl/flags/flag.h"
@@ -23,7 +24,6 @@
 #include "absl/log/log_sink.h"
 #include "absl/log/log_sink_registry.h"
 #include "absl/log/vlog_is_on.h"
-#include "absl/profiling/benchmark.h"
 
 namespace {
 

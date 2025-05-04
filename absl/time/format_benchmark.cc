@@ -14,9 +14,9 @@
 #include <cstddef>
 #include <string>
 
+#include "absl/profiling/benchmark.h"
 #include "absl/time/internal/test_util.h"
 #include "absl/time/time.h"
-#include "absl/profiling/benchmark.h"
 
 namespace {
 

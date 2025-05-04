@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
 #include <utility>
 #include "absl/status/status.h"
-#include "benchmark/benchmark.h"
 
 namespace {
 

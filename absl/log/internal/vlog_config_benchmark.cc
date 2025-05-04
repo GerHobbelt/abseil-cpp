@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <algorithm>
 #include <atomic>
 #include <cstddef>
@@ -30,7 +32,6 @@
 #include "absl/memory/memory.h"
 #include "absl/random/distributions.h"
 #include "absl/strings/str_cat.h"
-#include "absl/profiling/benchmark.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN

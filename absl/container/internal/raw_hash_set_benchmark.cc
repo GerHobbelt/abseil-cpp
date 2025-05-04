@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -32,7 +34,6 @@
 #include "absl/container/internal/raw_hash_set.h"
 #include "absl/random/random.h"
 #include "absl/strings/str_format.h"
-#include "absl/profiling/benchmark.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
