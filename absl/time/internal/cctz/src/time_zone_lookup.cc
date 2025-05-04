@@ -66,6 +66,17 @@
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
+
+// fix warning C4191: 'reinterpret_cast': unsafe conversion from 'FARPROC' to 'HRESULT (__cdecl *)(HSTRING,IInspectable **)'
+template<typename T>
+T cvtAddrType(FARPROC addr) {
+	T rv = nullptr;
+	static_assert(sizeof(T) >= sizeof(addr));
+	// copy value in `addr` to `rv`:
+	memcpy(&rv, &addr, sizeof(addr));
+	return rv;
+}
+
 namespace time_internal {
 namespace cctz {
 
@@ -76,25 +87,25 @@ namespace {
 std::string win32_local_time_zone(const HMODULE combase) {
   std::string result;
   const auto ro_activate_instance =
-      reinterpret_cast<decltype(&RoActivateInstance)>(
+	  cvtAddrType<decltype(&RoActivateInstance)>(
           GetProcAddress(combase, "RoActivateInstance"));
   if (!ro_activate_instance) {
     return result;
   }
   const auto windows_create_string_reference =
-      reinterpret_cast<decltype(&WindowsCreateStringReference)>(
+	  cvtAddrType<decltype(&WindowsCreateStringReference)>(
           GetProcAddress(combase, "WindowsCreateStringReference"));
   if (!windows_create_string_reference) {
     return result;
   }
   const auto windows_delete_string =
-      reinterpret_cast<decltype(&WindowsDeleteString)>(
+	  cvtAddrType<decltype(&WindowsDeleteString)>(
           GetProcAddress(combase, "WindowsDeleteString"));
   if (!windows_delete_string) {
     return result;
   }
   const auto windows_get_string_raw_buffer =
-      reinterpret_cast<decltype(&WindowsGetStringRawBuffer)>(
+	  cvtAddrType<decltype(&WindowsGetStringRawBuffer)>(
           GetProcAddress(combase, "WindowsGetStringRawBuffer"));
   if (!windows_get_string_raw_buffer) {
     return result;
@@ -271,9 +282,9 @@ time_zone local_time_zone() {
   const HMODULE combase =
       LoadLibraryEx(_T("combase.dll"), nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
   if (combase) {
-    const auto ro_initialize = reinterpret_cast<decltype(&::RoInitialize)>(
+    const auto ro_initialize = cvtAddrType<decltype(&::RoInitialize)>(
         GetProcAddress(combase, "RoInitialize"));
-    const auto ro_uninitialize = reinterpret_cast<decltype(&::RoUninitialize)>(
+    const auto ro_uninitialize = cvtAddrType<decltype(&::RoUninitialize)>(
         GetProcAddress(combase, "RoUninitialize"));
     if (ro_initialize && ro_uninitialize) {
       const HRESULT hr = ro_initialize(RO_INIT_MULTITHREADED);
