@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "absl/strings/str_replace.h"
-
 #include <cstring>
 #include <string>
 
 #include "absl/profiling/benchmark.h"
 #include "absl/base/internal/raw_logging.h"
+#include "absl/strings/str_replace.h"
 
 namespace {
 

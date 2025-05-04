@@ -12,17 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "absl/strings/ascii.h"
-
-#include <algorithm>
-#include <cctype>
-#include <cstddef>
-#include <string>
-#include <array>
-#include <random>
-
 #include "absl/profiling/benchmark.h"
 
+#include <algorithm>
+#include <array>
+#include <cctype>
+#include <cstddef>
+#include <random>
+#include <string>
+
+#include "absl/strings/ascii.h"
 namespace {
 
 std::array<unsigned char, 256> MakeShuffledBytes() {
