@@ -57,6 +57,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -96,10 +97,6 @@
 
 #if defined(__cpp_lib_filesystem) && __cpp_lib_filesystem >= 201703L
 #include <filesystem>  // NOLINT
-#endif
-
-#ifdef ABSL_HAVE_STD_STRING_VIEW
-#include <string_view>
 #endif
 
 namespace absl {
@@ -646,8 +643,6 @@ H AbslHashValue(
       WeaklyMixedInteger{str.size()});
 }
 
-#ifdef ABSL_HAVE_STD_STRING_VIEW
-
 // Support std::wstring_view, std::u16string_view and std::u32string_view.
 template <typename Char, typename H,
           typename = absl::enable_if_t<std::is_same<Char, wchar_t>::value ||
@@ -658,8 +653,6 @@ H AbslHashValue(H hash_state, std::basic_string_view<Char> str) {
       H::combine_contiguous(std::move(hash_state), str.data(), str.size()),
       WeaklyMixedInteger{str.size()});
 }
-
-#endif  // ABSL_HAVE_STD_STRING_VIEW
 
 #if defined(__cpp_lib_filesystem) && __cpp_lib_filesystem >= 201703L && \
     (!defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__) ||        \
