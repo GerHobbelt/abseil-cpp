@@ -24,7 +24,7 @@ ABSL_NAMESPACE_BEGIN
 namespace strings_internal {
 
 OStringStream::Streambuf::int_type OStringStream::Streambuf::overflow(int c) {
-  assert(str_);
+  assert(str_ != nullptr);
   if (!std::streambuf::traits_type::eq_int_type(
           c, std::streambuf::traits_type::eof()))
     str_->push_back(static_cast<char>(c));
@@ -33,7 +33,7 @@ OStringStream::Streambuf::int_type OStringStream::Streambuf::overflow(int c) {
 
 std::streamsize OStringStream::Streambuf::xsputn(const char* s,
                                                  std::streamsize n) {
-  assert(str_);
+  assert(str_ != nullptr);
   str_->append(s, static_cast<size_t>(n));
   return n;
 }

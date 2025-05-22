@@ -33,7 +33,7 @@ namespace random_internal {
 std::vector<std::pair<double, size_t>> InitDiscreteDistribution(
     std::vector<double>* probabilities) {
   // The empty-case should already be handled by the constructor.
-  assert(probabilities);
+  assert(probabilities != nullptr);
   assert(!probabilities->empty());
 
   // Step 1. Normalize the input probabilities to 1.0.

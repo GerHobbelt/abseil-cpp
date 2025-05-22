@@ -99,7 +99,7 @@ bool CordzHandle::SafeToDelete() const {
 }
 
 void CordzHandle::Delete(CordzHandle* handle) {
-  assert(handle);
+  assert(handle != nullptr);
   if (handle) {
     Queue& queue = GlobalQueue();
     if (!handle->SafeToDelete()) {

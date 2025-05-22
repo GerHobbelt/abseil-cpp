@@ -289,7 +289,7 @@ CordzInfo::MethodIdentifier CordzInfo::GetParentMethod(const CordzInfo* src) {
 }
 
 size_t CordzInfo::FillParentStack(const CordzInfo* src, void** stack) {
-  assert(stack);
+  assert(stack != nullptr);
   if (src == nullptr) return 0;
   if (src->parent_stack_depth_) {
     memcpy(stack, src->parent_stack_, src->parent_stack_depth_ * sizeof(void*));
@@ -380,7 +380,7 @@ void CordzInfo::Lock(MethodIdentifier method)
     ABSL_EXCLUSIVE_LOCK_FUNCTION(mutex_) {
   mutex_.Lock();
   update_tracker_.LossyAdd(method);
-  assert(rep_);
+  assert(rep_ != nullptr);
 }
 
 void CordzInfo::Unlock() ABSL_UNLOCK_FUNCTION(mutex_) {
