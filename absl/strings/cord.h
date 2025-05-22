@@ -1258,7 +1258,7 @@ Cord::InlineRep::MakeFlatWithExtraCapacity(size_t extra) {
 
 inline void Cord::InlineRep::EmplaceTree(CordRep* absl_nonnull rep,
                                          MethodIdentifier method) {
-  assert(rep);
+  assert(rep != nullptr);
   data_.make_tree(rep);
   CordzInfo::MaybeTrackCord(data_, method);
 }
@@ -1272,7 +1272,7 @@ inline void Cord::InlineRep::EmplaceTree(CordRep* absl_nonnull rep,
 
 inline void Cord::InlineRep::SetTree(CordRep* absl_nonnull rep,
                                      const CordzUpdateScope& scope) {
-  assert(rep);
+  assert(rep != nullptr);
   assert(data_.is_tree());
   data_.set_tree(rep);
   scope.SetCordRep(rep);

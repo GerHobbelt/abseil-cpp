@@ -175,7 +175,7 @@ class AtomicHook<ReturnType (*)(Args...)> {
   }
 
   bool DoStore(FnPtr fn) {
-    assert(fn);
+    assert(fn != nullptr);
     const auto value = reinterpret_cast<intptr_t>(fn);
     intptr_t expected = kUninitialized;
     const bool store_succeeded = hook_.compare_exchange_strong(

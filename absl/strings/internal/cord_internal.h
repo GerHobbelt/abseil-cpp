@@ -576,7 +576,7 @@ class InlineData {
     assert(is_tree());
     intptr_t info = static_cast<intptr_t>(absl::little_endian::ToHost64(
         static_cast<uint64_t>(rep_.cordz_info())));
-    assert(info & 1);
+    assert(0 != (info & 1));
     return reinterpret_cast<CordzInfo*>(info - 1);
   }
 
