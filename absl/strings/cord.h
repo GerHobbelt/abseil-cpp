@@ -79,6 +79,7 @@
 #include "absl/base/optimization.h"
 #include "absl/crc/internal/crc_cord_state.h"
 #include "absl/functional/function_ref.h"
+#include "absl/hash/internal/weakly_mixed_integer.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/cord_analysis.h"
 #include "absl/strings/cord_buffer.h"
@@ -669,6 +670,13 @@ class Cord {
   // `it` must be dereferenceable.
   static absl::string_view ChunkRemaining(const CharIterator& it);
 
+  // Cord::Distance()
+  //
+  // Returns the distance between `first` and `last`, as if
+  // `std::distance(first, last)` was called.
+  static ptrdiff_t Distance(const CharIterator& first,
+                            const CharIterator& last);
+
   // Cord::char_begin()
   //
   // Returns an iterator to the first character of the `Cord`.
@@ -747,7 +755,7 @@ class Cord {
   // NOTE: This routine is reasonably efficient. It is roughly
   // logarithmic based on the number of chunks that make up the cord. Still,
   // if you need to iterate over the contents of a cord, you should
-  // use a CharIterator/ChunkIterator rather than call operator[] or Get()
+  // use a CharIterator/ChunkIterator rather than call operator[]
   // repeatedly in a loop.
   char operator[](size_t i) const;
 
@@ -1090,7 +1098,7 @@ class Cord {
       hash_state = combiner.add_buffer(std::move(hash_state), chunk.data(),
                                        chunk.size());
     });
-    return H::combine(combiner.finalize(std::move(hash_state)), size());
+    return combiner.finalize(std::move(hash_state));
   }
 
   friend class CrcCord;
@@ -1658,6 +1666,12 @@ inline void Cord::Advance(CharIterator* absl_nonnull it, size_t n_bytes) {
 
 inline absl::string_view Cord::ChunkRemaining(const CharIterator& it) {
   return *it.chunk_iterator_;
+}
+
+inline ptrdiff_t Cord::Distance(const CharIterator& first,
+                                const CharIterator& last) {
+  return static_cast<ptrdiff_t>(first.chunk_iterator_.bytes_remaining_ -
+                                last.chunk_iterator_.bytes_remaining_);
 }
 
 inline Cord::CharIterator Cord::char_begin() const {
