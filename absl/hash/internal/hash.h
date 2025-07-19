@@ -498,8 +498,9 @@ std::enable_if_t<std::is_pointer<T>::value, H> AbslHashValue(H hash_state,
   auto v = reinterpret_cast<uintptr_t>(ptr);
   // Due to alignment, pointers tend to have low bits as zero, and the next few
   // bits follow a pattern since they are also multiples of some base value.
-  // Mix pointers twice to ensure we have good entropy in low bits.
-  return H::combine(std::move(hash_state), v, v);
+  // The PointerAlignment test verifies that our mixing is good enough to handle
+  // these cases.
+  return H::combine(std::move(hash_state), v);
 }
 
 // AbslHashValue() for hashing nullptr_t
@@ -949,7 +950,7 @@ hash_range_or_bytes(H hash_state, const T* data, size_t size) {
                     hash_internal::WeaklyMixedInteger{size});
 }
 
- inline constexpr uint64_t kMul = uint64_t{0xdcb22ca68cb134ed};
+inline constexpr uint64_t kMul = uint64_t{0x79d5f9e0de1e8cf5};
 
 // Random data taken from the hexadecimal digits of Pi's fractional component.
 // https://en.wikipedia.org/wiki/Nothing-up-my-sleeve_number
@@ -969,24 +970,9 @@ inline uint64_t PrecombineLengthMix(uint64_t state, size_t len) {
 }
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline uint64_t Mix(uint64_t lhs, uint64_t rhs) {
-  // For 32 bit platforms we are trying to use all 64 lower bits.
-  if constexpr (sizeof(size_t) < 8) {
-    uint64_t m = lhs * rhs;
-    return m ^ absl::byteswap(m);
-  }
-  // absl::uint128 is not an alias or a thin wrapper around the intrinsic.
-  // We use the intrinsic when available to improve performance.
-  // TODO(b/399425325): Try to remove MulType since compiler seem to generate
-  // the same code with just absl::uint128.
-  // See https://gcc.godbolt.org/z/s3hGarraG for details.
-#ifdef ABSL_HAVE_INTRINSIC_INT128
-  using MulType = __uint128_t;
-#else   // ABSL_HAVE_INTRINSIC_INT128
-  using MulType = absl::uint128;
-#endif  // ABSL_HAVE_INTRINSIC_INT128
-  // Though the 128-bit product on AArch64 needs two instructions, it is
-  // still a good balance between speed and hash quality.
-  MulType m = lhs;
+  // Though the 128-bit product needs multiple instructions on non-x86-64
+  // platforms, it is still a good balance between speed and hash quality.
+  absl::uint128 m = lhs;
   m *= rhs;
   return Uint128High64(m) ^ Uint128Low64(m);
 }
@@ -1048,6 +1034,11 @@ inline uint32_t Read1To3(const unsigned char* p, size_t len) {
   return mem0 | mem1;
 }
 
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline uint64_t CombineRawImpl(uint64_t state,
+                                                            uint64_t value) {
+  return Mix(state ^ value, kMul);
+}
+
 // Slow dispatch path for calls to CombineContiguousImpl with a size argument
 // larger than inlined size. Has the same effect as calling
 // CombineContiguousImpl() repeatedly with the chunk stride size.
@@ -1069,7 +1060,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline uint64_t CombineSmallContiguousImpl(
     // Empty string must modify the state.
     v = 0x57;
   }
-  return Mix(state ^ v, kMul);
+  return CombineRawImpl(state, v);
 }
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline uint64_t CombineContiguousImpl9to16(
@@ -1289,7 +1280,7 @@ class ABSL_DLL MixingHashState : public HashStateBase<MixingHashState> {
   template <typename T, absl::enable_if_t<IntegralFastPath<T>::value, int> = 0>
   static size_t hash_with_seed(T value, size_t seed) {
     return static_cast<size_t>(
-        Mix(seed ^ static_cast<std::make_unsigned_t<T>>(value), kMul));
+        CombineRawImpl(seed, static_cast<std::make_unsigned_t<T>>(value)));
   }
 
   template <typename T, absl::enable_if_t<!IntegralFastPath<T>::value, int> = 0>
@@ -1327,7 +1318,7 @@ class ABSL_DLL MixingHashState : public HashStateBase<MixingHashState> {
   // optimize Read1To3 and Read4To8 differently for the string case.
   static MixingHashState combine_raw(MixingHashState hash_state,
                                      uint64_t value) {
-    return MixingHashState(Mix(hash_state.state_ ^ value, kMul));
+    return MixingHashState(CombineRawImpl(hash_state.state_, value));
   }
 
   static MixingHashState combine_weakly_mixed_integer(
