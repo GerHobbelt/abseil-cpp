@@ -359,6 +359,15 @@ struct CombineRaw {
   }
 };
 
+// For use in `raw_hash_set` to pass a seed to the hash function.
+struct HashWithSeed {
+  template <typename Hasher, typename T>
+  size_t hash(const Hasher& hasher, const T& value, size_t seed) const {
+    // NOLINTNEXTLINE(clang-diagnostic-sign-conversion)
+    return hasher.hash_with_seed(value, seed);
+  }
+};
+
 // Convenience function that combines `hash_state` with the byte representation
 // of `value`.
 template <typename H, typename T,
@@ -406,8 +415,10 @@ H hash_weakly_mixed_integer(H hash_state, WeaklyMixedInteger value) {
 template <typename H, typename B>
 typename std::enable_if<std::is_same<B, bool>::value, H>::type AbslHashValue(
     H hash_state, B value) {
+  // We use ~size_t{} instead of 1 so that all bits are different between
+  // true/false instead of only 1.
   return H::combine(std::move(hash_state),
-                    static_cast<unsigned char>(value ? 1 : 0));
+                    static_cast<size_t>(value ? ~size_t{} : 0));
 }
 
 // AbslHashValue() for hashing enum values
@@ -938,21 +949,6 @@ hash_range_or_bytes(H hash_state, const T* data, size_t size) {
                     hash_internal::WeaklyMixedInteger{size});
 }
 
-// Extremely weak mixture of length that is added to the state before combining
-// the data. It is used only for small strings.
-inline uint64_t PrecombineLengthMix(uint64_t state, size_t len) {
-  // The length is always one byte here. We place it to 4th byte for the
-  // following reasons:
-  // 1. 4th byte is unused for very short strings 0-3 bytes.
-  // 2. 4th byte is duplicated for 4 bytes string.
-  // 3. 4th byte is in the middle and mixed well for 5-8 bytes strings.
-  //
-  // There were experiments with adding just `len` here.
-  // Also seems have slightly better performance overall, that gives collisions
-  // for small strings.
-  return state + (uint64_t{len} << 24);
-}
-
  inline constexpr uint64_t kMul = uint64_t{0xdcb22ca68cb134ed};
 
 // Random data taken from the hexadecimal digits of Pi's fractional component.
@@ -962,11 +958,21 @@ ABSL_CACHELINE_ALIGNED inline constexpr uint64_t kStaticRandomData[] = {
     0x082e'fa98'ec4e'6c89, 0x4528'21e6'38d0'1377,
 };
 
+// Extremely weak mixture of length that is mixed into the state before
+// combining the data. It is used only for small strings. This also ensures that
+// we have high entropy in all bits of the state.
+inline uint64_t PrecombineLengthMix(uint64_t state, size_t len) {
+  ABSL_ASSUME(len + sizeof(uint64_t) <= sizeof(kStaticRandomData));
+  uint64_t data = absl::base_internal::UnalignedLoad64(
+      reinterpret_cast<const unsigned char*>(&kStaticRandomData[0]) + len);
+  return state ^ data;
+}
+
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline uint64_t Mix(uint64_t lhs, uint64_t rhs) {
   // For 32 bit platforms we are trying to use all 64 lower bits.
   if constexpr (sizeof(size_t) < 8) {
     uint64_t m = lhs * rhs;
-    return m ^ (m >> 32);
+    return m ^ absl::byteswap(m);
   }
   // absl::uint128 is not an alias or a thin wrapper around the intrinsic.
   // We use the intrinsic when available to improve performance.
@@ -1270,20 +1276,25 @@ class ABSL_DLL MixingHashState : public HashStateBase<MixingHashState> {
   }
   using MixingHashState::HashStateBase::combine_contiguous;
 
+  template <typename T>
+  static size_t hash(const T& value) {
+    return hash_with_seed(value, Seed());
+  }
+
   // For performance reasons in non-opt mode, we specialize this for
   // integral types.
   // Otherwise we would be instantiating and calling dozens of functions for
   // something that is just one multiplication and a couple xor's.
   // The result should be the same as running the whole algorithm, but faster.
   template <typename T, absl::enable_if_t<IntegralFastPath<T>::value, int> = 0>
-  static size_t hash(T value) {
+  static size_t hash_with_seed(T value, size_t seed) {
     return static_cast<size_t>(
-        Mix(Seed() ^ static_cast<std::make_unsigned_t<T>>(value), kMul));
+        Mix(seed ^ static_cast<std::make_unsigned_t<T>>(value), kMul));
   }
 
   template <typename T, absl::enable_if_t<!IntegralFastPath<T>::value, int> = 0>
-  static size_t hash(const T& value) {
-    return static_cast<size_t>(combine(MixingHashState{}, value).state_);
+  static size_t hash_with_seed(const T& value, size_t seed) {
+    return static_cast<size_t>(combine(MixingHashState{seed}, value).state_);
   }
 
  private:
@@ -1361,15 +1372,15 @@ class ABSL_DLL MixingHashState : public HashStateBase<MixingHashState> {
   //
   // On other platforms this is still going to be non-deterministic but most
   // probably per-build and not per-process.
-  ABSL_ATTRIBUTE_ALWAYS_INLINE static uint64_t Seed() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE static size_t Seed() {
 #if (!defined(__clang__) || __clang_major__ > 11) && \
     (!defined(__apple_build_version__) ||            \
      __apple_build_version__ >= 19558921)  // Xcode 12
-    return static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&kSeed));
+    return static_cast<size_t>(reinterpret_cast<uintptr_t>(&kSeed));
 #else
     // Workaround the absence of
     // https://github.com/llvm/llvm-project/commit/bc15bf66dcca76cc06fe71fca35b74dc4d521021.
-    return static_cast<uint64_t>(reinterpret_cast<uintptr_t>(kSeed));
+    return static_cast<size_t>(reinterpret_cast<uintptr_t>(kSeed));
 #endif
   }
 
@@ -1391,6 +1402,13 @@ template <typename T>
 struct HashImpl {
   size_t operator()(const T& value) const {
     return MixingHashState::hash(value);
+  }
+
+ private:
+  friend struct HashWithSeed;
+
+  size_t hash_with_seed(const T& value, size_t seed) const {
+    return MixingHashState::hash_with_seed(value, seed);
   }
 };
 
