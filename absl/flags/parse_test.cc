@@ -893,6 +893,7 @@ TEST_F(ParseTest, TestReadingFlagsFromEnvMoxedWithRegularFlags) {
 
 // --------------------------------------------------------------------
 
+#if GTEST_HAS_DEATH_TEST
 TEST_F(ParseDeathTest, TestSimpleHelpFlagHandling) {
   const char* in_args1[] = {
       "testbin",
@@ -915,6 +916,7 @@ TEST_F(ParseDeathTest, TestSimpleHelpFlagHandling) {
 
   EXPECT_EQ(InvokeParseAbslOnlyImpl(in_args3), flags::HelpMode::kImportant);
 }
+#endif // GTEST_HAS_DEATH_TEST
 
 // --------------------------------------------------------------------
 
@@ -941,6 +943,7 @@ TEST_F(ParseDeathTest, TestVersionHandling) {
 
 // --------------------------------------------------------------------
 
+#if GTEST_HAS_DEATH_TEST
 TEST_F(ParseTest, TestCheckArgsHandling) {
   const char* in_args1[] = {"testbin", "--only_check_args", "--int_flag=211"};
 
@@ -954,6 +957,7 @@ TEST_F(ParseTest, TestCheckArgsHandling) {
   EXPECT_EXIT(InvokeParseAbslOnly(in_args2), testing::ExitedWithCode(0), "");
   EXPECT_EXIT(InvokeParse(in_args2), testing::ExitedWithCode(1), "");
 }
+#endif // GTEST_HAS_DEATH_TEST
 
 // --------------------------------------------------------------------
 
@@ -1077,6 +1081,7 @@ TEST_F(ParseTest, AllUndefOkFlagsAreIgnored) {
 
 // --------------------------------------------------------------------
 
+#if GTEST_HAS_DEATH_TEST
 TEST_F(ParseDeathTest, ExitOnUnrecognizedFlagPrintsHelp) {
   const char* in_args[] = {
       "testbin",
@@ -1088,6 +1093,7 @@ TEST_F(ParseDeathTest, ExitOnUnrecognizedFlagPrintsHelp) {
               AllOf(HasSubstr("Unknown command line flag 'undef_flag1'"),
                     HasSubstr("Try --helpfull to get a list of all flags")));
 }
+#endif // GTEST_HAS_DEATH_TEST
 
 // --------------------------------------------------------------------
 

@@ -755,6 +755,7 @@ enum class ScopedInt8Enum : int8_t {
   kValue2 = 66  // Printable ascii value 'B'.
 };
 
+#if GTEST_HAS_DEATH_TEST
 TEST(CHECKDeathTest, TestScopedInt8EnumCheckFailureMessagePrintsCharValues) {
   const auto e1 = ScopedInt8Enum::kValue1;
   const auto e2 = ScopedInt8Enum::kValue2;
@@ -778,12 +779,14 @@ TEST(CHECKDeathTest, TestScopedInt8EnumCheckFailureMessagePrintsCharValues) {
       ABSL_TEST_CHECK_LE(e2, e1),
       ContainsRegex(R"re(Check failed:.*\('B' vs. signed char value 1\))re"));
 }
+#endif // GTEST_HAS_DEATH_TEST
 
 enum class ScopedUnsignedEnum : uint16_t {
   kValue1 = std::numeric_limits<uint16_t>::min(),
   kValue2 = std::numeric_limits<uint16_t>::max()
 };
 
+#if GTEST_HAS_DEATH_TEST
 TEST(CHECKDeathTest,
      TestScopedUnsignedEnumCheckFailureMessagePrintsCorrectValues) {
   const auto e1 = ScopedUnsignedEnum::kValue1;
@@ -801,11 +804,14 @@ TEST(CHECKDeathTest,
   EXPECT_DEATH(ABSL_TEST_CHECK_LE(e2, e1),
                ContainsRegex(R"re(Check failed:.*\(65535 vs. 0\))re"));
 }
+#endif // GTEST_HAS_DEATH_TEST
 
 enum class ScopedInt64Enum : int64_t {
   kMin = std::numeric_limits<int64_t>::min(),
   kMax = std::numeric_limits<int64_t>::max(),
 };
+
+#if GTEST_HAS_DEATH_TEST
 
 // Tests that int64-backed enums are printed correctly even for very large and
 // very small values.
@@ -838,11 +844,14 @@ TEST(CHECKDeathTest, TestScopedInt64EnumCheckFailureMessage) {
           R"(Check failed:.*9223372036854775807 vs. -9223372036854775808)"));
 }
 
+#endif // GTEST_HAS_DEATH_TEST
+
 enum class ScopedBoolEnum : bool {
   kFalse,
   kTrue,
 };
 
+#if GTEST_HAS_DEATH_TEST
 TEST(CHECKDeathTest, TestScopedBoolEnumCheckFailureMessagePrintsCorrectValues) {
   const auto t = ScopedBoolEnum::kTrue;
   const auto f = ScopedBoolEnum::kFalse;
@@ -859,6 +868,7 @@ TEST(CHECKDeathTest, TestScopedBoolEnumCheckFailureMessagePrintsCorrectValues) {
   EXPECT_DEATH(ABSL_TEST_CHECK_LE(t, f),
                ContainsRegex(R"re(Check failed:.*\(1 vs. 0\))re"));
 }
+#endif // GTEST_HAS_DEATH_TEST
 
 enum class ScopedEnumWithAbslStringify {
   kValue1 = 1,

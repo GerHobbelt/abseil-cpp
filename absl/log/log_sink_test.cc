@@ -302,6 +302,7 @@ TEST_F(ReentrancyTest, RegisteredOnlyLogSinkThatLogsInSend) {
 
 using ReentrancyDeathTest = ReentrancyTest;
 
+#if GTEST_HAS_DEATH_TEST
 TEST_F(ReentrancyDeathTest, LogFunctionThatLogsFatal) {
   EXPECT_EXIT(
       {
@@ -418,5 +419,6 @@ TEST_F(ReentrancyDeathTest, RegisteredOnlyLogSinkThatLogsFatalInSend) {
       },
       DiedOfFatal, DeathTestValidateExpectations());
 }
+#endif // GTEST_HAS_DEATH_TEST
 
 }  // namespace

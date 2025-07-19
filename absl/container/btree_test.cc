@@ -3076,6 +3076,8 @@ TEST(Btree, MutatedKeysCaught) {
 
 #endif
 
+#if GTEST_HAS_DEATH_TEST
+
 #ifndef _MSC_VER
 // This test crashes on MSVC.
 TEST(Btree, InvalidIteratorUse) {
@@ -3119,6 +3121,8 @@ TEST(Btree, InvalidIteratorUse) {
   }
 }
 #endif
+
+#endif // GTEST_HAS_DEATH_TEST
 
 class OnlyConstructibleByAllocator {
   explicit OnlyConstructibleByAllocator(int i) : i_(i) {}
@@ -3399,6 +3403,8 @@ TEST(Btree, IteratorAddition) {
   }
 }
 
+#if GTEST_HAS_DEATH_TEST
+
 TEST(Btree, IteratorAdditionOutOfBounds) {
   const absl::btree_set<int> set({5});
 
@@ -3416,6 +3422,8 @@ TEST(Btree, IteratorAdditionOutOfBounds) {
     EXPECT_DEATH(backward += -1, "position >= node->start");
   }
 }
+
+#endif
 
 TEST(Btree, IteratorSubtraction) {
   absl::BitGen bitgen;
@@ -3442,6 +3450,8 @@ TEST(Btree, IteratorSubtraction) {
     ASSERT_EQ(it, set.find(end)) << end;
   }
 }
+
+#if GTEST_HAS_DEATH_TEST
 
 TEST(Btree, IteratorSubtractionOutOfBounds) {
   const absl::btree_set<int> set({5});
@@ -3509,6 +3519,8 @@ TEST(Btree, InvalidPointerUse) {
   set.insert(static_cast<int>(slots_per_node));
   EXPECT_DEATH(std::cout << *ptr, "use-after-free");
 }
+
+#endif // GTEST_HAS_DEATH_TEST
 
 template<typename Set>
 void TestBasicFunctionality(Set set) {
