@@ -580,14 +580,21 @@ class ABSL_LOCKABLE ABSL_ATTRIBUTE_WARN_UNUSED Mutex {
 // private:
 //   Mutex mu_;
 // };
-class ABSL_SCOPED_LOCKABLE MutexLock {
+
+// We cannot name this class MutexLock because the ctor declaration would
+// conflict with a macro named MutexLock, which is defined on some
+// platforms. That macro is used as a defensive measure to prevent against
+// inadvertent misuses of MutexLock like "MutexLock(&mu)" rather than
+// "MutexLock l(&mu)".  Hence the typedef trick below.
+
+class ABSL_SCOPED_LOCKABLE GMutexLock {
  public:
   // Constructors
 
   // Calls `mu->Lock()` and returns when that call returns. That is, `*mu` is
   // guaranteed to be locked when this object is constructed. Requires that
   // `mu` be dereferenceable.
-  explicit MutexLock(Mutex* absl_nonnull mu) ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
+  explicit GMutexLock(Mutex* absl_nonnull mu) ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
       : mu_(mu) {
     this->mu_->Lock();
   }
@@ -595,79 +602,85 @@ class ABSL_SCOPED_LOCKABLE MutexLock {
   // Like above, but calls `mu->LockWhen(cond)` instead. That is, in addition to
   // the above, the condition given by `cond` is also guaranteed to hold when
   // this object is constructed.
-  explicit MutexLock(Mutex* absl_nonnull mu, const Condition& cond)
+  explicit GMutexLock(Mutex* absl_nonnull mu, const Condition& cond)
       ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
       : mu_(mu) {
     this->mu_->LockWhen(cond);
   }
 
-  MutexLock(const MutexLock&) = delete;  // NOLINT(runtime/mutex)
-  MutexLock(MutexLock&&) = delete;       // NOLINT(runtime/mutex)
-  MutexLock& operator=(const MutexLock&) = delete;
-  MutexLock& operator=(MutexLock&&) = delete;
+  GMutexLock(const GMutexLock&) = delete;  // NOLINT(runtime/mutex)
+  GMutexLock(GMutexLock&&) = delete;       // NOLINT(runtime/mutex)
+  GMutexLock& operator=(const GMutexLock&) = delete;
+  GMutexLock& operator=(GMutexLock&&) = delete;
 
-  ~MutexLock() ABSL_UNLOCK_FUNCTION() { this->mu_->Unlock(); }
+  ~GMutexLock() ABSL_UNLOCK_FUNCTION() { this->mu_->Unlock(); }
 
  private:
   Mutex* absl_nonnull const mu_;
 };
+
+typedef GMutexLock MutexLock;
 
 // ReaderMutexLock
 //
 // The `ReaderMutexLock` is a helper class, like `MutexLock`, which acquires and
 // releases a shared lock on a `Mutex` via RAII.
-class ABSL_SCOPED_LOCKABLE ReaderMutexLock {
+class ABSL_SCOPED_LOCKABLE GReaderMutexLock {
  public:
-  explicit ReaderMutexLock(Mutex* absl_nonnull mu) ABSL_SHARED_LOCK_FUNCTION(mu)
+  explicit GReaderMutexLock(Mutex* absl_nonnull mu) ABSL_SHARED_LOCK_FUNCTION(mu)
       : mu_(mu) {
     mu->ReaderLock();
   }
 
-  explicit ReaderMutexLock(Mutex* absl_nonnull mu, const Condition& cond)
+  explicit GReaderMutexLock(Mutex* absl_nonnull mu, const Condition& cond)
       ABSL_SHARED_LOCK_FUNCTION(mu)
       : mu_(mu) {
     mu->ReaderLockWhen(cond);
   }
 
-  ReaderMutexLock(const ReaderMutexLock&) = delete;
-  ReaderMutexLock(ReaderMutexLock&&) = delete;
-  ReaderMutexLock& operator=(const ReaderMutexLock&) = delete;
-  ReaderMutexLock& operator=(ReaderMutexLock&&) = delete;
+  GReaderMutexLock(const GReaderMutexLock&) = delete;
+  GReaderMutexLock(GReaderMutexLock&&) = delete;
+  GReaderMutexLock& operator=(const GReaderMutexLock&) = delete;
+  GReaderMutexLock& operator=(GReaderMutexLock&&) = delete;
 
-  ~ReaderMutexLock() ABSL_UNLOCK_FUNCTION() { this->mu_->ReaderUnlock(); }
+  ~GReaderMutexLock() ABSL_UNLOCK_FUNCTION() { this->mu_->ReaderUnlock(); }
 
  private:
   Mutex* absl_nonnull const mu_;
 };
+
+typedef GReaderMutexLock ReaderMutexLock;
 
 // WriterMutexLock
 //
 // The `WriterMutexLock` is a helper class, like `MutexLock`, which acquires and
 // releases a write (exclusive) lock on a `Mutex` via RAII.
-class ABSL_SCOPED_LOCKABLE WriterMutexLock {
+class ABSL_SCOPED_LOCKABLE GWriterMutexLock {
  public:
-  explicit WriterMutexLock(Mutex* absl_nonnull mu)
+  explicit GWriterMutexLock(Mutex* absl_nonnull mu)
       ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
       : mu_(mu) {
     mu->WriterLock();
   }
 
-  explicit WriterMutexLock(Mutex* absl_nonnull mu, const Condition& cond)
+  explicit GWriterMutexLock(Mutex* absl_nonnull mu, const Condition& cond)
       ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
       : mu_(mu) {
     mu->WriterLockWhen(cond);
   }
 
-  WriterMutexLock(const WriterMutexLock&) = delete;
-  WriterMutexLock(WriterMutexLock&&) = delete;
-  WriterMutexLock& operator=(const WriterMutexLock&) = delete;
-  WriterMutexLock& operator=(WriterMutexLock&&) = delete;
+  GWriterMutexLock(const GWriterMutexLock&) = delete;
+  GWriterMutexLock(GWriterMutexLock&&) = delete;
+  GWriterMutexLock& operator=(const GWriterMutexLock&) = delete;
+  GWriterMutexLock& operator=(GWriterMutexLock&&) = delete;
 
-  ~WriterMutexLock() ABSL_UNLOCK_FUNCTION() { this->mu_->WriterUnlock(); }
+  ~GWriterMutexLock() ABSL_UNLOCK_FUNCTION() { this->mu_->WriterUnlock(); }
 
  private:
   Mutex* absl_nonnull const mu_;
 };
+
+typedef GWriterMutexLock WriterMutexLock;
 
 // -----------------------------------------------------------------------------
 // Condition
