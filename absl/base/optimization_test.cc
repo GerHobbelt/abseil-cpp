@@ -134,7 +134,8 @@ TEST(AbslAssume, Compiles) {
   EXPECT_EQ(x, 0);
 
   // https://github.com/abseil/abseil-cpp/issues/1814
-  ABSL_ASSUME(x >= 0), (x >= 0) ? ++x : --x;
+  ABSL_ASSUME(x >= 0);
+  (x >= 0) ? ++x : --x;
   EXPECT_EQ(x, 1);
 }
 
