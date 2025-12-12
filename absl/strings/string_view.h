@@ -59,6 +59,15 @@ ABSL_NAMESPACE_END
 
 #else  // ABSL_USES_STD_STRING_VIEW
 
+#if ABSL_HAVE_ATTRIBUTE(diagnose_if)
+#define ABSL_INTERNAL_DIAGNOSE_IF_NULLPTR(x) \
+  __attribute__((diagnose_if(                \
+      x == nullptr,                          \
+      "null passed to a callee that requires a non-null argument", "error")))
+#else
+#define ABSL_INTERNAL_DIAGNOSE_IF_NULLPTR(x)
+#endif
+
 #if ABSL_HAVE_BUILTIN(__builtin_memcmp) ||        \
     (defined(__GNUC__) && !defined(__clang__)) || \
     (defined(_MSC_VER) && _MSC_VER >= 1928)
@@ -226,7 +235,7 @@ class ABSL_ATTRIBUTE_VIEW string_view {
   // instead (see below).
   // The length check is skipped since it is unnecessary and causes code bloat.
   constexpr string_view(  // NOLINT(runtime/explicit)
-      const char* absl_nonnull str)
+      const char* absl_nonnull str) ABSL_INTERNAL_DIAGNOSE_IF_NULLPTR(str)
       : ptr_(str), length_(str ? StrlenInternal(str) : 0) {
     ABSL_HARDENING_ASSERT(str != nullptr);
   }
@@ -246,6 +255,9 @@ class ABSL_ATTRIBUTE_VIEW string_view {
     ABSL_HARDENING_ASSERT(end >= begin);
   }
 #endif  // ABSL_INTERNAL_CPLUSPLUS_LANG >= 202002L
+
+  // Deleted constructor from std::nullptr_t from C++23.
+  string_view(std::nullptr_t) = delete;
 
   constexpr string_view(const string_view&) noexcept = default;
   string_view& operator=(const string_view&) noexcept = default;
@@ -777,6 +789,7 @@ std::ostream& operator<<(std::ostream& o, string_view piece);
 ABSL_NAMESPACE_END
 }  // namespace absl
 
+#undef ABSL_INTERNAL_DIAGNOSE_IF_NULLPTR
 #undef ABSL_INTERNAL_STRING_VIEW_MEMCMP
 
 #endif  // ABSL_USES_STD_STRING_VIEW

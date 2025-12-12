@@ -42,7 +42,7 @@
 #include <limits>
 #include <string>
 #include <vector>
-#if !HAS_STRPTIME
+#if !defined(HAS_STRPTIME)
 #include <iomanip>
 #include <sstream>
 #endif
@@ -58,7 +58,7 @@ namespace detail {
 
 namespace {
 
-#if !HAS_STRPTIME
+#if !defined(HAS_STRPTIME)
 // Build a strptime() using C++11's std::get_time().
 char* strptime(const char* s, const char* fmt, std::tm* tm) {
   std::istringstream input(s);
