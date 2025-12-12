@@ -100,8 +100,10 @@ cc_library(
         "string_view.h",
     ],
     deps = [
+        ":append_and_overwrite",
         ":charset",
         ":internal",
+        ":resize_and_overwrite",
         ":string_view",
         "//absl/base",
         "//absl/base:config",
@@ -134,6 +136,7 @@ cc_library(
     copts = ABSL_DEFAULT_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
     deps = [
+        ":resize_and_overwrite",
         "//absl/base:config",
         "//absl/base:core_headers",
         "//absl/base:endian",
@@ -150,6 +153,7 @@ cc_library(
     deps = [
         "//absl/base:config",
         "//absl/base:core_headers",
+        "//absl/base:dynamic_annotations",
         "//absl/base:throw_delegate",
     ],
 )
@@ -161,6 +165,34 @@ cc_test(
     linkopts = ABSL_DEFAULT_LINKOPTS,
     deps = [
         ":resize_and_overwrite",
+        "//absl/base:dynamic_annotations",
+        "//absl/log:absl_check",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "append_and_overwrite",
+    hdrs = ["internal/append_and_overwrite.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":resize_and_overwrite",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+        "//absl/base:throw_delegate",
+    ],
+)
+
+cc_test(
+    name = "append_and_overwrite_test",
+    srcs = ["internal/append_and_overwrite_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":append_and_overwrite",
         "//absl/log:absl_check",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
@@ -622,11 +654,13 @@ cc_library(
     copts = ABSL_DEFAULT_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
     deps = [
+        ":append_and_overwrite",
         ":cord_internal",
         ":cordz_info",
         ":cordz_update_scope",
         ":cordz_update_tracker",
         ":internal",
+        ":resize_and_overwrite",
         ":strings",
         "//absl/base:config",
         "//absl/base:core_headers",
@@ -679,6 +713,7 @@ cc_library(
         "//absl/base",
         "//absl/base:config",
         "//absl/base:core_headers",
+        "//absl/base:no_destructor",
         "//absl/base:raw_logging_internal",
         "//absl/container:inlined_vector",
         "//absl/debugging:stacktrace",

@@ -52,6 +52,7 @@
 #include <utility>
 
 #include "absl/base/config.h"
+#include "absl/base/dynamic_annotations.h"
 #include "absl/base/internal/throw_delegate.h"
 #include "absl/base/macros.h"
 #include "absl/base/optimization.h"
@@ -125,24 +126,23 @@ void StringResizeAndOverwriteFallback(T& str, typename T::size_type n, Op op) {
   if (ABSL_PREDICT_FALSE(n > str.max_size())) {
     absl::base_internal::ThrowStdLengthError("absl::StringResizeAndOverwrite");
   }
-  // The callback is allowed to write an arbitrary value to buf+n, but it is
-  // undefined behavior to write anything other than T::value_type{} to
-  // str.data()[n]. Therefore the initial resize uses an extra byte.
-  str.resize(n + 1);
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+  auto old_size = str.size();
+#endif
+  str.resize(n);
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+  if (old_size < n) {
+    ABSL_ANNOTATE_MEMORY_IS_UNINITIALIZED(str.data() + old_size, n - old_size);
+  }
+#endif
   auto new_size = std::move(op)(str.data(), n);
   ABSL_HARDENING_ASSERT(new_size >= 0 && new_size <= n);
+  ABSL_HARDENING_ASSERT(str.data()[n] == typename T::value_type{});
   str.erase(static_cast<typename T::size_type>(new_size));
 }
 
-}  // namespace strings_internal
-
-// Resizes `str` to contain at most `n` characters, using the user-provided
-// operation `op` to modify the possibly indeterminate contents. `op` must
-// return the finalized length of `str`. Note that `op` is allowed write to
-// `data()[n]`, which facilitiates interoperation with functions that write a
-// trailing NUL.
 template <typename T, typename Op>
-void StringResizeAndOverwrite(T& str, typename T::size_type n, Op op) {
+void StringResizeAndOverwriteImpl(T& str, typename T::size_type n, Op op) {
 #ifdef ABSL_INTERNAL_HAS_RESIZE_AND_OVERWRITE
   str.resize_and_overwrite(n, std::move(op));
 #else
@@ -159,8 +159,30 @@ void StringResizeAndOverwrite(T& str, typename T::size_type n, Op op) {
   } else if constexpr (strings_internal::has_Resize_and_overwrite<T>::value) {
     str._Resize_and_overwrite(n, std::move(op));
   } else {
-    strings_internal::StringResizeAndOverwriteFallback(str, n, op);
+    strings_internal::StringResizeAndOverwriteFallback(str, n, std::move(op));
   }
+#endif
+}
+
+}  // namespace strings_internal
+
+// Resizes `str` to contain at most `n` characters, using the user-provided
+// operation `op` to modify the possibly indeterminate contents. `op` must
+// return the finalized length of `str`.
+//
+// Invalidates all iterators, pointers, and references into `str`, regardless
+// of whether reallocation occurs.
+//
+// `op(value_type* buf, size_t buf_size)` is allowed to write `value_type{}` to
+// `buf[buf_size]`, which facilitiates interoperation with functions that write
+// a trailing NUL. Please note that this requirement is more strict than
+// `basic_string::resize_and_overwrite()`, which allows writing an abitrary
+// value to `buf[buf_size]`.
+template <typename T, typename Op>
+void StringResizeAndOverwrite(T& str, typename T::size_type n, Op op) {
+  strings_internal::StringResizeAndOverwriteImpl(str, n, std::move(op));
+#if defined(ABSL_HAVE_MEMORY_SANITIZER)
+  __msan_check_mem_is_initialized(str.data(), str.size());
 #endif
 }
 

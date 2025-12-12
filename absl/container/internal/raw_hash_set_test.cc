@@ -2643,7 +2643,7 @@ std::vector<int> OrderOfIteration(const T& t) {
 // in seed.
 void GenerateIrrelevantSeeds(int cnt) {
   for (int i = cnt % 17; i > 0; --i) {
-    NextSeed();
+    HashtableSize::NextSeed();
   }
 }
 
