@@ -53,7 +53,6 @@
 #include "absl/algorithm/algorithm.h"
 #include "absl/base/config.h"
 #include "absl/base/macros.h"
-#include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
 
 namespace absl {
@@ -566,7 +565,8 @@ c_copy_backward(const C& src, BidirectionalIterator dest) {
 // Container-based version of the <algorithm> `std::move()` function to move
 // a container's elements into an iterator.
 template <typename C, typename OutputIterator>
-OutputIterator c_move(C&& src, OutputIterator dest) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 OutputIterator c_move(C&& src,
+                                                          OutputIterator dest) {
   return std::move(container_algorithm_internal::c_begin(src),
                    container_algorithm_internal::c_end(src), dest);
 }
@@ -576,7 +576,8 @@ OutputIterator c_move(C&& src, OutputIterator dest) {
 // Container-based version of the <algorithm> `std::move_backward()` function to
 // move a container's elements into an iterator in reverse order.
 template <typename C, typename BidirectionalIterator>
-BidirectionalIterator c_move_backward(C&& src, BidirectionalIterator dest) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 BidirectionalIterator
+c_move_backward(C&& src, BidirectionalIterator dest) {
   return std::move_backward(container_algorithm_internal::c_begin(src),
                             container_algorithm_internal::c_end(src), dest);
 }
@@ -587,7 +588,9 @@ BidirectionalIterator c_move_backward(C&& src, BidirectionalIterator dest) {
 // swap a container's elements with another container's elements. Swaps the
 // first N elements of `c1` and `c2`, where N = min(size(c1), size(c2)).
 template <typename C1, typename C2>
-container_algorithm_internal::ContainerIter<C2> c_swap_ranges(C1& c1, C2& c2) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20
+    container_algorithm_internal::ContainerIter<C2>
+    c_swap_ranges(C1& c1, C2& c2) {
   auto first1 = container_algorithm_internal::c_begin(c1);
   auto last1 = container_algorithm_internal::c_end(c1);
   auto first2 = container_algorithm_internal::c_begin(c2);
@@ -619,9 +622,9 @@ ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 OutputIterator c_transform(
 // where N = min(size(c1), size(c2)).
 template <typename InputSequence1, typename InputSequence2,
           typename OutputIterator, typename BinaryOp>
-OutputIterator c_transform(const InputSequence1& input1,
-                           const InputSequence2& input2, OutputIterator output,
-                           BinaryOp&& binary_op) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 OutputIterator
+c_transform(const InputSequence1& input1, const InputSequence2& input2,
+            OutputIterator output, BinaryOp&& binary_op) {
   auto first1 = container_algorithm_internal::c_begin(input1);
   auto last1 = container_algorithm_internal::c_end(input1);
   auto first2 = container_algorithm_internal::c_begin(input2);
@@ -1338,8 +1341,8 @@ c_set_intersection(const C1& c1, const C2& c2, OutputIterator output) {
   // In debug builds, ensure that both containers are sorted with respect to the
   // default comparator. std::set_intersection requires the containers be sorted
   // using operator<.
-  assert(absl::c_is_sorted(c1));
-  assert(absl::c_is_sorted(c2));
+  ABSL_ASSERT(absl::c_is_sorted(c1));
+  ABSL_ASSERT(absl::c_is_sorted(c2));
   return std::set_intersection(container_algorithm_internal::c_begin(c1),
                                container_algorithm_internal::c_end(c1),
                                container_algorithm_internal::c_begin(c2),
@@ -1360,8 +1363,8 @@ ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 OutputIterator c_set_intersection(
   // In debug builds, ensure that both containers are sorted with respect to the
   // default comparator. std::set_intersection requires the containers be sorted
   // using the same comparator.
-  assert(absl::c_is_sorted(c1, comp));
-  assert(absl::c_is_sorted(c2, comp));
+  ABSL_ASSERT(absl::c_is_sorted(c1, comp));
+  ABSL_ASSERT(absl::c_is_sorted(c2, comp));
   return std::set_intersection(container_algorithm_internal::c_begin(c1),
                                container_algorithm_internal::c_end(c1),
                                container_algorithm_internal::c_begin(c2),

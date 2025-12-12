@@ -1229,9 +1229,8 @@ static GraphId GetGraphIdLocked(Mutex* mu)
 }
 
 static GraphId GetGraphId(Mutex* mu) ABSL_LOCKS_EXCLUDED(deadlock_graph_mu) {
-  deadlock_graph_mu.lock();
+  base_internal::SpinLockHolder l(deadlock_graph_mu);
   GraphId id = GetGraphIdLocked(mu);
-  deadlock_graph_mu.unlock();
   return id;
 }
 
@@ -1392,7 +1391,7 @@ static GraphId DeadlockCheck(Mutex* mu) {
 
   SynchLocksHeld* all_locks = Synch_GetAllLocks();
 
-  absl::base_internal::SpinLockHolder lock(&deadlock_graph_mu);
+  absl::base_internal::SpinLockHolder lock(deadlock_graph_mu);
   const GraphId mu_id = GetGraphIdLocked(mu);
 
   if (all_locks->n == 0) {
@@ -2767,7 +2766,7 @@ void CondVar::SignalAll() {
 void ReleasableMutexLock::Release() {
   ABSL_RAW_CHECK(this->mu_ != nullptr,
                  "ReleasableMutexLock::Release may only be called once");
-  this->mu_->Unlock();
+  this->mu_->unlock();
   this->mu_ = nullptr;
 }
 

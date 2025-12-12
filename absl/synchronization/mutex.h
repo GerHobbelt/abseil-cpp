@@ -293,12 +293,12 @@ class ABSL_LOCKABLE ABSL_ATTRIBUTE_WARN_UNUSED Mutex {
   // These methods may be used (along with the complementary `Reader*()`
   // methods) to distinguish simple exclusive `Mutex` usage (`Lock()`,
   // etc.) from reader/writer lock usage.
-  void WriterLock() ABSL_EXCLUSIVE_LOCK_FUNCTION() { this->lock(); }
+  void WriterLock() ABSL_EXCLUSIVE_LOCK_FUNCTION() { lock(); }
 
-  void WriterUnlock() ABSL_UNLOCK_FUNCTION() { this->unlock(); }
+  void WriterUnlock() ABSL_UNLOCK_FUNCTION() { unlock(); }
 
   [[nodiscard]] bool WriterTryLock() ABSL_EXCLUSIVE_TRYLOCK_FUNCTION(true) {
-    return this->try_lock();
+    return try_lock();
   }
 
   // ---------------------------------------------------------------------------
@@ -587,7 +587,7 @@ class ABSL_LOCKABLE ABSL_ATTRIBUTE_WARN_UNUSED Mutex {
 // Class Foo {
 //  public:
 //   Foo::Bar* Baz() {
-//     MutexLock lock(&mu_);
+//     MutexLock lock(mu_);
 //     ...
 //     return bar;
 //   }
@@ -606,32 +606,42 @@ class ABSL_SCOPED_LOCKABLE GMutexLock {
  public:
   // Constructors
 
-  // Calls `mu->Lock()` and returns when that call returns. That is, `*mu` is
+  // Calls `mu.lock()` and returns when that call returns. That is, `mu` is
+  // guaranteed to be locked when this object is constructed.
+  explicit MutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(this))
+      ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
+      : mu_(mu) {
+    this->mu_.lock();
+  }
+
+  // Calls `mu->lock()` and returns when that call returns. That is, `*mu` is
   // guaranteed to be locked when this object is constructed. Requires that
   // `mu` be dereferenceable.
   explicit GMutexLock(Mutex* absl_nonnull mu) ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
-      : mu_(mu) {
-    this->mu_->Lock();
-  }
+      : MutexLock(*mu) {}
 
-  // Like above, but calls `mu->LockWhen(cond)` instead. That is, in addition to
+  // Like above, but calls `mu.LockWhen(cond)` instead. That is, in addition to
   // the above, the condition given by `cond` is also guaranteed to hold when
   // this object is constructed.
+  explicit GMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(this),
+                     const Condition& cond) ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
+      : mu_(mu) {
+    this->mu_.LockWhen(cond);
+  }
+
   explicit GMutexLock(Mutex* absl_nonnull mu, const Condition& cond)
       ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
-      : mu_(mu) {
-    this->mu_->LockWhen(cond);
-  }
+      : MutexLock(*mu, cond) {}
 
   GMutexLock(const GMutexLock&) = delete;  // NOLINT(runtime/mutex)
   GMutexLock(GMutexLock&&) = delete;       // NOLINT(runtime/mutex)
   GMutexLock& operator=(const GMutexLock&) = delete;
   GMutexLock& operator=(GMutexLock&&) = delete;
 
-  ~GMutexLock() ABSL_UNLOCK_FUNCTION() { this->mu_->Unlock(); }
+  ~GMutexLock() ABSL_UNLOCK_FUNCTION() { this->mu_.unlock(); }
 
  private:
-  Mutex* absl_nonnull const mu_;
+  Mutex& mu_;
 };
 
 typedef GMutexLock MutexLock;
@@ -642,26 +652,34 @@ typedef GMutexLock MutexLock;
 // releases a shared lock on a `Mutex` via RAII.
 class ABSL_SCOPED_LOCKABLE GReaderMutexLock {
  public:
-  explicit GReaderMutexLock(Mutex* absl_nonnull mu) ABSL_SHARED_LOCK_FUNCTION(mu)
+  explicit ReaderMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(this))
+      ABSL_SHARED_LOCK_FUNCTION(mu)
       : mu_(mu) {
-    mu->ReaderLock();
+    mu.lock_shared();
+  }
+
+  explicit GReaderMutexLock(Mutex* absl_nonnull mu) ABSL_SHARED_LOCK_FUNCTION(mu)
+      : ReaderMutexLock(*mu) {}
+
+  explicit ReaderMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(this),
+                           const Condition& cond) ABSL_SHARED_LOCK_FUNCTION(mu)
+      : mu_(mu) {
+    mu.ReaderLockWhen(cond);
   }
 
   explicit GReaderMutexLock(Mutex* absl_nonnull mu, const Condition& cond)
       ABSL_SHARED_LOCK_FUNCTION(mu)
-      : mu_(mu) {
-    mu->ReaderLockWhen(cond);
-  }
+      : ReaderMutexLock(*mu, cond) {}
 
   GReaderMutexLock(const GReaderMutexLock&) = delete;
   GReaderMutexLock(GReaderMutexLock&&) = delete;
   GReaderMutexLock& operator=(const GReaderMutexLock&) = delete;
   GReaderMutexLock& operator=(GReaderMutexLock&&) = delete;
 
-  ~GReaderMutexLock() ABSL_UNLOCK_FUNCTION() { this->mu_->ReaderUnlock(); }
+  ~GReaderMutexLock() ABSL_UNLOCK_FUNCTION() { this->mu_.unlock_shared(); }
 
  private:
-  Mutex* absl_nonnull const mu_;
+  Mutex& mu_;
 };
 
 typedef GReaderMutexLock ReaderMutexLock;
@@ -672,27 +690,36 @@ typedef GReaderMutexLock ReaderMutexLock;
 // releases a write (exclusive) lock on a `Mutex` via RAII.
 class ABSL_SCOPED_LOCKABLE GWriterMutexLock {
  public:
-  explicit GWriterMutexLock(Mutex* absl_nonnull mu)
+  explicit GWriterMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(this))
       ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
       : mu_(mu) {
-    mu->WriterLock();
+    mu.lock();
+  }
+
+  explicit GWriterMutexLock(Mutex* absl_nonnull mu)
+      ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
+      : GWriterMutexLock(*mu) {}
+
+  explicit GWriterMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(this),
+                           const Condition& cond)
+      ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
+      : mu_(mu) {
+    mu.WriterLockWhen(cond);
   }
 
   explicit GWriterMutexLock(Mutex* absl_nonnull mu, const Condition& cond)
       ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
-      : mu_(mu) {
-    mu->WriterLockWhen(cond);
-  }
+      : WriterMutexLock(*mu, cond) {}
 
   GWriterMutexLock(const GWriterMutexLock&) = delete;
   GWriterMutexLock(GWriterMutexLock&&) = delete;
   GWriterMutexLock& operator=(const GWriterMutexLock&) = delete;
   GWriterMutexLock& operator=(GWriterMutexLock&&) = delete;
 
-  ~GWriterMutexLock() ABSL_UNLOCK_FUNCTION() { this->mu_->WriterUnlock(); }
+  ~GWriterMutexLock() ABSL_UNLOCK_FUNCTION() { this->mu_.unlock(); }
 
  private:
-  Mutex* absl_nonnull const mu_;
+  Mutex& mu_;
 };
 
 typedef GWriterMutexLock WriterMutexLock;
@@ -741,7 +768,7 @@ typedef GWriterMutexLock WriterMutexLock;
 // Example using a scope guard:
 //
 //   {
-//     MutexLock lock(&mu_, count_is_zero);
+//     MutexLock lock(mu_, count_is_zero);
 //     // ...
 //   }
 //
@@ -1047,7 +1074,7 @@ class ABSL_SCOPED_LOCKABLE MutexLockMaybe {
       ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
       : mu_(mu) {
     if (this->mu_ != nullptr) {
-      this->mu_->Lock();
+      this->mu_->lock();
     }
   }
 
@@ -1061,7 +1088,7 @@ class ABSL_SCOPED_LOCKABLE MutexLockMaybe {
 
   ~MutexLockMaybe() ABSL_UNLOCK_FUNCTION() {
     if (this->mu_ != nullptr) {
-      this->mu_->Unlock();
+      this->mu_->unlock();
     }
   }
 
@@ -1079,21 +1106,30 @@ class ABSL_SCOPED_LOCKABLE MutexLockMaybe {
 // mutex before destruction. `Release()` may be called at most once.
 class ABSL_SCOPED_LOCKABLE ReleasableMutexLock {
  public:
+  explicit ReleasableMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(
+      this)) ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
+      : mu_(&mu) {
+    this->mu_->lock();
+  }
+
   explicit ReleasableMutexLock(Mutex* absl_nonnull mu)
       ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
-      : mu_(mu) {
-    this->mu_->Lock();
+      : ReleasableMutexLock(*mu) {}
+
+  explicit ReleasableMutexLock(
+      Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(this),
+      const Condition& cond) ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
+      : mu_(&mu) {
+    this->mu_->LockWhen(cond);
   }
 
   explicit ReleasableMutexLock(Mutex* absl_nonnull mu, const Condition& cond)
       ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
-      : mu_(mu) {
-    this->mu_->LockWhen(cond);
-  }
+      : ReleasableMutexLock(*mu, cond) {}
 
   ~ReleasableMutexLock() ABSL_UNLOCK_FUNCTION() {
     if (this->mu_ != nullptr) {
-      this->mu_->Unlock();
+      this->mu_->unlock();
     }
   }
 
