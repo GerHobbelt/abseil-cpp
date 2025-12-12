@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include "absl/profiling/benchmark.h"
-#include "absl/time/civil_time.h"
 
 #include <cstddef>
 #include <numeric>
@@ -21,6 +20,7 @@
 #include <vector>
 
 #include "absl/hash/hash.h"
+#include "absl/time/civil_time.h"
 
 namespace {
 
