@@ -23,6 +23,8 @@
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 
+#undef new
+
 namespace {
 
 TEST(RawLoggingCompilationTest, Log) {
