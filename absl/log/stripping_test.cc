@@ -64,7 +64,6 @@
 static volatile bool kReallyDie = false;
 
 namespace {
-using ::testing::_;
 using ::testing::Eq;
 using ::testing::NotNull;
 
