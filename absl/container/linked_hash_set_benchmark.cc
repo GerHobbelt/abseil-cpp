@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#define BENCHMARK_FAMILY_ID      "linked_hash_set"
+
 #include <algorithm>
 #include <cstddef>
 #include <string>
