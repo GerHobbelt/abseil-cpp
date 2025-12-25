@@ -56,7 +56,7 @@ using ::absl::cordrep_testing::CreateRandomString;
 using ::absl::cordrep_testing::MakeExternal;
 using ::absl::cordrep_testing::MakeFlat;
 using ::absl::cordrep_testing::MakeSubstring;
-using ::testing::_;
+using ::testing::_anything_;
 using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::Conditional;
@@ -868,7 +868,7 @@ TEST(CordRepBtreeTest, SubTreeOnExistingSubstring) {
   ASSERT_THAT(result->tag, Eq(BTREE));
   CordRep::Unref(leaf);
   leaf = result->btree();
-  ASSERT_THAT(leaf->Edges(), ElementsAre(_, IsSubstring(0u, 990u)));
+  ASSERT_THAT(leaf->Edges(), ElementsAre(_anything_, IsSubstring(0u, 990u)));
   EXPECT_THAT(leaf->Edges()[1]->substring()->child, Eq(flat));
 
   // Verify substring of substring.

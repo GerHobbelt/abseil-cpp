@@ -38,6 +38,8 @@ namespace {
 
 using ::absl::test_internal::CopyableMovableInstance;
 using ::absl::test_internal::InstanceTracker;
+
+using ::testing::_anything_;
 using ::testing::ElementsAre;
 using ::testing::Gt;
 using ::testing::Pair;
@@ -97,10 +99,10 @@ TEST(Memory, AllocateDeallocateMatchType) {
   TypeCountingAllocator<int> alloc;
   void* mem = Allocate<1>(&alloc, 1);
   // Verify that it was allocated
-  EXPECT_THAT(AllocationMap(), ElementsAre(Pair(_, Gt(0))));
+  EXPECT_THAT(AllocationMap(), ElementsAre(Pair(_anything_, Gt(0))));
   Deallocate<1>(&alloc, mem, 1);
   // Verify that the deallocation matched.
-  EXPECT_THAT(AllocationMap(), ElementsAre(Pair(_, 0)));
+  EXPECT_THAT(AllocationMap(), ElementsAre(Pair(_anything_, 0)));
 }
 
 #endif // ABSL_INTERNAL_HAS_RTTI

@@ -45,6 +45,7 @@ ABSL_NAMESPACE_BEGIN
 namespace container_internal {
 namespace {
 
+using ::testing::_anything_;
 using ::testing::IsEmpty;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
@@ -91,7 +92,6 @@ TEST(FlatHashMap, Cord) {
   set[cord] = 10;
   EXPECT_EQ(set[cord], 10);
 }
-
 
 TEST(FlatHashMap, StandardLayout) {
   struct Int {
@@ -162,7 +162,7 @@ TEST(FlatHashMap, IteratesMsan) {
     absl::flat_hash_map<int, balast> t;
     for (int j = 0; j < 100; ++j) {
       t[j];
-      for (const auto& p : t) EXPECT_THAT(p, Pair(_, _));
+      for (const auto& p : t) EXPECT_THAT(p, Pair(_anything_, _anything_));
     }
     garbage.push_back(std::move(t));
   }

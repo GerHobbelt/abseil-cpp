@@ -31,7 +31,7 @@
 
 namespace {
 
-using ::testing::_;
+using ::testing::_anything_;
 using ::testing::Ne;
 using ::testing::Return;
 
@@ -286,14 +286,14 @@ TEST(TimesModifier, Times0) {
 }
 
 TEST(AnythingMatcher, MatchesAnyArgument) {
-  using testing::_;
+  using testing::_anything_;
 
   {
     absl::MockingBitGen gen;
-    ON_CALL(absl::MockUniform<int>(), Call(absl::IntervalClosed, gen, _, 1000))
+    ON_CALL(absl::MockUniform<int>(), Call(absl::IntervalClosed, gen, _anything_, 1000))
         .WillByDefault(Return(11));
     ON_CALL(absl::MockUniform<int>(),
-            Call(absl::IntervalClosed, gen, _, Ne(1000)))
+            Call(absl::IntervalClosed, gen, _anything_, Ne(1000)))
         .WillByDefault(Return(99));
 
     EXPECT_EQ(absl::Uniform(absl::IntervalClosed, gen, 10, 1000000), 99);
@@ -302,9 +302,9 @@ TEST(AnythingMatcher, MatchesAnyArgument) {
 
   {
     absl::MockingBitGen gen;
-    ON_CALL(absl::MockUniform<int>(), Call(gen, 1, _))
+    ON_CALL(absl::MockUniform<int>(), Call(gen, 1, _anything_))
         .WillByDefault(Return(25));
-    ON_CALL(absl::MockUniform<int>(), Call(gen, Ne(1), _))
+    ON_CALL(absl::MockUniform<int>(), Call(gen, Ne(1), _anything_))
         .WillByDefault(Return(99));
     EXPECT_EQ(absl::Uniform(gen, 3, 1000000), 99);
     EXPECT_EQ(absl::Uniform(gen, 1, 1000000), 25);
@@ -312,7 +312,7 @@ TEST(AnythingMatcher, MatchesAnyArgument) {
 
   {
     absl::MockingBitGen gen;
-    ON_CALL(absl::MockUniform<int>(), Call(gen, _, _))
+    ON_CALL(absl::MockUniform<int>(), Call(gen, _anything_, _anything_))
         .WillByDefault(Return(145));
     EXPECT_EQ(absl::Uniform(gen, 1, 1000), 145);
     EXPECT_EQ(absl::Uniform(gen, 10, 1000), 145);
@@ -321,11 +321,11 @@ TEST(AnythingMatcher, MatchesAnyArgument) {
 }
 
 TEST(AnythingMatcher, WithWillByDefault) {
-  using testing::_;
+  using testing::_anything_;
   absl::MockingBitGen gen;
   std::vector<int> values = {11, 22, 33, 44, 55, 66, 77, 88, 99, 1010};
 
-  ON_CALL(absl::MockUniform<size_t>(), Call(gen, 0, _))
+  ON_CALL(absl::MockUniform<size_t>(), Call(gen, 0, _anything_))
       .WillByDefault(Return(0));
   for (int i = 0; i < 100; i++) {
     auto& elem = values[absl::Uniform(gen, 0u, values.size())];
@@ -334,10 +334,10 @@ TEST(AnythingMatcher, WithWillByDefault) {
 }
 
 TEST(BasicMocking, WillByDefaultWithArgs) {
-  using testing::_;
+  using testing::_anything_;
 
   absl::MockingBitGen gen;
-  ON_CALL(absl::MockPoisson<int>(), Call(gen, _))
+  ON_CALL(absl::MockPoisson<int>(), Call(gen, _anything_))
       .WillByDefault([](double lambda) {
         return static_cast<int>(std::rint(lambda * 10));
       });
@@ -359,9 +359,9 @@ TEST(MockingBitGen, InSequenceSucceedsInOrder) {
 
 TEST(MockingBitGen, NiceMock) {
   ::testing::NiceMock<absl::MockingBitGen> gen;
-  ON_CALL(absl::MockUniform<int>(), Call(gen, _, _)).WillByDefault(Return(145));
+  ON_CALL(absl::MockUniform<int>(), Call(gen, _anything_, _anything_)).WillByDefault(Return(145));
 
-  ON_CALL(absl::MockPoisson<int>(), Call(gen, _)).WillByDefault(Return(3));
+  ON_CALL(absl::MockPoisson<int>(), Call(gen, _anything_)).WillByDefault(Return(3));
 
   EXPECT_EQ(absl::Uniform(gen, 1, 1000), 145);
   EXPECT_EQ(absl::Uniform(gen, 10, 1000), 145);
@@ -373,8 +373,8 @@ TEST(MockingBitGen, NaggyMock) {
   // that ON_CALL can be installed. Anything else requires log inspection.
   ::testing::NaggyMock<absl::MockingBitGen> gen;
 
-  ON_CALL(absl::MockUniform<int>(), Call(gen, _, _)).WillByDefault(Return(145));
-  ON_CALL(absl::MockPoisson<int>(), Call(gen, _)).WillByDefault(Return(3));
+  ON_CALL(absl::MockUniform<int>(), Call(gen, _anything_, _anything_)).WillByDefault(Return(145));
+  ON_CALL(absl::MockPoisson<int>(), Call(gen, _anything_)).WillByDefault(Return(3));
 
   EXPECT_EQ(absl::Uniform(gen, 1, 1000), 145);
 }
@@ -383,7 +383,7 @@ TEST(MockingBitGen, StrictMock_NotEnough) {
   EXPECT_NONFATAL_FAILURE(
       []() {
         ::testing::StrictMock<absl::MockingBitGen> gen;
-        EXPECT_CALL(absl::MockUniform<int>(), Call(gen, _, _))
+        EXPECT_CALL(absl::MockUniform<int>(), Call(gen, _anything_, _anything_))
             .WillOnce(Return(145));
       }(),
       "unsatisfied and active");
@@ -392,7 +392,7 @@ TEST(MockingBitGen, StrictMock_NotEnough) {
 TEST(MockingBitGen, StrictMock_TooMany) {
   ::testing::StrictMock<absl::MockingBitGen> gen;
 
-  EXPECT_CALL(absl::MockUniform<int>(), Call(gen, _, _)).WillOnce(Return(145));
+  EXPECT_CALL(absl::MockUniform<int>(), Call(gen, _anything_, _anything_)).WillOnce(Return(145));
   EXPECT_EQ(absl::Uniform(gen, 1, 1000), 145);
 
   EXPECT_NONFATAL_FAILURE(

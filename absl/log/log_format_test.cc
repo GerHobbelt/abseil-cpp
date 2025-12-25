@@ -47,7 +47,7 @@ using ::absl::log_internal::MatchesOstream;
 using ::absl::log_internal::RawEncodedMessage;
 using ::absl::log_internal::TextMessage;
 using ::absl::log_internal::TextPrefix;
-using ::testing::_;
+using ::testing::_anything_;
 using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::Each;
@@ -1160,7 +1160,7 @@ TYPED_TEST(WideStringLogFormatTest, EmptyWideString) {
 TEST(WideStringLogFormatTest, MixedNarrowAndWideStrings) {
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(test_sink, Log(_, _, "1234"));
+  EXPECT_CALL(test_sink, Log(_anything_, _anything_, "1234"));
 
   test_sink.StartCapturingLogs();
   LOG(INFO) << "1" << L"2" << "3" << L"4";

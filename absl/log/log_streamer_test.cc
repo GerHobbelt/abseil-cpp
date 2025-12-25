@@ -47,7 +47,7 @@ using ::absl::log_internal::Stacktrace;
 using ::absl::log_internal::TextMessage;
 using ::absl::log_internal::ThreadID;
 using ::absl::log_internal::Timestamp;
-using ::testing::_;
+using ::testing::_anything_;
 using ::testing::AnyNumber;
 using ::testing::Eq;
 using ::testing::HasSubstr;

@@ -85,7 +85,7 @@ namespace log_internal {
 
 ::testing::Matcher<const absl::LogEntry&> RawEncodedMessage(
     const ::testing::Matcher<absl::string_view>& raw_encoded_message);
-#define ENCODED_MESSAGE(message_matcher) ::testing::_
+#define ENCODED_MESSAGE(message_matcher) ::testing::_anything_
 
 }  // namespace log_internal
 ABSL_NAMESPACE_END

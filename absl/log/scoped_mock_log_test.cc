@@ -35,7 +35,7 @@
 
 namespace {
 
-using ::testing::_;
+using ::testing::_anything_;
 using ::testing::AnyNumber;
 using ::testing::Eq;
 using ::testing::HasSubstr;
@@ -86,8 +86,8 @@ TEST(ScopedMockLogTest, LogMockCatchAndMatchStrictExpectations) {
   InSequence s;
   EXPECT_CALL(log,
               Log(absl::LogSeverity::kWarning, HasSubstr(__FILE__), "Danger."));
-  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _, "Working...")).Times(2);
-  EXPECT_CALL(log, Log(absl::LogSeverity::kError, _, "Bad!!"));
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _anything_, "Working...")).Times(2);
+  EXPECT_CALL(log, Log(absl::LogSeverity::kError, _anything_, "Bad!!"));
 
   log.StartCapturingLogs();
   LOG(WARNING) << "Danger.";
@@ -122,8 +122,8 @@ TEST(ScopedMockLogTest, ScopedMockLogCanBeNice) {
   InSequence s;
   EXPECT_CALL(log,
               Log(absl::LogSeverity::kWarning, HasSubstr(__FILE__), "Danger."));
-  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _, "Working...")).Times(2);
-  EXPECT_CALL(log, Log(absl::LogSeverity::kError, _, "Bad!!"));
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _anything_, "Working...")).Times(2);
+  EXPECT_CALL(log, Log(absl::LogSeverity::kError, _anything_, "Bad!!"));
 
   log.StartCapturingLogs();
 
@@ -168,7 +168,7 @@ TEST(ScopedMockLogTest, RejectsUnexpectedLogs) {
       {
         absl::ScopedMockLog log(absl::MockLogDefault::kDisallowUnexpected);
         // Any INFO and WARNING messages are permitted.
-        EXPECT_CALL(log, Log(Lt(absl::LogSeverity::kError), _, _))
+        EXPECT_CALL(log, Log(Lt(absl::LogSeverity::kError), _anything_, _anything_))
             .Times(AnyNumber());
         log.StartCapturingLogs();
         LOG(INFO) << "Ignored";
@@ -188,7 +188,7 @@ TEST(ScopedMockLogTest, CapturesLogsAfterStartCapturingLogs) {
   LOG(WARNING) << "Ignored warning";
   LOG(ERROR) << "Ignored error";
 
-  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _, "Expected info"));
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _anything_, "Expected info"));
   log.StartCapturingLogs();
 
   // Only this LOG will be seen by the ScopedMockLog.
@@ -197,7 +197,7 @@ TEST(ScopedMockLogTest, CapturesLogsAfterStartCapturingLogs) {
 
 TEST(ScopedMockLogTest, DoesNotCaptureLogsAfterStopCapturingLogs) {
   absl::ScopedMockLog log;
-  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _, "Expected info"));
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _anything_, "Expected info"));
 
   log.StartCapturingLogs();
 
@@ -246,7 +246,7 @@ TEST(ScopedMockLogTest, NoSequenceWithMultipleThreads) {
   absl::ScopedMockLog log;
 
   absl::Barrier barrier(2);
-  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _, _))
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _anything_, _anything_))
       .Times(2)
       .WillRepeatedly([&barrier]() { barrier.Block(); });
 
@@ -284,8 +284,8 @@ TEST(ScopedMockLogTsanTest,
 TEST(ScopedMockLogTest, AsLocalSink) {
   absl::ScopedMockLog log(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(log, Log(_, _, "two"));
-  EXPECT_CALL(log, Log(_, _, "three"));
+  EXPECT_CALL(log, Log(_anything_, _anything_, "two"));
+  EXPECT_CALL(log, Log(_anything_, _anything_, "three"));
 
   LOG(INFO) << "one";
   LOG(INFO).ToSinkOnly(&log.UseAsLocalSink()) << "two";

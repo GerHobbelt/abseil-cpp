@@ -59,6 +59,7 @@ TEST(RawLoggingCompilationTest, PassingDebugCheck) {
 // are verifying process death when EXPECT_DEATH works for a platform.
 const char kExpectedDeathOutput[] = "";
 
+#if !defined(BUILD_MONOLITHIC)
 #if !defined(NDEBUG)  // if debug build
 TEST(RawLoggingDeathTest, FailingDebugCheck) {
   EXPECT_DEATH_IF_SUPPORTED(ABSL_RAW_DCHECK(1 == 0, "explanation"),
@@ -75,6 +76,7 @@ TEST(RawLoggingDeathTest, LogFatal) {
   EXPECT_DEATH_IF_SUPPORTED(ABSL_RAW_LOG(FATAL, "my dog has fleas"),
                             kExpectedDeathOutput);
 }
+#endif
 
 TEST(InternalLog, CompilationTest) {
   ABSL_INTERNAL_LOG(INFO, "Internal Log");
@@ -87,6 +89,7 @@ TEST(InternalLog, CompilationTest) {
   ABSL_INTERNAL_LOG(INFO, absl::StrCat("Internal log ", 3, " + ", d));
 }
 
+#if !defined(BUILD_MONOLITHIC)
 TEST(InternalLogDeathTest, FailingCheck) {
   EXPECT_DEATH_IF_SUPPORTED(ABSL_INTERNAL_CHECK(1 == 0, "explanation"),
                             kExpectedDeathOutput);
@@ -96,5 +99,6 @@ TEST(InternalLogDeathTest, LogFatal) {
   EXPECT_DEATH_IF_SUPPORTED(ABSL_INTERNAL_LOG(FATAL, "my dog has fleas"),
                             kExpectedDeathOutput);
 }
+#endif
 
 }  // namespace

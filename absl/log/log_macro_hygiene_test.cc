@@ -21,7 +21,7 @@
 #include "absl/log/scoped_mock_log.h"
 
 namespace {
-using ::testing::_;
+using ::testing::_anything_;
 using ::testing::Eq;
 
 namespace not_absl {
@@ -63,9 +63,9 @@ TEST(LogHygieneTest, WorksForQualifiedSeverity) {
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
 
   ::testing::InSequence seq;
-  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kInfo, _, "To INFO"));
-  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kWarning, _, "To WARNING"));
-  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kError, _, "To ERROR"));
+  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kInfo, _anything_, "To INFO"));
+  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kWarning, _anything_, "To WARNING"));
+  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kError, _anything_, "To ERROR"));
 
   test_sink.StartCapturingLogs();
   // Note that LOG(LEVEL()) expects the severity as a run-time
@@ -80,7 +80,7 @@ TEST(LogHygieneTest, WorksWithAlternativeINFOSymbol) {
   const double INFO ABSL_ATTRIBUTE_UNUSED = 7.77;
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kInfo, _, "Hello world"));
+  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kInfo, _anything_, "Hello world"));
 
   test_sink.StartCapturingLogs();
   LOG(INFO) << "Hello world";
@@ -90,7 +90,7 @@ TEST(LogHygieneTest, WorksWithAlternativeWARNINGSymbol) {
   const double WARNING ABSL_ATTRIBUTE_UNUSED = 7.77;
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kWarning, _, "Hello world"));
+  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kWarning, _anything_, "Hello world"));
 
   test_sink.StartCapturingLogs();
   LOG(WARNING) << "Hello world";
@@ -100,7 +100,7 @@ TEST(LogHygieneTest, WorksWithAlternativeERRORSymbol) {
   const double ERROR ABSL_ATTRIBUTE_UNUSED = 7.77;
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kError, _, "Hello world"));
+  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kError, _anything_, "Hello world"));
 
   test_sink.StartCapturingLogs();
   LOG(ERROR) << "Hello world";
@@ -110,7 +110,7 @@ TEST(LogHygieneTest, WorksWithAlternativeLEVELSymbol) {
   const double LEVEL ABSL_ATTRIBUTE_UNUSED = 7.77;
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kError, _, "Hello world"));
+  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kError, _anything_, "Hello world"));
 
   test_sink.StartCapturingLogs();
   LOG(LEVEL(absl::LogSeverity::kError)) << "Hello world";
@@ -126,7 +126,7 @@ constexpr bool IsOptimized = true;
 TEST(LogHygieneTest, WorksWithINFODefined) {
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kInfo, _, "Hello world"))
+  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kInfo, _anything_, "Hello world"))
       .Times(2 + (IsOptimized ? 2 : 0));
 
   test_sink.StartCapturingLogs();
@@ -143,7 +143,7 @@ TEST(LogHygieneTest, WorksWithINFODefined) {
 TEST(LogHygieneTest, WorksWithUnderscoreINFODefined) {
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kInfo, _, "Hello world"))
+  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kInfo, _anything_, "Hello world"))
       .Times(2 + (IsOptimized ? 2 : 0));
 
   test_sink.StartCapturingLogs();

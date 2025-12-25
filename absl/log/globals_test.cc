@@ -26,6 +26,7 @@
 
 namespace {
 using ::testing::StrEq;
+using ::testing::_anything_;
 
 auto* test_env ABSL_ATTRIBUTE_UNUSED = ::testing::AddGlobalTestEnvironment(
     new absl::log_internal::LogTestEnvironment);
@@ -134,7 +135,7 @@ TEST(TestExitOnDFatal, OffTest) {
 
     // LOG(DFATAL) has severity FATAL if debugging, but is
     // downgraded to ERROR if not debugging.
-    EXPECT_CALL(log, Log(absl::kLogDebugFatal, _, "This should not be fatal"));
+    EXPECT_CALL(log, Log(absl::kLogDebugFatal, _anything_, "This should not be fatal"));
 
     log.StartCapturingLogs();
     LOG(DFATAL) << "This should not be fatal";

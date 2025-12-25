@@ -26,7 +26,7 @@
 
 namespace {
 
-using ::testing::_;
+using ::testing::_anything_;
 
 absl::optional<int> MaxLogVerbosity() {
 #ifdef ABSL_MAX_VLOG_VERBOSITY
@@ -68,7 +68,7 @@ TEST_F(VLogIsOnTest, GlobalWorksWithoutMaxVerbosityAndMinLogLevel) {
   absl::SetGlobalVLogLevel(3);
   absl::ScopedMockLog log(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _, "important"));
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _anything_, "important"));
 
   log.StartCapturingLogs();
   VLOG(3) << "important";
@@ -83,7 +83,7 @@ TEST_F(VLogIsOnTest, FileWorksWithoutMaxVerbosityAndMinLogLevel) {
   absl::SetVLogLevel("vlog_is_on_test", 3);
   absl::ScopedMockLog log(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _, "important"));
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _anything_, "important"));
 
   log.StartCapturingLogs();
   VLOG(3) << "important";
@@ -98,7 +98,7 @@ TEST_F(VLogIsOnTest, PatternWorksWithoutMaxVerbosityAndMinLogLevel) {
   absl::SetVLogLevel("vlog_is_on*", 3);
   absl::ScopedMockLog log(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _, "important"));
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _anything_, "important"));
 
   log.StartCapturingLogs();
   VLOG(3) << "important";
@@ -118,7 +118,7 @@ TEST_F(VLogIsOnTest,
   absl::SetVLogLevel("vlog*", 3);
   absl::ScopedMockLog log(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _, "important"));
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _anything_, "important"));
 
   log.StartCapturingLogs();
   VLOG(3) << "important";
@@ -139,7 +139,7 @@ TEST_F(VLogIsOnTest,
   absl::SetVLogLevel("vlog_is_on_some_other_test*", -1);
   absl::ScopedMockLog log(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _, "important"));
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _anything_, "important"));
 
   log.StartCapturingLogs();
   VLOG(3) << "important";
@@ -155,7 +155,7 @@ TEST_F(VLogIsOnTest, GlobalDoesNotFilterBelowMaxVerbosity) {
   absl::SetGlobalVLogLevel(1000);
   absl::ScopedMockLog log(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _, "asdf"));
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _anything_, "asdf"));
 
   log.StartCapturingLogs();
   VLOG(2) << "asdf";
@@ -170,7 +170,7 @@ TEST_F(VLogIsOnTest, FileDoesNotFilterBelowMaxVerbosity) {
   absl::SetVLogLevel("vlog_is_on_test", 1000);
   absl::ScopedMockLog log(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _, "asdf"));
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _anything_, "asdf"));
 
   log.StartCapturingLogs();
   VLOG(2) << "asdf";
@@ -185,7 +185,7 @@ TEST_F(VLogIsOnTest, PatternDoesNotFilterBelowMaxVerbosity) {
   absl::SetVLogLevel("vlog_is_on*", 1000);
   absl::ScopedMockLog log(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _, "asdf"));
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _anything_, "asdf"));
 
   log.StartCapturingLogs();
   VLOG(2) << "asdf";

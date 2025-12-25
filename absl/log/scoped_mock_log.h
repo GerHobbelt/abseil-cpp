@@ -47,7 +47,7 @@ enum class MockLogDefault { kIgnoreUnexpected, kDisallowUnexpected };
 // calls LOG(). The typical usage, noting the distinction between
 // "uninteresting" and "unexpected", looks like this:
 //
-//   using ::testing::_;
+//   using ::testing::_anything_;
 //   using ::testing::AnyNumber;
 //   using ::testing::EndsWith;
 //   using ::testing::kDoNotCaptureLogsYet;

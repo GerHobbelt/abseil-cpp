@@ -78,7 +78,7 @@ class MockHelpers;
 //  // Mock a call to an `absl::Uniform` distribution within Googletest
 //  absl::MockingBitGen bitgen;
 //
-//   ON_CALL(absl::MockUniform<int>(), Call(bitgen, testing::_, testing::_))
+//   ON_CALL(absl::MockUniform<int>(), Call(bitgen, testing::_anything_, testing::_anything_))
 //       .WillByDefault([] (int low, int high) {
 //           return low + (high - low) / 2;
 //       });

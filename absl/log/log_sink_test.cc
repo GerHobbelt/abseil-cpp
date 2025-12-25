@@ -32,7 +32,7 @@ using ::absl::log_internal::DeathTestExpectedLogging;
 using ::absl::log_internal::DeathTestUnexpectedLogging;
 using ::absl::log_internal::DeathTestValidateExpectations;
 using ::absl::log_internal::DiedOfFatal;
-using ::testing::_;
+using ::testing::_anything_;
 using ::testing::AnyNumber;
 using ::testing::HasSubstr;
 using ::testing::InSequence;
@@ -47,7 +47,7 @@ TEST(LogSinkRegistryTest, AddLogSink) {
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
 
   InSequence s;
-  EXPECT_CALL(test_sink, Log(_, _, "hello world")).Times(0);
+  EXPECT_CALL(test_sink, Log(_anything_, _anything_, "hello world")).Times(0);
   EXPECT_CALL(test_sink, Log(absl::LogSeverity::kInfo, __FILE__, "Test : 42"));
   EXPECT_CALL(test_sink,
               Log(absl::LogSeverity::kWarning, __FILE__, "Danger ahead"));
@@ -70,14 +70,14 @@ TEST(LogSinkRegistryTest, MultipleLogSinks) {
   absl::ScopedMockLog test_sink2(absl::MockLogDefault::kDisallowUnexpected);
 
   ::testing::InSequence seq;
-  EXPECT_CALL(test_sink1, Log(absl::LogSeverity::kInfo, _, "First")).Times(1);
-  EXPECT_CALL(test_sink2, Log(absl::LogSeverity::kInfo, _, "First")).Times(0);
+  EXPECT_CALL(test_sink1, Log(absl::LogSeverity::kInfo, _anything_, "First")).Times(1);
+  EXPECT_CALL(test_sink2, Log(absl::LogSeverity::kInfo, _anything_, "First")).Times(0);
 
-  EXPECT_CALL(test_sink1, Log(absl::LogSeverity::kInfo, _, "Second")).Times(1);
-  EXPECT_CALL(test_sink2, Log(absl::LogSeverity::kInfo, _, "Second")).Times(1);
+  EXPECT_CALL(test_sink1, Log(absl::LogSeverity::kInfo, _anything_, "Second")).Times(1);
+  EXPECT_CALL(test_sink2, Log(absl::LogSeverity::kInfo, _anything_, "Second")).Times(1);
 
-  EXPECT_CALL(test_sink1, Log(absl::LogSeverity::kInfo, _, "Third")).Times(0);
-  EXPECT_CALL(test_sink2, Log(absl::LogSeverity::kInfo, _, "Third")).Times(1);
+  EXPECT_CALL(test_sink1, Log(absl::LogSeverity::kInfo, _anything_, "Third")).Times(0);
+  EXPECT_CALL(test_sink2, Log(absl::LogSeverity::kInfo, _anything_, "Third")).Times(1);
 
   LOG(INFO) << "Before first";
 
@@ -137,7 +137,7 @@ TEST(LogSinkDeathTest, DeathInSend) {
 
   FatalSendSink sink;
   EXPECT_EXIT({ LOG(INFO).ToSinkAlso(&sink) << "hello world"; }, DiedOfFatal,
-              _);
+              _anything_);
 }
 
 #endif
@@ -148,8 +148,8 @@ TEST(LogSinkDeathTest, DeathInSend) {
 TEST(LogSinkTest, ToSinkAlso) {
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
   absl::ScopedMockLog another_sink(absl::MockLogDefault::kDisallowUnexpected);
-  EXPECT_CALL(test_sink, Log(_, _, "hello world"));
-  EXPECT_CALL(another_sink, Log(_, _, "hello world"));
+  EXPECT_CALL(test_sink, Log(_anything_, _anything_, "hello world"));
+  EXPECT_CALL(another_sink, Log(_anything_, _anything_, "hello world"));
 
   test_sink.StartCapturingLogs();
   LOG(INFO).ToSinkAlso(&another_sink.UseAsLocalSink()) << "hello world";
@@ -157,7 +157,7 @@ TEST(LogSinkTest, ToSinkAlso) {
 
 TEST(LogSinkTest, ToSinkOnly) {
   absl::ScopedMockLog another_sink(absl::MockLogDefault::kDisallowUnexpected);
-  EXPECT_CALL(another_sink, Log(_, _, "hello world"));
+  EXPECT_CALL(another_sink, Log(_anything_, _anything_, "hello world"));
   LOG(INFO).ToSinkOnly(&another_sink.UseAsLocalSink()) << "hello world";
 }
 
@@ -168,9 +168,9 @@ TEST(LogSinkTest, ToManySinks) {
   absl::ScopedMockLog sink4(absl::MockLogDefault::kDisallowUnexpected);
   absl::ScopedMockLog sink5(absl::MockLogDefault::kDisallowUnexpected);
 
-  EXPECT_CALL(sink3, Log(_, _, "hello world"));
-  EXPECT_CALL(sink4, Log(_, _, "hello world"));
-  EXPECT_CALL(sink5, Log(_, _, "hello world"));
+  EXPECT_CALL(sink3, Log(_anything_, _anything_, "hello world"));
+  EXPECT_CALL(sink4, Log(_anything_, _anything_, "hello world"));
+  EXPECT_CALL(sink5, Log(_anything_, _anything_, "hello world"));
 
   LOG(INFO)
           .ToSinkAlso(&sink1.UseAsLocalSink())
@@ -230,10 +230,10 @@ TEST_F(ReentrancyTest, LogFunctionThatLogs) {
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
 
   InSequence seq;
-  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kInfo, _, "hello"));
-  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kInfo, _, "world"));
-  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kWarning, _, "danger"));
-  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kInfo, _, "here"));
+  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kInfo, _anything_, "hello"));
+  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kInfo, _anything_, "world"));
+  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kWarning, _anything_, "danger"));
+  EXPECT_CALL(test_sink, Log(absl::LogSeverity::kInfo, _anything_, "here"));
 
   test_sink.StartCapturingLogs();
   LOG(INFO) << LogAndReturn(absl::LogSeverity::kInfo, "hello", "world");
@@ -243,7 +243,7 @@ TEST_F(ReentrancyTest, LogFunctionThatLogs) {
 TEST_F(ReentrancyTest, RegisteredLogSinkThatLogsInSend) {
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
   ReentrantSendLogSink renentrant_sink(absl::LogSeverity::kInfo);
-  EXPECT_CALL(test_sink, Log(_, _, "hello world"));
+  EXPECT_CALL(test_sink, Log(_anything_, _anything_, "hello world"));
 
   test_sink.StartCapturingLogs();
   absl::AddLogSink(&renentrant_sink);
@@ -254,9 +254,9 @@ TEST_F(ReentrancyTest, RegisteredLogSinkThatLogsInSend) {
 TEST_F(ReentrancyTest, AlsoLogSinkThatLogsInSend) {
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
   ReentrantSendLogSink reentrant_sink(absl::LogSeverity::kInfo);
-  EXPECT_CALL(test_sink, Log(_, _, "hello world"));
+  EXPECT_CALL(test_sink, Log(_anything_, _anything_, "hello world"));
   EXPECT_CALL(test_sink,
-              Log(_, _, "The log is coming from *inside the sink*."));
+              Log(_anything_, _anything_, "The log is coming from *inside the sink*."));
 
   test_sink.StartCapturingLogs();
   LOG(INFO).ToSinkAlso(&reentrant_sink) << "hello world";
@@ -265,12 +265,12 @@ TEST_F(ReentrancyTest, AlsoLogSinkThatLogsInSend) {
 TEST_F(ReentrancyTest, RegisteredAlsoLogSinkThatLogsInSend) {
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
   ReentrantSendLogSink reentrant_sink(absl::LogSeverity::kInfo);
-  EXPECT_CALL(test_sink, Log(_, _, "hello world"));
+  EXPECT_CALL(test_sink, Log(_anything_, _anything_, "hello world"));
   // We only call into the test_log sink once with this message, since the
   // second time log statement is run we are in "ThreadIsLogging" mode and all
   // the log statements are redirected into stderr.
   EXPECT_CALL(test_sink,
-              Log(_, _, "The log is coming from *inside the sink*."));
+              Log(_anything_, _anything_, "The log is coming from *inside the sink*."));
 
   test_sink.StartCapturingLogs();
   absl::AddLogSink(&reentrant_sink);
@@ -282,7 +282,7 @@ TEST_F(ReentrancyTest, OnlyLogSinkThatLogsInSend) {
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
   ReentrantSendLogSink reentrant_sink(absl::LogSeverity::kInfo);
   EXPECT_CALL(test_sink,
-              Log(_, _, "The log is coming from *inside the sink*."));
+              Log(_anything_, _anything_, "The log is coming from *inside the sink*."));
 
   test_sink.StartCapturingLogs();
   LOG(INFO).ToSinkOnly(&reentrant_sink) << "hello world";
@@ -292,7 +292,7 @@ TEST_F(ReentrancyTest, RegisteredOnlyLogSinkThatLogsInSend) {
   absl::ScopedMockLog test_sink(absl::MockLogDefault::kDisallowUnexpected);
   ReentrantSendLogSink reentrant_sink(absl::LogSeverity::kInfo);
   EXPECT_CALL(test_sink,
-              Log(_, _, "The log is coming from *inside the sink*."));
+              Log(_anything_, _anything_, "The log is coming from *inside the sink*."));
 
   test_sink.StartCapturingLogs();
   absl::AddLogSink(&reentrant_sink);
@@ -311,7 +311,7 @@ TEST_F(ReentrancyDeathTest, LogFunctionThatLogsFatal) {
         EXPECT_CALL(test_sink, Log)
             .Times(AnyNumber())
             .WillRepeatedly(DeathTestUnexpectedLogging());
-        EXPECT_CALL(test_sink, Log(_, _, "hello"))
+        EXPECT_CALL(test_sink, Log(_anything_, _anything_, "hello"))
             .WillOnce(DeathTestExpectedLogging());
 
         test_sink.StartCapturingLogs();
@@ -328,7 +328,7 @@ TEST_F(ReentrancyDeathTest, RegisteredLogSinkThatLogsFatalInSend) {
         EXPECT_CALL(test_sink, Log)
             .Times(AnyNumber())
             .WillRepeatedly(DeathTestUnexpectedLogging());
-        EXPECT_CALL(test_sink, Log(_, _, "hello world"))
+        EXPECT_CALL(test_sink, Log(_anything_, _anything_, "hello world"))
             .WillOnce(DeathTestExpectedLogging());
 
         test_sink.StartCapturingLogs();
@@ -348,10 +348,10 @@ TEST_F(ReentrancyDeathTest, AlsoLogSinkThatLogsFatalInSend) {
         EXPECT_CALL(test_sink, Log)
             .Times(AnyNumber())
             .WillRepeatedly(DeathTestUnexpectedLogging());
-        EXPECT_CALL(test_sink, Log(_, _, "hello world"))
+        EXPECT_CALL(test_sink, Log(_anything_, _anything_, "hello world"))
             .WillOnce(DeathTestExpectedLogging());
         EXPECT_CALL(test_sink,
-                    Log(_, _, "The log is coming from *inside the sink*."))
+                    Log(_anything_, _anything_, "The log is coming from *inside the sink*."))
             .WillOnce(DeathTestExpectedLogging());
 
         test_sink.StartCapturingLogs();
@@ -368,10 +368,10 @@ TEST_F(ReentrancyDeathTest, RegisteredAlsoLogSinkThatLogsFatalInSend) {
         EXPECT_CALL(test_sink, Log)
             .Times(AnyNumber())
             .WillRepeatedly(DeathTestUnexpectedLogging());
-        EXPECT_CALL(test_sink, Log(_, _, "hello world"))
+        EXPECT_CALL(test_sink, Log(_anything_, _anything_, "hello world"))
             .WillOnce(DeathTestExpectedLogging());
         EXPECT_CALL(test_sink,
-                    Log(_, _, "The log is coming from *inside the sink*."))
+                    Log(_anything_, _anything_, "The log is coming from *inside the sink*."))
             .WillOnce(DeathTestExpectedLogging());
 
         test_sink.StartCapturingLogs();
@@ -391,7 +391,7 @@ TEST_F(ReentrancyDeathTest, OnlyLogSinkThatLogsFatalInSend) {
             .Times(AnyNumber())
             .WillRepeatedly(DeathTestUnexpectedLogging());
         EXPECT_CALL(test_sink,
-                    Log(_, _, "The log is coming from *inside the sink*."))
+                    Log(_anything_, _anything_, "The log is coming from *inside the sink*."))
             .WillOnce(DeathTestExpectedLogging());
 
         test_sink.StartCapturingLogs();
@@ -409,7 +409,7 @@ TEST_F(ReentrancyDeathTest, RegisteredOnlyLogSinkThatLogsFatalInSend) {
             .Times(AnyNumber())
             .WillRepeatedly(DeathTestUnexpectedLogging());
         EXPECT_CALL(test_sink,
-                    Log(_, _, "The log is coming from *inside the sink*."))
+                    Log(_anything_, _anything_, "The log is coming from *inside the sink*."))
             .WillOnce(DeathTestExpectedLogging());
 
         test_sink.StartCapturingLogs();

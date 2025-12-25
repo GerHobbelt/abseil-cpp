@@ -105,7 +105,7 @@ using MockUniform = random_internal::MockOverloadSetWithValidator<
 // Example:
 //
 //  absl::MockingBitGen mock;
-//  EXPECT_CALL(absl::MockBernoulli(), Call(mock, testing::_))
+//  EXPECT_CALL(absl::MockBernoulli(), Call(mock, testing::_anything_))
 //     .WillOnce(Return(false));
 //  assert(absl::Bernoulli(mock, 0.5) == false);
 //
