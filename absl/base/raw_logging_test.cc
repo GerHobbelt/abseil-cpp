@@ -53,13 +53,14 @@ TEST(RawLoggingCompilationTest, PassingDebugCheck) {
   ABSL_RAW_DCHECK(true, "failure message");
 }
 
+#if !defined(BUILD_MONOLITHIC)
+
 // Not all platforms support output from raw log, so we don't verify any
 // particular output for RAW check failures (expecting the empty string
 // accomplishes this).  This test is primarily a compilation test, but we
 // are verifying process death when EXPECT_DEATH works for a platform.
 const char kExpectedDeathOutput[] = "";
 
-#if !defined(BUILD_MONOLITHIC)
 #if !defined(NDEBUG)  // if debug build
 TEST(RawLoggingDeathTest, FailingDebugCheck) {
   EXPECT_DEATH_IF_SUPPORTED(ABSL_RAW_DCHECK(1 == 0, "explanation"),
