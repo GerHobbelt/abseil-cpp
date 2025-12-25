@@ -1383,7 +1383,7 @@ TEST(Table, ChurnTestSmall) {
   size_t seed = time(NULL);
   printf("SEED: %zu\n", seed);
   IntTable t;
-  t.reserveFixed(hashTableCap);
+  t.reserve(hashTableCap);
 
   std::set<uint64_t> s;
   uint64_t arr[hashTableSize];
