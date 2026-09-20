@@ -138,7 +138,7 @@ inline size_t Sizeof(FlagOpFn op) {
 }
 // Returns fast type id corresponding to the value type.
 inline FlagFastTypeId FastTypeId(FlagOpFn op) {
-  return reinterpret_cast<FlagFastTypeId>(
+  return absl::bit_cast<FlagFastTypeId>(
       op(FlagOp::kFastTypeId, nullptr, nullptr, nullptr));
 }
 // Returns fast type id corresponding to the value type.
@@ -171,7 +171,7 @@ inline const std::type_info* GenRuntimeTypeId() {
 // Flag help auxiliary structs.
 
 // This is help argument for absl::Flag encapsulating the string literal pointer
-// or pointer to function generating it as well as enum descriminating two
+// or pointer to function generating it as well as enum discriminating two
 // cases.
 using HelpGenFunc = std::string (*)();
 
@@ -904,7 +904,7 @@ void* FlagOps(FlagOp op, const void* v1, void* v2, void* v3) {
     case FlagOp::kSizeof:
       return reinterpret_cast<void*>(static_cast<uintptr_t>(sizeof(T)));
     case FlagOp::kFastTypeId:
-      return const_cast<void*>(absl::FastTypeId<T>());
+      return absl::bit_cast<void*>(absl::FastTypeId<T>());
     case FlagOp::kRuntimeTypeId:
       return const_cast<std::type_info*>(GenRuntimeTypeId<T>());
     case FlagOp::kParse: {

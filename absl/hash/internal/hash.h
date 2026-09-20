@@ -110,7 +110,10 @@
 #define ABSL_HASH_INTERNAL_CRC32_U32 _mm_crc32_u32
 #define ABSL_HASH_INTERNAL_CRC32_U8 _mm_crc32_u8
 
-#elif defined(_MSC_VER) && !defined(__clang__) && defined(__AVX__)
+// 32-bit builds with AVX do not have _mm_crc32_u64, so the _M_X64 condition is
+// necessary.
+#elif defined(_MSC_VER) && !defined(__clang__) && defined(__AVX__) && \
+    defined(_M_X64)
 
 // MSVC AVX (/arch:AVX) implies SSE 4.2.
 #include <intrin.h>
@@ -1233,8 +1236,7 @@ inline uint64_t CombineContiguousImpl(
 }
 #endif  // ABSL_HASH_INTERNAL_HAS_CRC32
 
-#if defined(ABSL_INTERNAL_LEGACY_HASH_NAMESPACE) && \
-    ABSL_META_INTERNAL_STD_HASH_SFINAE_FRIENDLY_
+#if defined(ABSL_INTERNAL_LEGACY_HASH_NAMESPACE)
 #define ABSL_HASH_INTERNAL_SUPPORT_LEGACY_HASH_ 1
 #else
 #define ABSL_HASH_INTERNAL_SUPPORT_LEGACY_HASH_ 0
