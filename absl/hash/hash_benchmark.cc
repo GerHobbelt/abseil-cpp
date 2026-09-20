@@ -351,10 +351,11 @@ struct PodPairInt64 {
 
 template <class T>
 struct PodRand {
-	// https://en.cppreference.com/w/cpp/types/is_pod
+  // https://en.cppreference.com/w/cpp/types/is_pod
   static_assert(std::is_standard_layout<T>::value, "");
-	static_assert(std::is_trivial<T>::value, "");
-	static_assert(kEntropySize + sizeof(T) < sizeof(entropy), "");
+  static_assert(std::is_trivial<T>::value, "");
+  static_assert(std::is_pod_v<T>, "");
+  static_assert(kEntropySize + sizeof(T) < sizeof(entropy), "");
 
   T Get(size_t i) const {
     T v;
