@@ -69,34 +69,13 @@
 #include "absl/base/internal/unaligned_access.h"
 #include "absl/base/optimization.h"
 #include "absl/base/options.h"
-#include "absl/base/port.h"
 #include "absl/container/fixed_array.h"
-#include "absl/hash/internal/city.h"
 #include "absl/hash/internal/weakly_mixed_integer.h"
 #include "absl/meta/type_traits.h"
 #include "absl/numeric/bits.h"
 #include "absl/numeric/int128.h"
 #include "absl/strings/string_view.h"
 #include "absl/utility/utility.h"
-
-#ifdef ABSL_DEFINE_HASH_FOR_STD_WRAPPER
-#include "absl/types/optional.h"
-#include "absl/types/variant.h"
-#endif
-
-#ifdef ABSL_DEFINE_HASH_FOR_STD_CONTAINER
-#include <algorithm>
-#include <array>
-#include <bitset>
-#include <deque>
-#include <forward_list>
-#include <list>
-#include <map>
-#include <set>
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
-#endif
 
 #if defined(__cpp_lib_filesystem) && __cpp_lib_filesystem >= 201703L && \
     !defined(__XTENSA__)
