@@ -628,7 +628,7 @@ class ABSL_SCOPED_LOCKABLE GMutexLock {
 
   // Calls `mu.lock()` and returns when that call returns. That is, `mu` is
   // guaranteed to be locked when this object is constructed.
-  explicit GMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(this))
+  explicit GMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY_THIS)
       ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
       : mu_(mu) {
     this->mu_.lock();
@@ -645,7 +645,7 @@ class ABSL_SCOPED_LOCKABLE GMutexLock {
   // Like above, but calls `mu.LockWhen(cond)` instead. That is, in addition to
   // the above, the condition given by `cond` is also guaranteed to hold when
   // this object is constructed.
-  explicit GMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(this),
+  explicit GMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY_THIS,
                      const Condition& cond) ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
       : mu_(mu) {
     this->mu_.LockWhen(cond);
@@ -676,7 +676,7 @@ typedef GMutexLock MutexLock;
 // releases a shared lock on a `Mutex` via RAII.
 class ABSL_SCOPED_LOCKABLE GReaderMutexLock {
  public:
-  explicit GReaderMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(this))
+  explicit GReaderMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY_THIS)
       ABSL_SHARED_LOCK_FUNCTION(mu)
       : mu_(mu) {
     mu.lock_shared();
@@ -687,7 +687,7 @@ class ABSL_SCOPED_LOCKABLE GReaderMutexLock {
   explicit GReaderMutexLock(Mutex* absl_nonnull mu) ABSL_SHARED_LOCK_FUNCTION(mu)
       : GReaderMutexLock(*mu) {}
 
-  explicit GReaderMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(this),
+  explicit GReaderMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY_THIS,
                            const Condition& cond) ABSL_SHARED_LOCK_FUNCTION(mu)
       : mu_(mu) {
     mu.ReaderLockWhen(cond);
@@ -718,7 +718,7 @@ typedef GReaderMutexLock ReaderMutexLock;
 // releases a write (exclusive) lock on a `Mutex` via RAII.
 class ABSL_SCOPED_LOCKABLE GWriterMutexLock {
  public:
-  explicit GWriterMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(this))
+  explicit GWriterMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY_THIS)
       ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
       : mu_(mu) {
     mu.lock();
@@ -730,7 +730,7 @@ class ABSL_SCOPED_LOCKABLE GWriterMutexLock {
       ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
       : GWriterMutexLock(*mu) {}
 
-  explicit GWriterMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(this),
+  explicit GWriterMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY_THIS,
                            const Condition& cond)
       ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
       : mu_(mu) {
@@ -1155,8 +1155,9 @@ class ABSL_SCOPED_LOCKABLE MutexLockMaybe {
 // mutex before destruction. `Release()` may be called at most once.
 class ABSL_SCOPED_LOCKABLE ReleasableMutexLock {
  public:
-  explicit ReleasableMutexLock(Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(
-      this)) ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
+  explicit ReleasableMutexLock(
+      Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY_THIS)
+      ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
       : mu_(&mu) {
     this->mu_->lock();
   }
@@ -1168,7 +1169,7 @@ class ABSL_SCOPED_LOCKABLE ReleasableMutexLock {
       : ReleasableMutexLock(*mu) {}
 
   explicit ReleasableMutexLock(
-      Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(this),
+      Mutex& mu ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY_THIS,
       const Condition& cond) ABSL_EXCLUSIVE_LOCK_FUNCTION(mu)
       : mu_(&mu) {
     this->mu_->LockWhen(cond);

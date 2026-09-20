@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "absl/profiling/benchmark.h"
+#include <string>
 #include <utility>
 
 #include "absl/status/status.h"
@@ -45,5 +46,15 @@ void BM_AppendSourceLocation(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_AppendSourceLocation);
+
+void BM_LongMessageRValue(benchmark::State& state) {
+  for (auto _ : state) {
+    std::string msg(100, 'X');
+    benchmark::DoNotOptimize(msg);
+    absl::Status s(absl::StatusCode::kInvalidArgument, std::move(msg));
+    benchmark::DoNotOptimize(s);
+  }
+}
+BENCHMARK(BM_LongMessageRValue);
 
 }  // namespace

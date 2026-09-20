@@ -1317,6 +1317,7 @@ cc_test(
     deps = [
         ":heterogeneous_lookup_testing",
         ":linked_hash_set",
+        ":test_allocator",
         "//absl/base:config",
         "//absl/container:hash_generator_testing",
         "//absl/container:hash_policy_testing",
@@ -1371,6 +1372,7 @@ cc_test(
     deps = [
         ":heterogeneous_lookup_testing",
         ":linked_hash_map",
+        ":test_allocator",
         "//absl/base:config",
         "//absl/base:exception_testing",
         "//absl/container:hash_generator_testing",
@@ -1426,6 +1428,7 @@ cc_test(
         ":test_allocator",
         "//absl/base:core_headers",
         "//absl/base:hardening",
+        "//absl/base:throw_delegate",
         "//absl/strings",
         "@googletest//:gtest",
         "@googletest//:gtest_main",

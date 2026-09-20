@@ -143,7 +143,7 @@ struct BasicStringEq {
   }
 };
 
-// Supports heterogeneous lookup for w/u16/u32 string + string_view + char*.
+// Supports heterogeneous lookup for w/u8/u16/u32 string + string_view + char*.
 template <typename TChar>
 struct BasicStringHashEq {
   using Hash = BasicStringHash<TChar>;
@@ -154,6 +154,12 @@ template <>
 struct HashEq<std::wstring> : BasicStringHashEq<wchar_t> {};
 template <>
 struct HashEq<std::wstring_view> : BasicStringHashEq<wchar_t> {};
+#ifdef __cpp_char8_t
+template <>
+struct HashEq<std::u8string> : BasicStringHashEq<char8_t> {};
+template <>
+struct HashEq<std::u8string_view> : BasicStringHashEq<char8_t> {};
+#endif
 template <>
 struct HashEq<std::u16string> : BasicStringHashEq<char16_t> {};
 template <>
