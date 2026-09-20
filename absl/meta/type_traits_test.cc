@@ -184,7 +184,7 @@ struct GetTypeT {
 
 struct GetTypeExtT {
   template <typename T>
-  absl::result_of_t<const GetTypeT&(T)> operator()(T&& arg) const {
+  std::invoke_result_t<const GetTypeT&, T> operator()(T&& arg) const {
     return GetType(std::forward<T>(arg));
   }
 
@@ -216,7 +216,6 @@ void swap(SpecialNoexceptSwap&, SpecialNoexceptSwap&) noexcept {}
 
 TEST(TypeTraitsTest, IsSwappable) {
   using absl::type_traits_internal::IsSwappable;
-  using absl::type_traits_internal::StdSwapIsUnconstrained;
 
   EXPECT_TRUE(IsSwappable<int>::value);
 
@@ -229,14 +228,14 @@ TEST(TypeTraitsTest, IsSwappable) {
     ~NoConstruct() = default;
   };
 
-  EXPECT_EQ(IsSwappable<NoConstruct>::value, StdSwapIsUnconstrained::value);
+  EXPECT_FALSE(IsSwappable<NoConstruct>::value);
   struct NoAssign {
     NoAssign(NoAssign&&) {}
     NoAssign& operator=(NoAssign&&) = delete;
     ~NoAssign() = default;
   };
 
-  EXPECT_EQ(IsSwappable<NoAssign>::value, StdSwapIsUnconstrained::value);
+  EXPECT_FALSE(IsSwappable<NoAssign>::value);
 
   EXPECT_FALSE(IsSwappable<adl_namespace::DeletedSwap>::value);
 
@@ -245,7 +244,6 @@ TEST(TypeTraitsTest, IsSwappable) {
 
 TEST(TypeTraitsTest, IsNothrowSwappable) {
   using absl::type_traits_internal::IsNothrowSwappable;
-  using absl::type_traits_internal::StdSwapIsUnconstrained;
 
   EXPECT_TRUE(IsNothrowSwappable<int>::value);
 

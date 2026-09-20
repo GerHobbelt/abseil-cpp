@@ -31,10 +31,8 @@
 // GCC15 warns that <ciso646> is deprecated in C++17 and suggests using
 // <version> instead, even though <version> is not available in C++17 mode prior
 // to GCC9.
-#if defined(__has_include)
 #if __has_include(<version>)
 #define ABSL_INTERNAL_VERSION_HEADER_AVAILABLE 1
-#endif
 #endif
 
 // For feature testing and determining which headers can be included.
@@ -69,12 +67,16 @@
 #include "absl/base/internal/unaligned_access.h"
 #include "absl/base/optimization.h"
 #include "absl/base/options.h"
+#include "absl/base/port.h"
 #include "absl/container/fixed_array.h"
+#include "absl/hash/internal/city.h"
 #include "absl/hash/internal/weakly_mixed_integer.h"
 #include "absl/meta/type_traits.h"
 #include "absl/numeric/bits.h"
 #include "absl/numeric/int128.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
+#include "absl/types/variant.h"
 #include "absl/utility/utility.h"
 
 #if defined(__cpp_lib_filesystem) && __cpp_lib_filesystem >= 201703L && \
@@ -560,9 +562,7 @@ H AbslHashValue(H hash_state, T C::*ptr) {
 #else
   // On other platforms, we assume that pointers-to-members do not have
   // padding.
-#ifdef __cpp_lib_has_unique_object_representations
     static_assert(std::has_unique_object_representations_v<T C::*>);
-#endif  // __cpp_lib_has_unique_object_representations
     return n;
 #endif
   };
