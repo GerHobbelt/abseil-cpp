@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <initializer_list>
 #include <iterator>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -80,8 +81,8 @@ class btree_container {
   explicit btree_container(const allocator_type &alloc)
       : tree_(key_compare(), alloc) {}
 
-  btree_container(const btree_container &other)
-      : btree_container(other, absl::allocator_traits<allocator_type>::
+  btree_container(const btree_container& other)
+      : btree_container(other, std::allocator_traits<allocator_type>::
                                    select_on_container_copy_construction(
                                        other.get_allocator())) {}
   btree_container(const btree_container &other, const allocator_type &alloc)
@@ -474,8 +475,8 @@ class btree_map_container : public btree_set_container<Tree> {
                           typename Tree::params_type::mapped_type, M>>;
   template <class K, bool KValue, class M, bool MValue, typename... Dummy>
   using LifetimeBoundKV =
-      std::conjunction<LifetimeBoundK<K, KValue, absl::void_t<Dummy...>>,
-                        LifetimeBoundV<M, MValue>>;
+      std::conjunction<LifetimeBoundK<K, KValue, std::void_t<Dummy...>>,
+                       LifetimeBoundV<M, MValue>>;
 
  public:
   using key_type = typename Tree::key_type;

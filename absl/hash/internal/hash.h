@@ -68,6 +68,7 @@
 #include "absl/base/internal/endian.h"
 #include "absl/base/internal/unaligned_access.h"
 #include "absl/base/optimization.h"
+#include "absl/base/options.h"
 #include "absl/base/port.h"
 #include "absl/container/fixed_array.h"
 #include "absl/hash/internal/city.h"
@@ -102,6 +103,10 @@
 #include <filesystem>  // NOLINT
 #endif
 
+// We are allowed to use a non-portable hardware-accelerated implementation in
+// headers if ABSL_OPTION_INLINE_HW_ACCEL_STRATEGY != 0
+#if ABSL_OPTION_INLINE_HW_ACCEL_STRATEGY != 0
+
 // 32-bit builds with SSE 4.2 do not have _mm_crc32_u64, so the
 // __x86_64__ condition is necessary.
 #if defined(__SSE4_2__) && defined(__x86_64__)
@@ -135,6 +140,15 @@
 #define ABSL_HASH_INTERNAL_CRC32_U32 __crc32cw
 #define ABSL_HASH_INTERNAL_CRC32_U8 __crc32cb
 
+#endif  // Platform tests
+
+#endif  // ABSL_OPTION_INLINE_HW_ACCEL_STRATEGY != 0
+
+
+#if ABSL_OPTION_INLINE_HW_ACCEL_STRATEGY == 1
+#ifndef ABSL_HASH_INTERNAL_HAS_CRC32
+#error "Hardware acceleration is required by ABSL_OPTION_INLINE_HW_ACCEL_STRATEGY but not supported on this platform; see absl/base/options.h"
+#endif
 #endif
 
 namespace absl {
@@ -596,7 +610,7 @@ AbslHashValue(H hash_state, const std::pair<T1, T2>& p) {
 // Helper function for hashing a tuple. The third argument should
 // be an index_sequence running from 0 to tuple_size<Tuple> - 1.
 template <typename H, typename Tuple, size_t... Is>
-H hash_tuple(H hash_state, const Tuple& t, absl::index_sequence<Is...>) {
+H hash_tuple(H hash_state, const Tuple& t, std::index_sequence<Is...>) {
   return H::combine(std::move(hash_state), std::get<Is>(t)...);
 }
 
@@ -611,7 +625,7 @@ typename std::enable_if<std::conjunction<is_hashable<Ts>...>::value, H>::type
 #endif  // _MSC_VER
 AbslHashValue(H hash_state, const std::tuple<Ts...>& t) {
   return hash_internal::hash_tuple(std::move(hash_state), t,
-                                   absl::make_index_sequence<sizeof...(Ts)>());
+                                   std::make_index_sequence<sizeof...(Ts)>());
 }
 
 // -----------------------------------------------------------------------------
@@ -931,7 +945,7 @@ struct VariantVisitor {
 
 // AbslHashValue for hashing std::variant
 template <typename H, typename... T>
-typename std::enable_if<conjunction<is_hashable<T>...>::value, H>::type
+typename std::enable_if<std::conjunction<is_hashable<T>...>::value, H>::type
 AbslHashValue(H hash_state, const std::variant<T...>& v) {
   if (!v.valueless_by_exception()) {
     hash_state = std::visit(VariantVisitor<H>{std::move(hash_state)}, v);
@@ -1396,8 +1410,8 @@ struct is_hashable
 class ABSL_DLL MixingHashState : public HashStateBase<MixingHashState> {
   template <typename T>
   using IntegralFastPath =
-      conjunction<std::is_integral<T>, is_uniquely_represented<T>,
-                  FitsIn64Bits<T>>;
+      std::conjunction<std::is_integral<T>, is_uniquely_represented<T>,
+                       FitsIn64Bits<T>>;
 
  public:
   // Move only
