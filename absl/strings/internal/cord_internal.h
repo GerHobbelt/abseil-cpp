@@ -468,7 +468,7 @@ using cordz_info_t = int64_t;
 
 // Assert that the `cordz_info` pointer value perfectly overlaps the last half
 // of `data` and can hold a pointer value.
-static_assert(sizeof(cordz_info_t) * 2 == kMaxInline + 1, "");
+static_assert(sizeof(cordz_info_t) * 2 == kMaxInline + 1);
 static_assert(sizeof(cordz_info_t) >= sizeof(intptr_t));
 
 // LittleEndianByte() creates a little endian representation of 'value', i.e.:
@@ -482,7 +482,7 @@ static constexpr cordz_info_t LittleEndianByte(unsigned char value) {
 #endif
 }
 
-class InlineData {
+class ABSL_ATTRIBUTE_TRIVIAL_ABI InlineData {
  public:
   // DefaultInitType forces the use of the default initialization constructor.
   enum DefaultInitType { kDefaultInit };

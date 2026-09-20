@@ -1023,7 +1023,7 @@ struct ValuePolicy {
         std::forward<F>(f), std::forward<Args>(args)...);
   }
 
-  template <class Hash, bool kIsDefault>
+  template <class Hash, bool kIsDefault, size_t kSeedShift>
   static constexpr HashSlotFn get_hash_slot_fn() {
     return nullptr;
   }
@@ -1177,7 +1177,7 @@ class StringPolicy {
                       PairArgs(std::forward<Args>(args)...));
   }
 
-  template <class Hash, bool kIsDefault>
+  template <class Hash, bool kIsDefault, size_t kSeedShift>
   static constexpr HashSlotFn get_hash_slot_fn() {
     return nullptr;
   }
@@ -1360,8 +1360,8 @@ using NonMemcpyableSooIntCustomAllocTable =
                ChangingSizeAndTrackingTypeAlloc<int64_t>>;
 
 TEST(Table, EmptyFunctorOptimization) {
-  static_assert(std::is_empty_v<std::equal_to<absl::string_view>>, "");
-  static_assert(std::is_empty_v<std::allocator<int>>, "");
+  static_assert(std::is_empty_v<std::equal_to<absl::string_view>>);
+  static_assert(std::is_empty_v<std::allocator<int>>);
 
   struct MockTableByValue {
     size_t capacity;
@@ -2350,11 +2350,24 @@ void GenerateIrrelevantSeeds(int cnt) {
   }
 }
 
+template <class TableType>
+class IterationOrderTest : public testing::Test {};
+
+struct CustomHashIntTable
+    : raw_hash_set<IntPolicy, std::hash<int64_t>> {
+  using Base = typename CustomHashIntTable::raw_hash_set;
+  using Base::Base;
+};
+
+using IterationOrderTypes =
+    ::testing::Types<SooIntTable, NonSooIntTable, CustomHashIntTable>;
+TYPED_TEST_SUITE(IterationOrderTest, IterationOrderTypes);
+
 // These IterationOrderChanges tests depend on non-deterministic behavior.
 // We are injecting non-determinism to the table.
 // We have to retry enough times to make sure that the seed changes in bits that
 // matter for the iteration order.
-TYPED_TEST(SooTest, IterationOrderChangesByInstance) {
+TYPED_TEST(IterationOrderTest, IterationOrderChangesByInstance) {
   DisableSampling();  // We do not want test to pass only because of sampling.
   for (bool do_reserve : {false, true}) {
     for (size_t size : {2u, 6u, 12u, 20u}) {
@@ -2375,7 +2388,7 @@ TYPED_TEST(SooTest, IterationOrderChangesByInstance) {
   }
 }
 
-TYPED_TEST(SooTest, IterationOrderChangesOnRehash) {
+TYPED_TEST(IterationOrderTest, IterationOrderChangesOnRehash) {
   DisableSampling();  // We do not want test to pass only because of sampling.
 
   // We test different sizes with many small numbers, because small table
@@ -2839,7 +2852,7 @@ struct DecomposePolicy {
     return std::forward<F>(f)(x, x);
   }
 
-  template <class Hash, bool kIsDefault>
+  template <class Hash, bool kIsDefault, size_t kSeedShift>
   static constexpr HashSlotFn get_hash_slot_fn() {
     return nullptr;
   }

@@ -925,7 +925,7 @@ template <
     typename H, InvokeTag... Tags,
     typename = typename EnableIfContained<InvokeTag::kHashValue, Tags...>::type>
 H AbslHashValue(H state, CustomHashType<Tags...> t) {
-  static_assert(MinTag<Tags...>::value == InvokeTag::kHashValue, "");
+  static_assert(MinTag<Tags...>::value == InvokeTag::kHashValue);
   return H::combine(std::move(state),
                     t.value + static_cast<int>(InvokeTag::kHashValue));
 }
@@ -951,7 +951,7 @@ struct hash<CustomHashType<Tags...>> {
   template <InvokeTag... TagsIn, typename = typename EnableIfContained<
                                      InvokeTag::kLegacyHash, TagsIn...>::type>
   size_t operator()(CustomHashType<TagsIn...> t) const {
-    static_assert(MinTag<Tags...>::value == InvokeTag::kLegacyHash, "");
+    static_assert(MinTag<Tags...>::value == InvokeTag::kLegacyHash);
     return t.value + static_cast<int>(InvokeTag::kLegacyHash);
   }
 };
@@ -964,7 +964,7 @@ struct hash<CustomHashType<Tags...>> {
   template <InvokeTag... TagsIn, typename = typename EnableIfContained<
                                      InvokeTag::kStdHash, TagsIn...>::type>
   size_t operator()(CustomHashType<TagsIn...> t) const {
-    static_assert(MinTag<Tags...>::value == InvokeTag::kStdHash, "");
+    static_assert(MinTag<Tags...>::value == InvokeTag::kStdHash);
     return t.value + static_cast<int>(InvokeTag::kStdHash);
   }
 };
@@ -1043,10 +1043,10 @@ struct StructWithPadding {
 
 static_assert(sizeof(StructWithPadding) > sizeof(char) + sizeof(int),
               "StructWithPadding doesn't have padding");
-static_assert(std::is_standard_layout_v<StructWithPadding>, "");
+static_assert(std::is_standard_layout_v<StructWithPadding>);
 
 // This check has to be disabled because libstdc++ doesn't support it.
-// static_assert(std::is_trivially_constructible_v<StructWithPadding>, "");
+// static_assert(std::is_trivially_constructible_v<StructWithPadding>);
 
 template <typename T>
 struct ArraySlice {
@@ -1310,7 +1310,11 @@ TEST(SwisstableCollisions, LowEntropyStrings) {
   // These sizes cover the different hashing cases.
   for (size_t size : {8u, 16u, 32u, 64u, 128u}) {
     for (size_t b = 0; b < size - 1; ++b) {
-      absl::flat_hash_set<std::string> set;
+      // Pre-reserve table capacity so the test measures hash distribution
+      // quality under standard load factors, avoiding probe length spikes
+      // caused by near-maximum load factors right before incremental resizing.
+      absl::flat_hash_set<std::string> set(
+          size_t{kMaxChar - kMinChar} * size_t{kMaxChar - kMinChar});
       std::string s(size, '\0');
       for (char c1 = kMinChar; c1 < kMaxChar; ++c1) {
         for (char c2 = kMinChar; c2 < kMaxChar; ++c2) {
@@ -1331,8 +1335,12 @@ TEST(SwisstableCollisions, LowEntropyStrings) {
 TEST(SwisstableCollisions, LowEntropyInts) {
   constexpr int kSizeTBits = sizeof(size_t) * 8;
   for (int bit = 0; bit < kSizeTBits; ++bit) {
-    absl::flat_hash_set<size_t> set;
-    for (size_t i = 0; i < 128 * 1024; ++i) {
+    // Pre-reserve table capacity so the test measures hash distribution
+    // quality under standard load factors, avoiding probe length spikes
+    // caused by near-maximum load factors right before incremental resizing.
+    const size_t kNumElements = 128 * 1024;
+    absl::flat_hash_set<size_t> set(kNumElements);
+    for (size_t i = 0; i < kNumElements; ++i) {
       size_t v = absl::rotl(i, bit);
       set.insert(v);
       ASSERT_LT(HashtableDebugAccess<decltype(set)>::GetNumProbes(set, v), 48)
