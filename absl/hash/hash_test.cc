@@ -583,6 +583,8 @@ TEST(HashValueTest, StdFilesystemPath) {
       std::filesystem::path("c:\\//"),
       std::filesystem::path("c://"),
       std::filesystem::path("c://\\"),
+      std::filesystem::path("c:/a"),
+      std::filesystem::path("c:\\a"),
       std::filesystem::path("/e/p"),
       std::filesystem::path("/s/../e/p"),
       std::filesystem::path("e/p"),
