@@ -88,7 +88,6 @@ absl_cc_library(
     absl::nullability
     absl::raw_logging_internal
     absl::source_location
-    absl::strings
     absl::throw_delegate
     absl::type_traits
   PUBLIC
@@ -470,6 +469,7 @@ absl_cc_test(
   COPTS
     ${ABSL_TEST_COPTS}
   DEPS
+    absl::cleanup
     absl::config
     absl::core_headers
     absl::int128
@@ -1314,12 +1314,13 @@ absl_cc_test(
     ${ABSL_TEST_COPTS}
   DEPS
     absl::base
+    absl::cleanup
     absl::config
     absl::flat_hash_map
     absl::generic_printer_internal
-    absl::log
     absl::status
     absl::statusor
+    absl::str_format
     absl::strings
     GTest::gmock_main
 )

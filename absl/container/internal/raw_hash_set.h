@@ -367,10 +367,6 @@ inline bool IsEmptyGeneration(const GenerationType* generation) {
 constexpr size_t SooCapacity() { return 1; }
 // Maximum capacity of a table where we don't need to hash any keys.
 constexpr size_t MaxSmallCapacity() { return 1; }
-// Maximum capacity of a table where we can use blocked elements.
-constexpr size_t MaxCapacityWithBlockedElements() {
-  return Group::kWidth - 1;
-}
 // Sentinel type to indicate SOO CommonFields construction.
 struct soo_tag_t {};
 // Sentinel type to indicate SOO CommonFields construction with full size.
@@ -401,7 +397,7 @@ constexpr bool is_single_group(size_t capacity) {
 // Whether `cap` is a valid capacity for a table that can store blocked
 // elements.
 constexpr bool IsCapacityValidForBlockedElements(size_t cap) {
-  return !IsSmallCapacity(cap) && cap <= MaxCapacityWithBlockedElements();
+  return !IsSmallCapacity(cap);
 }
 
 // Converts `n` into the next valid capacity, per `IsValidCapacity`.
@@ -628,7 +624,9 @@ class PerTableSeedImpl {
 
 // Capacity, size and also has additionally
 // 1) one bit that stores whether we have infoz.
-// 2) PerTableSeed::kBitCount bits for the seed. (For SOO tables, the lowest
+// 2) kBlockedElementsBitCount bits that stores number of blocked elements in
+//    the table.
+// 3) PerTableSeed::kBitCount bits for the seed. (For SOO tables, the lowest
 //    bit of the seed is repurposed to track if sampling has been tried).
 template <HashtableCapacityStorageMode StorageMode>
 class HashtableInlineDataImpl {
@@ -637,10 +635,13 @@ class HashtableInlineDataImpl {
   using PerTableSeed = PerTableSeedImpl<
       std::conditional_t<StorageMode == kCapacityByValue, uint16_t, uint8_t>>;
   using HashtableCapacity = HashtableCapacityImpl<StorageMode>;
+  static constexpr size_t kBlockedElementBitCount = 3;
+  static constexpr size_t kMaxBlockedElementCount =
+      (uint64_t{1} << kBlockedElementBitCount) - 1;
   static constexpr size_t kSizeBitCount =
-      StorageMode == kCapacityByValue
-          ? 64 - PerTableSeed::kBitCount - 1
-          : 64 - PerTableSeed::kBitCount - sizeof(HashtableCapacity) * 8 - 1;
+      64 -
+      (kBlockedElementBitCount + PerTableSeed::kBitCount + /*has_infoz*/ 1 +
+       (StorageMode == kCapacityByValue ? 0 : sizeof(HashtableCapacity) * 8));
 
   explicit HashtableInlineDataImpl(uninitialized_tag_t) {}
   explicit HashtableInlineDataImpl(HashtableCapacity capacity,
@@ -706,17 +707,33 @@ class HashtableInlineDataImpl {
   // Sets the has_infoz bit.
   void set_has_infoz() { data_ |= kHasInfozMask; }
 
+  // Returns the number of blocked elements in the table.
+  size_t blocked_element_count() const {
+    return (data_ & kBlockedElementMask) >> kBlockedElementsShift;
+  }
+  // Initializes the number of blocked elements in the table.
+  // Requires:
+  //   1. `blocked_element_count() == 0`.
+  //   2. `count <= kMaxBlockedElementCount`.
+  void init_blocked_element_count(uint64_t count) {
+    ABSL_SWISSTABLE_ASSERT(blocked_element_count() == 0);
+    ABSL_SWISSTABLE_ASSERT(count <= kMaxBlockedElementCount);
+    data_ |= count << kBlockedElementsShift;
+  }
+  void set_blocked_element_count_to_zero() { data_ &= ~kBlockedElementMask; }
+
   void set_no_seed_for_testing() { data_ &= ~kSeedMask; }
 
  private:
   // Bit layout of `data_` from MSB to LSB:
-  // (47 bits)      : size
+  // (44 bits)      : size
+  // (3 bits)       : blocked_element_count
   // (1 bit)        : has_infoz
   // (16 or 8 bits) : seed
   // We don't split these components of `data_` into separate bit field elements
   // because we get worse generated code that way.
   static constexpr size_t kDataBitCount =
-      PerTableSeed::kBitCount + 1 + kSizeBitCount;
+      PerTableSeed::kBitCount + 1 + kSizeBitCount + kBlockedElementBitCount;
   static constexpr size_t kSizeShift = kDataBitCount - kSizeBitCount;
   static constexpr uint64_t kSizeOneNoMetadata = uint64_t{1} << kSizeShift;
   static constexpr uint64_t kMetadataMask = kSizeOneNoMetadata - 1;
@@ -724,6 +741,9 @@ class HashtableInlineDataImpl {
       (uint64_t{1} << PerTableSeed::kBitCount) - 1;
   // The next bit after the seed.
   static constexpr uint64_t kHasInfozMask = kSeedMask + 1;
+  static constexpr uint64_t kBlockedElementsShift = PerTableSeed::kBitCount + 1;
+  static constexpr uint64_t kBlockedElementMask = kMaxBlockedElementCount
+                                                  << kBlockedElementsShift;
   // For SOO tables, the seed is unused, and bit 0 is repurposed to track
   // whether the table has already queried should_sample_soo().
   static constexpr uint64_t kSooHasTriedSamplingMask = 1;
@@ -754,6 +774,12 @@ using HashtableInlineData = HashtableInlineDataImpl<kCapacityByValue>;
 #endif  // ABSL_SWISSTABLE_INTERNAL_ENABLE_CAPACITY_BY_VALUE
 using PerTableSeed = HashtableInlineData::PerTableSeed;
 using HashtableCapacity = HashtableInlineData::HashtableCapacity;
+
+// For large tables, we limit the number of blocked elements to maintain O(1)
+// average case lookup complexity.
+constexpr size_t kMaxBlockedElementsForLargeTables = 5;
+static_assert(kMaxBlockedElementsForLargeTables <=
+              HashtableInlineData::kMaxBlockedElementCount);
 
 // H1 is just the low bits of the hash.
 inline size_t H1(size_t hash) { return hash; }
@@ -1387,19 +1413,17 @@ class CommonFields : public CommonFieldsGenerationInfo {
   // corresponding slots.
   // Control bytes are set to kSentinel for blocked elements.
   size_t blocked_element_count() const {
-    size_t cap = capacity();
-    if (!IsCapacityValidForBlockedElements(cap)) {
-      return 0;
-    }
-    ABSL_SWISSTABLE_ASSERT(is_single_group(cap));
-    // Formula is valid because MaxCapacityWithBlockedElements is less than
-    // group width. On erase for single group tables, we always increment the
-    // growth left.
-    ABSL_SWISSTABLE_ASSERT(cap <=
-                           GrowthInfoLowerBound::kMaxGrowthLeftLowerBound);
-    return CapacityToGrowth(cap) - size() -
-           // We can use lower bound here because capacity is small.
-           growth_info().GetGrowthLeftLowerBound();
+    return inline_data_.blocked_element_count();
+  }
+  // Initializes the number of blocked elements in the table.
+  // Requires:
+  //   1. `blocked_element_count() == 0`.
+  //   2. `count <= kMaxBlockedElementCount`.
+  void init_blocked_element_count(size_t count) {
+    inline_data_.init_blocked_element_count(count);
+  }
+  void set_blocked_element_count_to_zero() {
+    inline_data_.set_blocked_element_count_to_zero();
   }
 
   // The size of the backing array allocation.
@@ -1483,14 +1507,14 @@ class raw_hash_set;
 void ConvertDeletedToEmptyAndFullToDeleted(ctrl_t* ctrl, size_t capacity);
 
 template <class InputIter>
-size_t SelectBucketCountForIterRange(InputIter first, InputIter last,
-                                     size_t bucket_count) {
-  if (bucket_count != 0) {
-    return bucket_count;
+size_t SelectReservationSizeForIterRange(InputIter first, InputIter last,
+                                         size_t reservation_size) {
+  if (reservation_size != 0) {
+    return reservation_size;
   }
   if (base_internal::IsAtLeastIterator<std::random_access_iterator_tag,
                                        InputIter>()) {
-    return SizeToCapacity(static_cast<size_t>(std::distance(first, last)));
+    return static_cast<size_t>(std::distance(first, last));
   }
   return 0;
 }
@@ -1971,16 +1995,6 @@ constexpr size_t MaxSmallAfterSooCapacity() { return 7; }
 //   2. `new_size <= kMaxValidSize`.
 void ReserveTableToFitNewSize(CommonFields& common,
                               const PolicyFunctions& policy, size_t new_size);
-
-// Resizes empty non-allocated table to the next valid capacity after
-// `bucket_count`. Requires:
-//   1. `c.capacity() == policy.soo_capacity`.
-//   2. `c.empty()`.
-//   3. `new_size > policy.soo_capacity`.
-//   4. `bucket_count <= MaxValidCapacity()`.
-// The table will be attempted to be sampled.
-void ReserveEmptyNonAllocatedTableToFitBucketCount(
-    CommonFields& common, const PolicyFunctions& policy, size_t bucket_count);
 
 // Type erased version of raw_hash_set::rehash.
 // Requires: `n <= MaxValidCapacity()`.
@@ -2500,68 +2514,68 @@ class raw_hash_set {
       std::is_nothrow_default_constructible_v<key_equal> &&
       std::is_nothrow_default_constructible_v<allocator_type>) {}
 
-  explicit raw_hash_set(
-      size_t bucket_count, const hasher& hash = hasher(),
-      const key_equal& eq = key_equal(),
-      const allocator_type& alloc = allocator_type())
+  explicit raw_hash_set(size_t reservation_size, const hasher& hash = hasher(),
+                        const key_equal& eq = key_equal(),
+                        const allocator_type& alloc = allocator_type())
       : settings_(CommonFields::CreateDefault<SooEnabled()>(), hash, eq,
                   alloc) {
-    if (bucket_count > DefaultCapacity()) {
-      ReserveEmptyNonAllocatedTableToFitBucketCount(
-          common(), GetPolicyFunctions(),
-          (std::min)(bucket_count, MaxValidCapacity()));
+    if (reservation_size > DefaultCapacity()) {
+      ReserveTableToFitNewSize(common(), GetPolicyFunctions(),
+                               reservation_size);
     }
   }
 
-  raw_hash_set(size_t bucket_count, const hasher& hash,
+  raw_hash_set(size_t reservation_size, const hasher& hash,
                const allocator_type& alloc)
-      : raw_hash_set(bucket_count, hash, key_equal(), alloc) {}
+      : raw_hash_set(reservation_size, hash, key_equal(), alloc) {}
 
-  raw_hash_set(size_t bucket_count, const allocator_type& alloc)
-      : raw_hash_set(bucket_count, hasher(), key_equal(), alloc) {}
+  raw_hash_set(size_t reservation_size, const allocator_type& alloc)
+      : raw_hash_set(reservation_size, hasher(), key_equal(), alloc) {}
 
   explicit raw_hash_set(const allocator_type& alloc)
       : raw_hash_set(0, hasher(), key_equal(), alloc) {}
 
   template <class InputIter>
-  raw_hash_set(InputIter first, InputIter last, size_t bucket_count = 0,
+  raw_hash_set(InputIter first, InputIter last, size_t reservation_size = 0,
                const hasher& hash = hasher(), const key_equal& eq = key_equal(),
                const allocator_type& alloc = allocator_type())
-      : raw_hash_set(SelectBucketCountForIterRange(first, last, bucket_count),
-                     hash, eq, alloc) {
+      : raw_hash_set(
+            SelectReservationSizeForIterRange(first, last, reservation_size),
+            hash, eq, alloc) {
     insert(first, last);
   }
 
   template <class InputIter>
-  raw_hash_set(InputIter first, InputIter last, size_t bucket_count,
+  raw_hash_set(InputIter first, InputIter last, size_t reservation_size,
                const hasher& hash, const allocator_type& alloc)
-      : raw_hash_set(first, last, bucket_count, hash, key_equal(), alloc) {}
+      : raw_hash_set(first, last, reservation_size, hash, key_equal(), alloc) {}
 
   template <class InputIter>
-  raw_hash_set(InputIter first, InputIter last, size_t bucket_count,
+  raw_hash_set(InputIter first, InputIter last, size_t reservation_size,
                const allocator_type& alloc)
-      : raw_hash_set(first, last, bucket_count, hasher(), key_equal(), alloc) {}
+      : raw_hash_set(first, last, reservation_size, hasher(), key_equal(),
+                     alloc) {}
 
 #if defined(__cpp_lib_containers_ranges) && \
     __cpp_lib_containers_ranges >= 202202L
   template <typename R>
-  raw_hash_set(std::from_range_t, R&& rg, size_type bucket_count = 0,
+  raw_hash_set(std::from_range_t, R&& rg, size_type reservation_size = 0,
                const hasher& hash = hasher(), const key_equal& eq = key_equal(),
                const allocator_type& alloc = allocator_type())
-      : raw_hash_set(std::begin(rg), std::end(rg), bucket_count, hash, eq,
+      : raw_hash_set(std::begin(rg), std::end(rg), reservation_size, hash, eq,
                      alloc) {}
 
   template <typename R>
-  raw_hash_set(std::from_range_t, R&& rg, size_type bucket_count,
+  raw_hash_set(std::from_range_t, R&& rg, size_type reservation_size,
                const allocator_type& alloc)
-      : raw_hash_set(std::from_range, std::forward<R>(rg), bucket_count,
+      : raw_hash_set(std::from_range, std::forward<R>(rg), reservation_size,
                      hasher(), key_equal(), alloc) {}
 
   template <typename R>
-  raw_hash_set(std::from_range_t, R&& rg, size_type bucket_count,
+  raw_hash_set(std::from_range_t, R&& rg, size_type reservation_size,
                const hasher& hash, const allocator_type& alloc)
-      : raw_hash_set(std::from_range, std::forward<R>(rg), bucket_count, hash,
-                     key_equal(), alloc) {}
+      : raw_hash_set(std::from_range, std::forward<R>(rg), reservation_size,
+                     hash, key_equal(), alloc) {}
 #endif
 
   template <class InputIter>
@@ -2591,35 +2605,38 @@ class raw_hash_set {
   // RequiresNotInit<T> is a workaround for gcc prior to 7.1.
   template <class T, RequiresNotInit<T> = 0,
             std::enable_if_t<Insertable<T>::value, int> = 0>
-  raw_hash_set(std::initializer_list<T> init, size_t bucket_count = 0,
+  raw_hash_set(std::initializer_list<T> init, size_t reservation_size = 0,
                const hasher& hash = hasher(), const key_equal& eq = key_equal(),
                const allocator_type& alloc = allocator_type())
-      : raw_hash_set(init.begin(), init.end(), bucket_count, hash, eq, alloc) {}
+      : raw_hash_set(init.begin(), init.end(), reservation_size, hash, eq,
+                     alloc) {}
 
-  raw_hash_set(std::initializer_list<init_type> init, size_t bucket_count = 0,
-               const hasher& hash = hasher(), const key_equal& eq = key_equal(),
+  raw_hash_set(std::initializer_list<init_type> init,
+               size_t reservation_size = 0, const hasher& hash = hasher(),
+               const key_equal& eq = key_equal(),
                const allocator_type& alloc = allocator_type())
-      : raw_hash_set(init.begin(), init.end(), bucket_count, hash, eq, alloc) {}
+      : raw_hash_set(init.begin(), init.end(), reservation_size, hash, eq,
+                     alloc) {}
 
   template <class T, RequiresNotInit<T> = 0,
             std::enable_if_t<Insertable<T>::value, int> = 0>
-  raw_hash_set(std::initializer_list<T> init, size_t bucket_count,
+  raw_hash_set(std::initializer_list<T> init, size_t reservation_size,
                const hasher& hash, const allocator_type& alloc)
-      : raw_hash_set(init, bucket_count, hash, key_equal(), alloc) {}
+      : raw_hash_set(init, reservation_size, hash, key_equal(), alloc) {}
 
-  raw_hash_set(std::initializer_list<init_type> init, size_t bucket_count,
+  raw_hash_set(std::initializer_list<init_type> init, size_t reservation_size,
                const hasher& hash, const allocator_type& alloc)
-      : raw_hash_set(init, bucket_count, hash, key_equal(), alloc) {}
+      : raw_hash_set(init, reservation_size, hash, key_equal(), alloc) {}
 
   template <class T, RequiresNotInit<T> = 0,
             std::enable_if_t<Insertable<T>::value, int> = 0>
-  raw_hash_set(std::initializer_list<T> init, size_t bucket_count,
+  raw_hash_set(std::initializer_list<T> init, size_t reservation_size,
                const allocator_type& alloc)
-      : raw_hash_set(init, bucket_count, hasher(), key_equal(), alloc) {}
+      : raw_hash_set(init, reservation_size, hasher(), key_equal(), alloc) {}
 
-  raw_hash_set(std::initializer_list<init_type> init, size_t bucket_count,
+  raw_hash_set(std::initializer_list<init_type> init, size_t reservation_size,
                const allocator_type& alloc)
-      : raw_hash_set(init, bucket_count, hasher(), key_equal(), alloc) {}
+      : raw_hash_set(init, reservation_size, hasher(), key_equal(), alloc) {}
 
   template <class T, RequiresNotInit<T> = 0,
             std::enable_if_t<Insertable<T>::value, int> = 0>
@@ -3141,8 +3158,7 @@ class raw_hash_set {
 
   void reserve(size_t n) {
     if (ABSL_PREDICT_TRUE(n > DefaultCapacity())) {
-      ReserveTableToFitNewSize(common(), GetPolicyFunctions(),
-                               (std::min)(n, MaxValidSize()));
+      ReserveTableToFitNewSize(common(), GetPolicyFunctions(), n);
     }
   }
 

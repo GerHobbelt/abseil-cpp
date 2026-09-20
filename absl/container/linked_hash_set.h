@@ -146,77 +146,80 @@ class linked_hash_set {
 
   linked_hash_set() {}
 
-  explicit linked_hash_set(size_t bucket_count, const hasher& hash = hasher(),
+  explicit linked_hash_set(size_t reservation_size,
+                           const hasher& hash = hasher(),
                            const key_equal& eq = key_equal(),
                            const allocator_type& alloc = allocator_type())
-      : set_(bucket_count, Wrapped<hasher>(hash), Wrapped<key_equal>(eq),
+      : set_(reservation_size, Wrapped<hasher>(hash), Wrapped<key_equal>(eq),
              alloc),
         list_(alloc) {}
 
-  linked_hash_set(size_t bucket_count, const hasher& hash,
+  linked_hash_set(size_t reservation_size, const hasher& hash,
                   const allocator_type& alloc)
-      : linked_hash_set(bucket_count, hash, key_equal(), alloc) {}
+      : linked_hash_set(reservation_size, hash, key_equal(), alloc) {}
 
-  linked_hash_set(size_t bucket_count, const allocator_type& alloc)
-      : linked_hash_set(bucket_count, hasher(), key_equal(), alloc) {}
+  linked_hash_set(size_t reservation_size, const allocator_type& alloc)
+      : linked_hash_set(reservation_size, hasher(), key_equal(), alloc) {}
 
   explicit linked_hash_set(const allocator_type& alloc)
       : linked_hash_set(0, hasher(), key_equal(), alloc) {}
 
   template <class InputIt>
-  linked_hash_set(InputIt first, InputIt last, size_t bucket_count = 0,
+  linked_hash_set(InputIt first, InputIt last, size_t reservation_size = 0,
                   const hasher& hash = hasher(),
                   const key_equal& eq = key_equal(),
                   const allocator_type& alloc = allocator_type())
-      : linked_hash_set(bucket_count, hash, eq, alloc) {
+      : linked_hash_set(reservation_size, hash, eq, alloc) {
     insert(first, last);
   }
 
   template <class InputIter>
-  linked_hash_set(InputIter first, InputIter last, size_t bucket_count,
+  linked_hash_set(InputIter first, InputIter last, size_t reservation_size,
                   const hasher& hash, const allocator_type& alloc)
-      : linked_hash_set(first, last, bucket_count, hash, key_equal(), alloc) {}
+      : linked_hash_set(first, last, reservation_size, hash, key_equal(),
+                        alloc) {}
 
   template <class InputIter>
-  linked_hash_set(InputIter first, InputIter last, size_t bucket_count,
+  linked_hash_set(InputIter first, InputIter last, size_t reservation_size,
                   const allocator_type& alloc)
-      : linked_hash_set(first, last, bucket_count, hasher(), key_equal(),
+      : linked_hash_set(first, last, reservation_size, hasher(), key_equal(),
                         alloc) {}
 
   template <class InputIt>
   linked_hash_set(InputIt first, InputIt last, const allocator_type& alloc)
-      : linked_hash_set(first, last, /*bucket_count=*/0, hasher(), key_equal(),
-                        alloc) {}
+      : linked_hash_set(first, last, /*reservation_size=*/0, hasher(),
+                        key_equal(), alloc) {}
 
-  linked_hash_set(std::initializer_list<key_type> init, size_t bucket_count = 0,
-                  const hasher& hash = hasher(),
+  linked_hash_set(std::initializer_list<key_type> init,
+                  size_t reservation_size = 0, const hasher& hash = hasher(),
                   const key_equal& eq = key_equal(),
                   const allocator_type& alloc = allocator_type())
-      : linked_hash_set(init.begin(), init.end(), bucket_count, hash, eq,
+      : linked_hash_set(init.begin(), init.end(), reservation_size, hash, eq,
                         alloc) {}
 
-  linked_hash_set(std::initializer_list<key_type> init, size_t bucket_count,
+  linked_hash_set(std::initializer_list<key_type> init, size_t reservation_size,
                   const allocator_type& alloc)
-      : linked_hash_set(init, bucket_count, hasher(), key_equal(), alloc) {}
+      : linked_hash_set(init, reservation_size, hasher(), key_equal(), alloc) {}
 
-  linked_hash_set(std::initializer_list<key_type> init, size_t bucket_count,
+  linked_hash_set(std::initializer_list<key_type> init, size_t reservation_size,
                   const hasher& hash, const allocator_type& alloc)
-      : linked_hash_set(init, bucket_count, hash, key_equal(), alloc) {}
+      : linked_hash_set(init, reservation_size, hash, key_equal(), alloc) {}
 
   linked_hash_set(std::initializer_list<key_type> init,
                   const allocator_type& alloc)
-      : linked_hash_set(init, /*bucket_count=*/0, hasher(), key_equal(),
+      : linked_hash_set(init, /*reservation_size=*/0, hasher(), key_equal(),
                         alloc) {}
 
   linked_hash_set(const linked_hash_set& other)
-      : linked_hash_set(other.bucket_count(), other.hash_function(),
-                        other.key_eq(), other.get_allocator()) {
+      : linked_hash_set(0, other.hash_function(), other.key_eq(),
+                        other.get_allocator()) {
+    reserve(other.size());
     CopyFrom(other);
   }
 
   linked_hash_set(const linked_hash_set& other, const allocator_type& alloc)
-      : linked_hash_set(other.bucket_count(), other.hash_function(),
-                        other.key_eq(), alloc) {
+      : linked_hash_set(0, other.hash_function(), other.key_eq(), alloc) {
+    reserve(other.size());
     CopyFrom(other);
   }
 
@@ -240,8 +243,9 @@ class linked_hash_set {
   linked_hash_set& operator=(const linked_hash_set& other) {
     if (this != &other) {
       // Make a new set, with other's hash/eq/alloc.
-      set_ = SetType(other.bucket_count(), other.set_.hash_function(),
+      set_ = SetType(0, other.set_.hash_function(),
                      other.set_.key_eq(), other.get_allocator());
+      set_.reserve(other.size());
       // Copy the list, with other's allocator.
       list_ = ListType(other.get_allocator());
       CopyFrom(other);
@@ -261,6 +265,7 @@ class linked_hash_set {
 
   linked_hash_set& operator=(std::initializer_list<key_type> values) {
     clear();
+    reserve(values.size());
     insert(values.begin(), values.end());
     return *this;
   }

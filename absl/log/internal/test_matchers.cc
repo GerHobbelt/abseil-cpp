@@ -25,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
+#include "absl/base/log_severity.h"
 #include "absl/log/internal/test_helpers.h"
 #include "absl/log/log_entry.h"
 #include "absl/strings/string_view.h"
