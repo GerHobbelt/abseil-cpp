@@ -13,6 +13,7 @@
 // limitations under the License.
 //
 // An open-addressing
+// [https://en.wikipedia.org/wiki/Open_addressing]
 // hashtable with quadratic probing.
 //
 // This is a low level hashtable on top of which different interfaces can be
@@ -225,6 +226,10 @@
 #include <ranges>  // NOLINT(build/c++20)
 #endif
 
+#ifdef __BMI2__
+#include <bmi2intrin.h>
+#endif  // __BMI2__
+
 namespace absl {
 ABSL_NAMESPACE_BEGIN
 namespace container_internal {
@@ -301,57 +306,6 @@ void CopyAlloc(AllocType& lhs, AllocType& rhs,
 template <typename AllocType>
 void CopyAlloc(AllocType&, AllocType&, std::false_type /* propagate_alloc */) {}
 
-// The state for a probe sequence.
-//
-// Currently, the sequence is a triangular progression of the form
-//
-//   p(i) := Width * (i^2 + i)/2 + hash (mod mask + 1)
-//
-// The use of `Width` ensures that each probe step does not overlap groups;
-// the sequence effectively outputs the addresses of *groups* (although not
-// necessarily aligned to any boundary). The `Group` machinery allows us
-// to check an entire group with minimal branching.
-//
-// Wrapping around at `mask + 1` is important, but not for the obvious reason.
-// As described above, the first few entries of the control byte array
-// are mirrored at the end of the array, which `Group` will find and use
-// for selecting candidates. However, when those candidates' slots are
-// actually inspected, there are no corresponding slots for the cloned bytes,
-// so we need to make sure we've treated those offsets as "wrapping around".
-//
-// It turns out that this probe sequence visits every group exactly once if the
-// number of groups is a power of two, since (i^2+i)/2 is a bijection in
-// Z/(2^m). See https://en.wikipedia.org/wiki/Quadratic_probing
-template <size_t Width>
-class probe_seq {
- public:
-  // Creates a new probe sequence using `hash` as the initial value of the
-  // sequence and `mask` (usually the capacity of the table) as the mask to
-  // apply to each value in the progression.
-  probe_seq(size_t hash, size_t mask) {
-    ABSL_SWISSTABLE_ASSERT(((mask + 1) & mask) == 0 && "not a mask");
-    mask_ = mask;
-    offset_ = hash & mask_;
-  }
-
-  // The offset within the table, i.e., the value `p(i)` above.
-  size_t offset() const { return offset_; }
-  size_t offset(size_t i) const { return (offset_ + i) & mask_; }
-
-  void next() {
-    index_ += Width;
-    offset_ += index_;
-    offset_ &= mask_;
-  }
-  // 0-based probe index, a multiple of `Width`.
-  size_t index() const { return index_; }
-
- private:
-  size_t mask_;
-  size_t offset_;
-  size_t index_ = 0;
-};
-
 template <class ContainerKey, class Hash, class Eq>
 struct RequireUsableKey {
   template <class PassedKey, class... Args>
@@ -409,6 +363,12 @@ inline bool IsEmptyGeneration(const GenerationType* generation) {
 // - In order to prevent user code from depending on iteration order for small
 //   tables, we would need to randomize the iteration order somehow.
 constexpr size_t SooCapacity() { return 1; }
+// Maximum capacity of a table where we don't need to hash any keys.
+constexpr size_t MaxSmallCapacity() { return 1; }
+// Maximum capacity of a table where we can use blocked elements.
+constexpr size_t MaxCapacityWithBlockedElements() {
+  return Group::kWidth / 2 - 1;
+}
 // Sentinel type to indicate SOO CommonFields construction.
 struct soo_tag_t {};
 // Sentinel type to indicate SOO CommonFields construction with full size.
@@ -426,7 +386,15 @@ struct no_seed_empty_tag_t {};
 constexpr bool IsValidCapacity(size_t n) { return ((n + 1) & n) == 0 && n > 0; }
 
 // Whether a table is small enough that we don't need to hash any keys.
-constexpr bool IsSmallCapacity(size_t capacity) { return capacity <= 1; }
+constexpr bool IsSmallCapacity(size_t capacity) {
+  return capacity <= MaxSmallCapacity();
+}
+
+// Whether `cap` is a valid capacity for a table that can store blocked
+// elements.
+constexpr bool IsCapacityValidForBlockedElements(size_t cap) {
+  return !IsSmallCapacity(cap) && cap <= MaxCapacityWithBlockedElements();
+}
 
 // Converts `n` into the next valid capacity, per `IsValidCapacity`.
 constexpr size_t NormalizeCapacity(size_t n) {
@@ -566,6 +534,29 @@ class HashtableCapacityImpl {
                                            : (size_t{1} << capacity_data_) - 1;
   }
 
+  constexpr bool is_small() const {
+    // Small tables have capacity 0 or 1. This expression is valid for both
+    // capacity storage modes.
+    // Comparing capacity_data_ directly leads to a better generated code.
+    // One byte comparison is used before computing the capacity in order to
+    // detect small tables faster for critical path.
+    static_assert(MaxSmallCapacity() == 1);
+    return capacity_data_ <= 1;
+  }
+
+  constexpr size_t mask(size_t value) const {
+#ifdef __BMI2__
+    if constexpr (StorageMode == kCapacityByLog) {
+      if constexpr (sizeof(size_t) == 8) {
+        return _bzhi_u64(value, capacity_data_);
+      } else {
+        return _bzhi_u32(value, capacity_data_);
+      }
+    }
+#endif  // __BMI2__
+    return value & capacity();
+  }
+
  private:
   // We use these sentinel capacity values in debug mode to indicate different
   // classes of bugs.
@@ -634,6 +625,7 @@ class PerTableSeedImpl {
 template <HashtableCapacityStorageMode StorageMode>
 class HashtableInlineDataImpl {
  public:
+  static constexpr HashtableCapacityStorageMode kStorageMode = StorageMode;
   using PerTableSeed = PerTableSeedImpl<
       std::conditional_t<StorageMode == kCapacityByValue, uint16_t, uint8_t>>;
   using HashtableCapacity = HashtableCapacityImpl<StorageMode>;
@@ -652,10 +644,10 @@ class HashtableInlineDataImpl {
         data_(kSizeOneNoMetadata |
               (has_tried_sampling ? kSooHasTriedSamplingMask : 0)) {}
 
-  HashtableCapacity maybe_invalid_capacity() const {
+  HashtableCapacity capacity() const {
     return HashtableCapacity::FromRawData(capacity_internal_);
   }
-  size_t capacity() const { return maybe_invalid_capacity().capacity(); }
+  bool is_small() const { return capacity().is_small(); }
 
   void set_capacity(HashtableCapacity c) { capacity_internal_ = c.ToRawData(); }
   void set_capacity(size_t c) { set_capacity(HashtableCapacity(c)); }
@@ -747,7 +739,11 @@ static_assert(
     sizeof(HashtableInlineDataImpl<kCapacityByLog>::HashtableCapacity) == 1);
 static_assert(sizeof(HashtableInlineDataImpl<kCapacityByLog>) == 8);
 
+#ifndef ABSL_SWISSTABLE_INTERNAL_ENABLE_CAPACITY_BY_VALUE
+using HashtableInlineData = HashtableInlineDataImpl<kCapacityByLog>;
+#else
 using HashtableInlineData = HashtableInlineDataImpl<kCapacityByValue>;
+#endif  // ABSL_SWISSTABLE_INTERNAL_ENABLE_CAPACITY_BY_VALUE
 using PerTableSeed = HashtableInlineData::PerTableSeed;
 using HashtableCapacity = HashtableInlineData::HashtableCapacity;
 
@@ -1008,10 +1004,20 @@ constexpr size_t NumControlBytes(size_t capacity) {
   return IsSmallCapacity(capacity) ? 0 : capacity + 1 + NumClonedBytes();
 }
 
+// Returns whether table with the given capacity has a GrowthInfo.
+constexpr bool HasGrowthInfoForCapacity(size_t capacity) {
+  return !IsSmallCapacity(capacity);
+}
+
 // Computes the offset from the start of the backing allocation of control.
 // infoz and growth_info are stored at the beginning of the backing array.
-constexpr size_t ControlOffset(bool has_infoz) {
-  return (has_infoz ? sizeof(HashtablezInfoHandle) : 0) + sizeof(GrowthInfo);
+constexpr size_t ControlOffset(bool has_infoz, bool has_growth_info) {
+  if (ABSL_PREDICT_FALSE(has_infoz)) {
+    // We always allocate GrowthInfo for sampled tables to allow branchless
+    // access to infoz pointer.
+    return sizeof(HashtablezInfoHandle) + sizeof(GrowthInfo);
+  }
+  return has_growth_info ? sizeof(GrowthInfo) : 0;
 }
 
 // Returns the offset of the next item after `offset` that is aligned to `align`
@@ -1023,16 +1029,16 @@ constexpr size_t AlignUpTo(size_t offset, size_t align) {
 // Helper class for computing offsets and allocation size of hash set fields.
 class RawHashSetLayout {
  public:
-  // TODO(b/413062340): maybe don't allocate growth info for capacity 1 tables.
-  // Doing so may require additional branches/complexity so it might not be
-  // worth it.
   explicit RawHashSetLayout(size_t capacity, size_t slot_size,
-                            size_t slot_align, bool has_infoz)
-      : control_offset_(ControlOffset(has_infoz)),
+                            size_t slot_align, bool has_infoz,
+                            size_t blocked_element_count)
+      : control_offset_(
+            ControlOffset(has_infoz, HasGrowthInfoForCapacity(capacity))),
         generation_offset_(control_offset_ + NumControlBytes(capacity)),
         slot_offset_(
             AlignUpTo(generation_offset_ + NumGenerationBytes(), slot_align)),
-        alloc_size_(slot_offset_ + capacity * slot_size) {
+        alloc_size_(slot_offset_ +
+                    (capacity - blocked_element_count) * slot_size) {
     ABSL_SWISSTABLE_ASSERT(IsValidCapacity(capacity));
     ABSL_SWISSTABLE_ASSERT(
         slot_size <=
@@ -1235,16 +1241,22 @@ class CommonFields : public CommonFieldsGenerationInfo {
   }
   void set_no_seed_for_testing() { inline_data_.set_no_seed_for_testing(); }
 
-  // The total number of available slots.
-  size_t capacity() const { return inline_data_.capacity(); }
+  HashtableCapacity capacity_impl() const {
+    HashtableCapacity cap = inline_data_.capacity();
+    ABSL_SWISSTABLE_ASSERT(cap.IsValid());
+    return cap;
+  }
+  size_t capacity() const { return capacity_impl().capacity(); }
+  // We have a separate alias for callsites in which the capacity may be
+  // invalid.
   HashtableCapacity maybe_invalid_capacity() const {
-    return inline_data_.maybe_invalid_capacity();
+    return inline_data_.capacity();
   }
   void set_capacity(HashtableCapacity c) { inline_data_.set_capacity(c); }
   void set_capacity(size_t c) {
     set_capacity(HashtableCapacity(c));
   }
-  bool is_small() const { return IsSmallCapacity(capacity()); }
+  bool is_small() const { return inline_data_.is_small(); }
 
   // The number of slots we can still fill without needing to rehash.
   // This is stored in the heap allocation before the control bytes.
@@ -1253,7 +1265,7 @@ class CommonFields : public CommonFieldsGenerationInfo {
   size_t growth_left() const { return growth_info().GetGrowthLeft(); }
 
   GrowthInfo& growth_info() {
-    ABSL_SWISSTABLE_ASSERT(!is_small());
+    ABSL_SWISSTABLE_ASSERT(HasGrowthInfoForCapacity(capacity()));
     return GetGrowthInfoFromControl(control());
   }
   GrowthInfo growth_info() const {
@@ -1272,7 +1284,8 @@ class CommonFields : public CommonFieldsGenerationInfo {
         reinterpret_cast<uintptr_t>(control()) % alignof(size_t) == 0);
     ABSL_SWISSTABLE_ASSERT(has_infoz());
     return reinterpret_cast<HashtablezInfoHandle*>(
-        control() - ControlOffset(/*has_infoz=*/true));
+        control() - ControlOffset(/*has_infoz=*/true,
+                                  HasGrowthInfoForCapacity(capacity())));
   }
 
   HashtablezInfoHandle infoz() {
@@ -1301,9 +1314,26 @@ class CommonFields : public CommonFieldsGenerationInfo {
     CommonFieldsGenerationInfo::reset_reserved_growth(reservation, size());
   }
 
+  // Returns the number of blocked elements in the table.
+  // Blocked elements are located at the end of the table and do not have
+  // corresponding slots.
+  // Control bytes are set to kSentinel for blocked elements.
+  size_t blocked_element_count() const {
+    size_t cap = capacity();
+    if (!IsCapacityValidForBlockedElements(cap)) {
+      return 0;
+    }
+    ABSL_SWISSTABLE_ASSERT(cap == CapacityToGrowth(cap));
+    // Formula is valid because MaxCapacityWithBlockedElements is less than
+    // group width. On erase for single group tables, we always increment the
+    // growth left.
+    return cap - size() - growth_left();
+  }
+
   // The size of the backing array allocation.
   size_t alloc_size(size_t slot_size, size_t slot_align) const {
-    return RawHashSetLayout(capacity(), slot_size, slot_align, has_infoz())
+    return RawHashSetLayout(capacity(), slot_size, slot_align, has_infoz(),
+                            blocked_element_count())
         .alloc_size();
   }
 
@@ -1392,6 +1422,26 @@ constexpr bool SwisstableDebugEnabled() {
 #endif
 }
 
+// Dereferences `ptr`. The function is named in order to provide a helpful error
+// message when users see crashing stack traces. Note that this function is not
+// guaranteed to crash when `ptr` is invalid if sanitizer mode is not enabled.
+template <typename T>
+T CrashIfIteratorIsInvalid(const T* ptr) {
+  // If the following line(s) crash, then it's likely that `ptr` is from a
+  // backing array that has been deallocated. If you see a crash here, it likely
+  // means that you are comparing an invalid iterator from a table that has
+  // rehashed, moved, or been destroyed. In such cases, it is often helpful to
+  // reproduce the issue with --config=asan and (assuming there's a crash here)
+  // examine the corresponding deallocation stack trace.
+  T ret = *ptr;
+  // Force a read with inline asm to make sure that a crash happens here, rather
+  // than later when the value is used.
+#ifdef __clang__
+  asm("" : "+r"(ret));
+#endif
+  return ret;
+}
+
 inline void AssertIsFull(const ctrl_t* ctrl, GenerationType generation,
                          const GenerationType* generation_ptr,
                          const char* operation) {
@@ -1409,20 +1459,21 @@ inline void AssertIsFull(const ctrl_t* ctrl, GenerationType generation,
                  operation);
   }
   if (SwisstableGenerationsEnabled()) {
-    if (ABSL_PREDICT_FALSE(generation != *generation_ptr)) {
+    if (ABSL_PREDICT_FALSE(generation !=
+                           CrashIfIteratorIsInvalid(generation_ptr))) {
       ABSL_RAW_LOG(FATAL,
                    "%s called on invalid iterator. The table could have "
                    "rehashed or moved since this iterator was initialized.",
                    operation);
     }
-    if (ABSL_PREDICT_FALSE(!IsFull(*ctrl))) {
+    if (ABSL_PREDICT_FALSE(!IsFull(CrashIfIteratorIsInvalid(ctrl)))) {
       ABSL_RAW_LOG(
           FATAL,
           "%s called on invalid iterator. The element was likely erased.",
           operation);
     }
   } else {
-    if (ABSL_PREDICT_FALSE(!IsFull(*ctrl))) {
+    if (ABSL_PREDICT_FALSE(!IsFull(CrashIfIteratorIsInvalid(ctrl)))) {
       ABSL_RAW_LOG(
           FATAL,
           "%s called on invalid iterator. The element might have been erased "
@@ -1438,20 +1489,15 @@ inline void AssertIsValidForComparison(const ctrl_t* ctrl,
                                        GenerationType generation,
                                        const GenerationType* generation_ptr) {
   if (!SwisstableDebugEnabled()) return;
-  const bool ctrl_is_valid_for_comparison = [ctrl]() {
-    if (ctrl == nullptr) return true;
-    if (ctrl == DefaultIterControl()) return true;
-    // Note: if the following line crashes, then it's likely that `ctrl` is from
-    // a backing array that has been deallocated. If you see a crash here, it
-    // likely means that you are comparing an invalid iterator from a table that
-    // has rehashed, moved, or been destroyed.
-    return IsFull(*ctrl);
-  }();
+  const bool ctrl_is_valid_for_comparison =
+      ctrl == nullptr || ctrl == DefaultIterControl() ||
+      IsFull(CrashIfIteratorIsInvalid(ctrl));
   if (SwisstableGenerationsEnabled()) {
-    if (ABSL_PREDICT_FALSE(generation != *generation_ptr)) {
+    if (ABSL_PREDICT_FALSE(generation !=
+                           CrashIfIteratorIsInvalid(generation_ptr))) {
       // Note: in the case of a rehash, we would expect to see a sanitizer crash
-      // above when `ctrl` is dereferenced so this assertion will only catch
-      // moved table cases, unless we're using a custom allocator that does not
+      // in CrashIfIteratorIsInvalid so this assertion will only catch moved
+      // table cases, unless we're using a custom allocator that does not
       // deallocate the old backing array (e.g. an arena allocator).
       ABSL_RAW_LOG(
           FATAL,
@@ -1560,15 +1606,64 @@ constexpr bool is_single_group(size_t capacity) {
   return capacity <= Group::kWidth;
 }
 
+// The state for a probe sequence.
+//
+// Currently, the sequence is a triangular progression of the form
+//
+//   p(i) := Width * (i^2 + i)/2 + hash (mod mask + 1)
+//
+// The use of `Width` ensures that each probe step does not overlap groups;
+// the sequence effectively outputs the addresses of *groups* (although not
+// necessarily aligned to any boundary). The `Group` machinery allows us
+// to check an entire group with minimal branching.
+//
+// Wrapping around at `mask + 1` is important, but not for the obvious reason.
+// As described above, the first few entries of the control byte array
+// are mirrored at the end of the array, which `Group` will find and use
+// for selecting candidates. However, when those candidates' slots are
+// actually inspected, there are no corresponding slots for the cloned bytes,
+// so we need to make sure we've treated those offsets as "wrapping around".
+//
+// It turns out that this probe sequence visits every group exactly once if the
+// number of groups is a power of two, since (i^2+i)/2 is a bijection in
+// Z/(2^m). See https://en.wikipedia.org/wiki/Quadratic_probing
+template <size_t Width>
+class probe_seq {
+ public:
+  // Creates a new probe sequence using `hash` as the initial value of the
+  // sequence and `capacity` as the mask to apply to each value in the
+  // progression.
+  probe_seq(HashtableCapacity capacity, size_t hash)
+      : capacity_(capacity), offset_(capacity.mask(hash)) {}
+
+  // The offset within the table, i.e., the value `p(i)` above.
+  size_t offset() const { return offset_; }
+  size_t offset(size_t i) const { return capacity_.mask(offset_ + i); }
+
+  void next() {
+    index_ += Width;
+    offset_ += index_;
+    offset_ = capacity_.mask(offset_);
+  }
+  // 0-based probe index, a multiple of `Width`.
+  size_t index() const { return index_; }
+
+ private:
+  HashtableCapacity capacity_;
+  size_t offset_;
+  size_t index_ = 0;
+};
+
 // Begins a probing operation on `common.control`, using `hash`.
-inline probe_seq<Group::kWidth> probe_h1(size_t capacity, size_t h1) {
-  return probe_seq<Group::kWidth>(h1, capacity);
+inline probe_seq<Group::kWidth> probe_h1(HashtableCapacity capacity,
+                                         size_t h1) {
+  return probe_seq<Group::kWidth>(capacity, h1);
 }
-inline probe_seq<Group::kWidth> probe(size_t capacity, size_t hash) {
+inline probe_seq<Group::kWidth> probe(HashtableCapacity capacity, size_t hash) {
   return probe_h1(capacity, H1(hash));
 }
 inline probe_seq<Group::kWidth> probe(const CommonFields& common, size_t hash) {
-  return probe(common.capacity(), hash);
+  return probe(common.capacity_impl(), hash);
 }
 
 constexpr size_t kProbedElementIndexSentinel = ~size_t{};
@@ -1667,8 +1762,9 @@ void* AllocateBackingArray(void* alloc, size_t n) {
 template <size_t AlignOfBackingArray, typename Alloc>
 ABSL_ATTRIBUTE_NOINLINE void DeallocateBackingArray(
     void* alloc, size_t capacity, ctrl_t* ctrl, size_t slot_size,
-    size_t slot_align, bool had_infoz) {
-  RawHashSetLayout layout(capacity, slot_size, slot_align, had_infoz);
+    size_t slot_align, bool had_infoz, size_t blocked_element_count) {
+  RawHashSetLayout layout(capacity, slot_size, slot_align, had_infoz,
+                          blocked_element_count);
   void* backing_array = ctrl - layout.control_offset();
   // Unpoison before returning the memory to the allocator.
   SanitizerUnpoisonMemoryRegion(backing_array, layout.alloc_size());
@@ -1706,7 +1802,8 @@ struct PolicyFunctions {
 
   // Deallocates the backing store from common.
   void (*dealloc)(void* alloc, size_t capacity, ctrl_t* ctrl, size_t slot_size,
-                  size_t slot_align, bool had_infoz);
+                  size_t slot_align, bool had_infoz,
+                  size_t blocked_element_count);
 
   // Implementation detail of GrowToNextCapacity.
   // Iterates over all full slots and transfers unprobed elements.
@@ -1877,9 +1974,9 @@ void ResizeAllocatedTableWithSeedChange(CommonFields& common,
 
 // ClearBackingArray clears the backing array, either modifying it in place,
 // or creating a new one based on the value of "reuse".
-// REQUIRES: c.capacity > 0
+// REQUIRES: c.capacity > MaxSmallCapacity().
 void ClearBackingArray(CommonFields& c, const PolicyFunctions& policy,
-                       void* alloc, bool reuse, bool soo_enabled);
+                       void* alloc, bool reuse);
 
 // Type-erased versions of raw_hash_set::erase_meta_only_{small,large}.
 void EraseMetaOnlySmall(CommonFields& c, bool soo_enabled, size_t slot_size);
@@ -2856,8 +2953,8 @@ class raw_hash_set {
   iterator erase(const_iterator first,
                  const_iterator last) ABSL_ATTRIBUTE_LIFETIME_BOUND {
     AssertNotDebugCapacity();
-    // We check for empty first because clear_backing_array requires that
-    // capacity() > 0 as a precondition.
+    // We check for empty and for is_small because clear_backing_array requires
+    // that capacity() > MaxSmallCapacity() as a precondition.
     if (empty()) return end();
     if (first == last) return last.inner_;
     if (is_small()) {
@@ -3217,9 +3314,8 @@ class raw_hash_set {
   }
 
   void clear_backing_array(bool reuse) {
-    ABSL_SWISSTABLE_ASSERT(capacity() > DefaultCapacity());
-    ClearBackingArray(common(), GetPolicyFunctions(), &char_alloc_ref(), reuse,
-                      SooEnabled());
+    ABSL_SWISSTABLE_ASSERT(capacity() > MaxSmallCapacity());
+    ClearBackingArray(common(), GetPolicyFunctions(), &char_alloc_ref(), reuse);
   }
 
   void destroy_slots() {
@@ -3246,7 +3342,8 @@ class raw_hash_set {
     DeallocateBackingArray<BackingArrayAlignment(alignof(slot_type)),
                            CharAlloc>(&char_alloc_ref(), capacity(), control(),
                                       sizeof(slot_type), alignof(slot_type),
-                                      common().has_infoz());
+                                      common().has_infoz(),
+                                      common().blocked_element_count());
   }
 
   void destructor_impl() {
@@ -3991,7 +4088,7 @@ extern template void* AllocateBackingArray<
 extern template void DeallocateBackingArray<
     BackingArrayAlignment(alignof(size_t)), std::allocator<char>>(
     void* alloc, size_t capacity, ctrl_t* ctrl, size_t slot_size,
-    size_t slot_align, bool had_infoz);
+    size_t slot_align, bool had_infoz, size_t blocked_element_count);
 
 }  // namespace container_internal
 ABSL_NAMESPACE_END

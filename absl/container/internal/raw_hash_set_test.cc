@@ -346,7 +346,8 @@ TEST(Util, GrowthAndCapacity) {
 }
 
 TEST(Util, probe_seq) {
-  probe_seq<16> seq(0, 127);
+  HashtableCapacity capacity(127);
+  probe_seq<16> seq(capacity, /*hash=*/0);
   auto gen = [&]() {
     size_t res = seq.offset();
     seq.next();
@@ -355,7 +356,7 @@ TEST(Util, probe_seq) {
   std::vector<size_t> offsets(8);
   std::generate_n(offsets.begin(), 8, gen);
   EXPECT_THAT(offsets, ElementsAre(0, 16, 48, 96, 32, 112, 80, 64));
-  seq = probe_seq<16>(128, 127);
+  seq = probe_seq<16>(capacity, /*hash=*/128);
   std::generate_n(offsets.begin(), 8, gen);
   EXPECT_THAT(offsets, ElementsAre(0, 16, 48, 96, 32, 112, 80, 64));
 }
@@ -429,24 +430,24 @@ TYPED_TEST(HashtableDataTest, HashtableInlineDataCapacity) {
   using Capacity = HashtableCapacityImpl<kMode>;
 
   InlineData data(Capacity(0), no_seed_empty_tag_t{});
-  EXPECT_EQ(data.capacity(), 0);
+  EXPECT_EQ(data.capacity().capacity(), 0);
   EXPECT_EQ(data.size(), 0);
   EXPECT_TRUE(data.empty());
 
   for (size_t i = 0, cap = 0; i < 20; ++i, cap = NextCapacity(cap)) {
     data.set_capacity(cap);
-    ASSERT_EQ(data.capacity(), cap);
+    ASSERT_EQ(data.capacity().capacity(), cap);
   }
 
   // Test overload from `Capacity` object.
   for (size_t i = 0, cap = 0; i < 20; ++i, cap = NextCapacity(cap)) {
     data.set_capacity(Capacity(cap));
-    ASSERT_EQ(data.capacity(), cap);
+    ASSERT_EQ(data.capacity().capacity(), cap);
   }
 
   auto reentrance = Capacity::CreateReentrance();
   data.set_capacity(reentrance);
-  EXPECT_TRUE(data.maybe_invalid_capacity().IsReentrance());
+  EXPECT_TRUE(data.capacity().IsReentrance());
 }
 
 TYPED_TEST(HashtableDataTest, HashtableInlineDataSize) {
@@ -510,7 +511,7 @@ TYPED_TEST(HashtableDataTest, HashtableInlineDataFullSooConstructor) {
   {
     InlineData data_soo(Capacity(1), full_soo_tag_t{},
                         /*has_tried_sampling=*/true);
-    EXPECT_EQ(data_soo.capacity(), 1);
+    EXPECT_EQ(data_soo.capacity().capacity(), 1);
     EXPECT_EQ(data_soo.size(), 1);
     EXPECT_TRUE(data_soo.soo_has_tried_sampling());
   }
@@ -518,7 +519,7 @@ TYPED_TEST(HashtableDataTest, HashtableInlineDataFullSooConstructor) {
   {
     InlineData data_soo(Capacity(1), full_soo_tag_t{},
                         /*has_tried_sampling=*/false);
-    EXPECT_EQ(data_soo.capacity(), 1);
+    EXPECT_EQ(data_soo.capacity().capacity(), 1);
     EXPECT_EQ(data_soo.size(), 1);
     EXPECT_FALSE(data_soo.soo_has_tried_sampling());
   }
@@ -934,12 +935,20 @@ TEST(Table, EmptyFunctorOptimization) {
   static_assert(std::is_empty<std::equal_to<absl::string_view>>::value, "");
   static_assert(std::is_empty<std::allocator<int>>::value, "");
 
-  struct MockTable {
+  struct MockTableByValue {
     size_t capacity;
     uint64_t size;
     void* ctrl;
     void* slots;
   };
+  struct MockTableByLog {
+    uint64_t size;
+    void* ctrl;
+    void* slots;
+  };
+  using MockTable =
+      std::conditional_t<HashtableInlineData::kStorageMode == kCapacityByValue,
+                         MockTableByValue, MockTableByLog>;
   struct StatelessHash {
     size_t operator()(absl::string_view) const { return 0; }
   };
@@ -1162,6 +1171,101 @@ TYPED_TEST(SooTest, InsertWithinCapacity) {
   t.insert(dup_range.begin(), dup_range.end());
   EXPECT_THAT(t.capacity(), original_capacity);
   EXPECT_THAT(addr(0), original_addr_0);
+}
+
+TYPED_TEST(SooTest, ClearDifferentSizes) {
+  for (size_t size = 0; size < 32; ++size) {
+    for (bool reserve : {false, true}) {
+      for (bool clear_via_erase : {false, true}) {
+        SCOPED_TRACE(absl::StrCat("size: ", size, ", reserve: ", reserve,
+                                  ", clear_via_erase: ", clear_via_erase));
+        TypeParam t;
+        if (reserve) {
+          t.reserve(size);
+        }
+        for (size_t i = 0; i < size; ++i) {
+          ASSERT_TRUE(t.insert(static_cast<int>(i)).second) << i;
+        }
+        if (clear_via_erase) {
+          t.erase(t.begin(), t.end());
+        } else {
+          t.clear();
+        }
+        ASSERT_EQ(t.size(), 0);
+        for (size_t i = 0; i < size; ++i) {
+          ASSERT_TRUE(t.insert(static_cast<int>(i)).second) << i;
+        }
+      }
+    }
+  }
+}
+
+TYPED_TEST(SooTest, ReserveTwice) {
+  for (size_t reserve_size = 0; reserve_size < 32; ++reserve_size) {
+    for (size_t reserve_size2 = reserve_size; reserve_size2 < 32;
+         ++reserve_size2) {
+      SCOPED_TRACE(absl::StrCat("reserve_size: ", reserve_size,
+                                ", reserve_size2: ", reserve_size2));
+      TypeParam t;
+      t.reserve(reserve_size);
+      {  // Insert first batch of elements.
+        size_t cap = t.capacity();
+        for (size_t i = 0; i < reserve_size; ++i) {
+          ASSERT_TRUE(t.insert(static_cast<int>(i)).second) << i;
+        }
+        ASSERT_EQ(t.capacity(), cap);
+      }
+      t.reserve(reserve_size2);
+      {  // Insert second batch of elements.
+        size_t cap = t.capacity();
+        for (size_t i = reserve_size; i < reserve_size2; ++i) {
+          ASSERT_TRUE(t.insert(static_cast<int>(i)).second) << i;
+        }
+        ASSERT_EQ(t.capacity(), cap);
+      }
+      for (size_t i = 0; i < reserve_size2; ++i) {
+        ASSERT_TRUE(t.contains(static_cast<int>(i))) << i;
+      }
+    }
+  }
+}
+
+TYPED_TEST(SooTest, GrowAfterReserve) {
+  for (size_t reserve_size = 1; reserve_size <= 150; ++reserve_size) {
+    size_t size = reserve_size + 1;
+    TypeParam s;
+    s.reserve(reserve_size);
+    for (size_t i = 0; i < size; ++i) {
+      ASSERT_TRUE(s.insert(static_cast<int>(i)).second) << i;
+    }
+    EXPECT_EQ(s.size(), size);
+    for (size_t i = 0; i < size; ++i) {
+      ASSERT_TRUE(s.contains(static_cast<int>(i))) << i;
+    }
+  }
+}
+
+TYPED_TEST(SooTest, ClearAfterReserve) {
+  for (size_t reserve_size :
+       std::vector<size_t>{1, 3, 4, 6, 7, 8, 13, 14, 15, 128, 150}) {
+    TypeParam s;
+    s.reserve(reserve_size);
+    for (size_t i = 0; i < reserve_size; ++i) {
+      ASSERT_TRUE(s.insert(static_cast<int>(i)).second);
+    }
+    EXPECT_EQ(s.size(), reserve_size);
+    s.clear();
+    EXPECT_EQ(s.size(), 0);
+    for (size_t i = 0; i < reserve_size; ++i) {
+      ASSERT_FALSE(s.contains(static_cast<int>(i))) << i;
+    }
+    for (size_t i = 0; i < reserve_size; ++i) {
+      ASSERT_TRUE(s.insert(static_cast<int>(i)).second) << i;
+    }
+    for (size_t i = 0; i < reserve_size; ++i) {
+      ASSERT_TRUE(s.contains(static_cast<int>(i))) << i;
+    }
+  }
 }
 
 template <class TableType>
@@ -2846,6 +2950,18 @@ TYPED_TEST(SooTest, HintInsert) {
   EXPECT_TRUE(node);  // NOLINT(bugprone-use-after-move)
 }
 
+TYPED_TEST(SooTest, RehashZeroForSmallTable) {
+  TypeParam t{0};
+  EXPECT_EQ(t.capacity(), 1);
+  t.rehash(0);
+  EXPECT_EQ(t.capacity(), 1);
+  EXPECT_TRUE(t.contains(0));
+  t.insert(1);
+  EXPECT_EQ(t.capacity(), NextCapacity(1));
+  EXPECT_TRUE(t.contains(0));
+  EXPECT_TRUE(t.contains(1));
+}
+
 template <typename T>
 T MakeSimpleTable(size_t size, bool do_reserve) {
   T t;
@@ -2996,12 +3112,11 @@ TEST(TableDeathTest, InvalidIteratorAssertsSoo) {
   // the control is static constant.
 }
 
-// Invalid iterator use can trigger use-after-free in asan/hwasan,
-// use-of-uninitialized-value in msan, or invalidated iterator assertions.
+// Invalid iterator use can trigger crashes or invalidated iterator assertions.
 testing::Matcher<const std::string&> InvalidIteratorMatcher() {
   return AnyOf(HasSubstr("invalidated iterator"), HasSubstr("Invalid iterator"),
-               HasSubstr("invalid iterator"), HasSubstr("use-after-free"),
-               HasSubstr("use-of-uninitialized-value"));
+               HasSubstr("invalid iterator"),
+               HasSubstr("CrashIfIteratorIsInvalid"));
 }
 
 TYPED_TEST(SooTest, IteratorInvalidAssertsEqualityOperator) {

@@ -434,7 +434,7 @@ cc_library(
     linkopts = ABSL_DEFAULT_LINKOPTS,
     visibility = [
         "//absl:friends",
-        "//visibility:private",
+        "//absl/status:__pkg__",
     ],
     deps = [
         ":string_view",
