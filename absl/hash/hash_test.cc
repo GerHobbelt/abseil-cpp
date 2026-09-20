@@ -28,6 +28,7 @@
 #include <ios>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <set>
 #include <string>
@@ -36,6 +37,7 @@
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -51,8 +53,6 @@
 #include "absl/numeric/bits.h"
 #include "absl/strings/cord_test_helpers.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
-#include "absl/types/variant.h"
 
 #ifdef ABSL_INTERNAL_STD_FILESYSTEM_PATH_HASH_AVAILABLE
 #include <filesystem>  // NOLINT
@@ -750,22 +750,22 @@ TEST(HashValueTest, PrivateSanity) {
 }
 
 TEST(HashValueTest, Optional) {
-  EXPECT_TRUE(is_hashable<absl::optional<Private>>::value);
+  EXPECT_TRUE(is_hashable<std::optional<Private>>::value);
 
-  using O = absl::optional<Private>;
+  using O = std::optional<Private>;
   EXPECT_TRUE(absl::VerifyTypeImplementsAbslHashCorrectly(
       std::make_tuple(O{}, O{{1}}, O{{-1}}, O{{10}})));
 }
 
 TEST(HashValueTest, Variant) {
-  using V = absl::variant<Private, std::string>;
+  using V = std::variant<Private, std::string>;
   EXPECT_TRUE(is_hashable<V>::value);
 
   EXPECT_TRUE(absl::VerifyTypeImplementsAbslHashCorrectly(std::make_tuple(
       V(Private{1}), V(Private{-1}), V(Private{2}), V("ABC"), V("BCD"))));
 
   struct S {};
-  EXPECT_FALSE(is_hashable<absl::variant<S>>::value);
+  EXPECT_FALSE(is_hashable<std::variant<S>>::value);
 }
 
 TEST(HashValueTest, ReferenceWrapper) {
@@ -805,8 +805,8 @@ TEST(IsHashableTest, ValidHash) {
   EXPECT_TRUE(std::is_default_constructible<absl::Hash<int>>::value);
   EXPECT_TRUE(std::is_copy_constructible<absl::Hash<int>>::value);
   EXPECT_TRUE(std::is_move_constructible<absl::Hash<int>>::value);
-  EXPECT_TRUE(absl::is_copy_assignable<absl::Hash<int>>::value);
-  EXPECT_TRUE(absl::is_move_assignable<absl::Hash<int>>::value);
+  EXPECT_TRUE(std::is_copy_assignable<absl::Hash<int>>::value);
+  EXPECT_TRUE(std::is_move_assignable<absl::Hash<int>>::value);
   EXPECT_TRUE(IsHashCallable<int>::value);
   EXPECT_TRUE(IsAggregateInitializable<absl::Hash<int>>::value);
 }
@@ -817,8 +817,8 @@ TEST(IsHashableTest, PoisonHash) {
   EXPECT_FALSE(std::is_default_constructible<absl::Hash<X>>::value);
   EXPECT_FALSE(std::is_copy_constructible<absl::Hash<X>>::value);
   EXPECT_FALSE(std::is_move_constructible<absl::Hash<X>>::value);
-  EXPECT_FALSE(absl::is_copy_assignable<absl::Hash<X>>::value);
-  EXPECT_FALSE(absl::is_move_assignable<absl::Hash<X>>::value);
+  EXPECT_FALSE(std::is_copy_assignable<absl::Hash<X>>::value);
+  EXPECT_FALSE(std::is_move_assignable<absl::Hash<X>>::value);
   EXPECT_FALSE(IsHashCallable<X>::value);
 #if !defined(__GNUC__) || defined(__clang__)
   // TODO(b/144368551): As of GCC 8.4 this does not compile.
@@ -893,7 +893,7 @@ struct CustomHashType {
 
 template <InvokeTag allowed, InvokeTag... tags>
 struct EnableIfContained
-    : std::enable_if<absl::disjunction<
+    : std::enable_if<std::disjunction<
           std::integral_constant<bool, allowed == tags>...>::value> {};
 
 template <

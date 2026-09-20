@@ -56,11 +56,13 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 #include "absl/base/attributes.h"
 #include "absl/base/internal/endian.h"
@@ -408,7 +410,7 @@ struct HashWithSeed {
 // Convenience function that combines `hash_state` with the byte representation
 // of `value`.
 template <typename H, typename T,
-          absl::enable_if_t<FitsIn64Bits<T>::value, int> = 0>
+          std::enable_if_t<FitsIn64Bits<T>::value, int> = 0>
 H hash_bytes(H hash_state, const T& value) {
   const unsigned char* start = reinterpret_cast<const unsigned char*>(&value);
   uint64_t v;
@@ -425,7 +427,7 @@ H hash_bytes(H hash_state, const T& value) {
   return CombineRaw()(std::move(hash_state), v);
 }
 template <typename H, typename T,
-          absl::enable_if_t<!FitsIn64Bits<T>::value, int> = 0>
+          std::enable_if_t<!FitsIn64Bits<T>::value, int> = 0>
 H hash_bytes(H hash_state, const T& value) {
   const unsigned char* start = reinterpret_cast<const unsigned char*>(&value);
   return H::combine_contiguous(std::move(hash_state), start, sizeof(value));
@@ -605,7 +607,7 @@ template <typename H, typename... Ts>
 // for now.
 H
 #else   // _MSC_VER
-typename std::enable_if<absl::conjunction<is_hashable<Ts>...>::value, H>::type
+typename std::enable_if<std::conjunction<is_hashable<Ts>...>::value, H>::type
 #endif  // _MSC_VER
 AbslHashValue(H hash_state, const std::tuple<Ts...>& t) {
   return hash_internal::hash_tuple(std::move(hash_state), t,
@@ -654,7 +656,7 @@ H AbslHashValue(H hash_state, absl::string_view str) {
 
 // Support std::wstring, std::u16string and std::u32string.
 template <typename Char, typename Alloc, typename H,
-          typename = absl::enable_if_t<std::is_same<Char, wchar_t>::value ||
+          typename = std::enable_if_t<std::is_same<Char, wchar_t>::value ||
                                        std::is_same<Char, char16_t>::value ||
                                        std::is_same<Char, char32_t>::value>>
 H AbslHashValue(
@@ -665,7 +667,7 @@ H AbslHashValue(
 
 // Support std::wstring_view, std::u16string_view and std::u32string_view.
 template <typename Char, typename H,
-          typename = absl::enable_if_t<std::is_same<Char, wchar_t>::value ||
+          typename = std::enable_if_t<std::is_same<Char, wchar_t>::value ||
                                        std::is_same<Char, char16_t>::value ||
                                        std::is_same<Char, char32_t>::value>>
 H AbslHashValue(H hash_state, std::basic_string_view<Char> str) {
@@ -684,7 +686,7 @@ H AbslHashValue(H hash_state, std::basic_string_view<Char> str) {
 // Support std::filesystem::path. The SFINAE is required because some string
 // types are implicitly convertible to std::filesystem::path.
 template <typename Path, typename H,
-          typename = absl::enable_if_t<
+          typename = std::enable_if_t<
               std::is_same_v<Path, std::filesystem::path>>>
 H AbslHashValue(H hash_state, const Path& path) {
   // This is implemented by deferring to the standard library to compute the
@@ -910,10 +912,10 @@ typename std::enable_if<is_hashable<T>::value, H>::type AbslHashValue(
 
 #ifdef ABSL_DEFINE_HASH_FOR_STD_WRAPPER
 
-// AbslHashValue for hashing absl::optional
+// AbslHashValue for hashing std::optional
 template <typename H, typename T>
 typename std::enable_if<is_hashable<T>::value, H>::type AbslHashValue(
-    H hash_state, const absl::optional<T>& opt) {
+    H hash_state, const std::optional<T>& opt) {
   if (opt) hash_state = H::combine(std::move(hash_state), *opt);
   return H::combine(std::move(hash_state), opt.has_value());
 }
@@ -927,12 +929,12 @@ struct VariantVisitor {
   }
 };
 
-// AbslHashValue for hashing absl::variant
+// AbslHashValue for hashing std::variant
 template <typename H, typename... T>
 typename std::enable_if<conjunction<is_hashable<T>...>::value, H>::type
-AbslHashValue(H hash_state, const absl::variant<T...>& v) {
+AbslHashValue(H hash_state, const std::variant<T...>& v) {
   if (!v.valueless_by_exception()) {
-    hash_state = absl::visit(VariantVisitor<H>{std::move(hash_state)}, v);
+    hash_state = std::visit(VariantVisitor<H>{std::move(hash_state)}, v);
   }
   return H::combine(std::move(hash_state), v.index());
 }
@@ -1093,19 +1095,24 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline uint64_t CombineRawImpl(uint64_t state,
   // The general idea here is to do two CRC32 operations in parallel using the
   // low and high 32 bits of state as CRC states. Note that: (1) when absl::Hash
   // is inlined into swisstable lookups, we know that the seed's high bits are
-  // zero so s.u32s.high is available immediately. (2) We chose to rotate value
-  // right by 45 for the low CRC because that minimizes the probe benchmark
-  // geomean across the 64 possible rotations. (3) The union makes it easy for
-  // the compiler to understand that the high and low CRC states are independent
-  // from each other so that when CombineRawImpl is repeated (e.g. for
-  // std::pair<size_t, size_t>), the CRC chains can run in parallel. We
+  // zero so s.u32s.high is available immediately. (2) We chose to multiply
+  // value by 3 for the low CRC because (a) multiplication by 3 can be done in 1
+  // cycle on x86/ARM and (b) multiplication has carry bits so it's nonlinear in
+  // GF(2) and therefore ensures that the two CRCs are independent (unlike bit
+  // rotation, XOR, etc). (3) We also tried using addition instead of
+  // multiplication by 3, but (a) code size is larger and (b) if the input keys
+  // all have 0s in the bits where the addition constant has 1s, then the
+  // addition is equivalent to XOR and linear in GF(2). (4) The union makes it
+  // easy for the compiler to understand that the high and low CRC states are
+  // independent from each other so that when CombineRawImpl is repeated (e.g.
+  // for std::pair<size_t, size_t>), the CRC chains can run in parallel. We
   // originally tried using bswaps rather than shifting by 32 bits (to get from
   // high to low bits) because bswap is one byte smaller in code size, but the
   // compiler couldn't understand that the CRC chains were independent.
   s.u32s.high =
       static_cast<uint32_t>(ABSL_HASH_INTERNAL_CRC32_U64(s.u32s.high, value));
   s.u32s.low = static_cast<uint32_t>(
-      ABSL_HASH_INTERNAL_CRC32_U64(s.u32s.low, absl::rotr(value, 45)));
+      ABSL_HASH_INTERNAL_CRC32_U64(s.u32s.low, 3 * value));
   return s.u64;
 }
 #else   // ABSL_HASH_INTERNAL_HAS_CRC32
@@ -1306,14 +1313,14 @@ struct HashSelect {
   struct UniquelyRepresentedProbe {
     template <typename H, typename T>
     static auto Invoke(H state, const T& value)
-        -> absl::enable_if_t<is_uniquely_represented<T>::value, H> {
+        -> std::enable_if_t<is_uniquely_represented<T>::value, H> {
       return hash_internal::hash_bytes(std::move(state), value);
     }
   };
 
   struct HashValueProbe {
     template <typename H, typename T>
-    static auto Invoke(H state, const T& value) -> absl::enable_if_t<
+    static auto Invoke(H state, const T& value) -> std::enable_if_t<
         std::is_same<H,
                      decltype(AbslHashValue(std::move(state), value))>::value,
         H> {
@@ -1324,7 +1331,7 @@ struct HashSelect {
   struct LegacyHashProbe {
 #if ABSL_HASH_INTERNAL_SUPPORT_LEGACY_HASH_
     template <typename H, typename T>
-    static auto Invoke(H state, const T& value) -> absl::enable_if_t<
+    static auto Invoke(H state, const T& value) -> std::enable_if_t<
         std::is_convertible<
             decltype(ABSL_INTERNAL_LEGACY_HASH_NAMESPACE::hash<T>()(value)),
             size_t>::value,
@@ -1339,7 +1346,7 @@ struct HashSelect {
   struct StdHashProbe {
     template <typename H, typename T, typename std::enable_if<std::is_default_constructible<std::hash<T>>::value>::type* = nullptr>
     static auto Invoke(H state, const T& value)
-        -> absl::enable_if_t<type_traits_internal::IsHashable<T>::value, H> {
+        -> std::enable_if_t<type_traits_internal::IsHashable<T>::value, H> {
 			static_assert(std::is_default_constructible<std::hash<T>>::value);
       return hash_internal::hash_bytes(std::move(state), std::hash<T>{}(value));
     }
@@ -1373,7 +1380,7 @@ struct HashSelect {
   // Probe each implementation in order.
   // disjunction provides short circuiting wrt instantiation.
   template <typename T>
-  using Apply = absl::disjunction<         //
+  using Apply = std::disjunction<         //
       Probe<WeaklyMixedIntegerProbe, T>,   //
       Probe<UniquelyRepresentedProbe, T>,  //
       Probe<HashValueProbe, T>,            //
@@ -1418,13 +1425,13 @@ class ABSL_DLL MixingHashState : public HashStateBase<MixingHashState> {
   // Otherwise we would be instantiating and calling dozens of functions for
   // something that is just one multiplication and a couple xor's.
   // The result should be the same as running the whole algorithm, but faster.
-  template <typename T, absl::enable_if_t<IntegralFastPath<T>::value, int> = 0>
+  template <typename T, std::enable_if_t<IntegralFastPath<T>::value, int> = 0>
   static size_t hash_with_seed(T value, size_t seed) {
     return static_cast<size_t>(
         CombineRawImpl(seed, static_cast<std::make_unsigned_t<T>>(value)));
   }
 
-  template <typename T, absl::enable_if_t<!IntegralFastPath<T>::value, int> = 0>
+  template <typename T, std::enable_if_t<!IntegralFastPath<T>::value, int> = 0>
   static size_t hash_with_seed(const T& value, size_t seed) {
     return static_cast<size_t>(combine(MixingHashState{seed}, value).state_);
   }
@@ -1546,7 +1553,7 @@ struct HashImpl {
 
 template <typename T>
 struct Hash
-    : absl::conditional_t<is_hashable<T>::value, HashImpl<T>, PoisonedHash> {};
+    : std::conditional_t<is_hashable<T>::value, HashImpl<T>, PoisonedHash> {};
 
 template <typename H>
 template <typename T, typename... Ts>
