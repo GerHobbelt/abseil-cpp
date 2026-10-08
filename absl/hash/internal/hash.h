@@ -61,6 +61,7 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
+#include <bitset>
 
 #include "absl/base/attributes.h"
 #include "absl/base/internal/endian.h"
@@ -1395,7 +1396,7 @@ struct HashSelect {
     }
 		template <typename H, typename T, typename std::enable_if<!std::is_default_constructible<std::hash<T>>::value>::type* = nullptr>
 		static auto Invoke(H state, const T& value)
-			-> absl::enable_if_t<type_traits_internal::IsHashable<T>::value, H> {
+			-> std::enable_if_t<type_traits_internal::IsHashable<T>::value, H> {
 			static_assert(!std::is_default_constructible<std::hash<T>>::value);
 			typedef unsigned char B[sizeof(value)];
 			B v;
