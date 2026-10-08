@@ -131,7 +131,7 @@ ABSL_NAMESPACE_END
 #else
 #define ABSL_ASSERT(expr)                           \
   (ABSL_PREDICT_TRUE((expr)) ? static_cast<void>(0) \
-                             : assert(false && #expr))  // NOLINT
+                             : ([]{ assert(false && #expr); }(), static_cast<void>(0)) )  // NOLINT
 #endif
 
 // `ABSL_INTERNAL_HARDENING_ABORT()` controls how `ABSL_HARDENING_ASSERT()`
