@@ -228,7 +228,7 @@ void BM_StrAppendInt(benchmark::State& state) {
   return BM_StrAppend(state, table);
 }
 
-void StrAppendConfig(::benchmark::Benchmark* benchmark) {
+void StrAppendConfig(::benchmark::internal::Benchmark* benchmark) {
   for (int bytes : {10, 100, 1000, 10000}) {
     for (int chunks : {1, 2, 4, 8}) {
       // Only add the ones that divide properly. Otherwise we are over counting.
