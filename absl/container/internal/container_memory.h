@@ -67,11 +67,13 @@ struct HashtableTypeInfo {
   // `AlignUpToMask` compute `(offset + mask) & ~mask` without negation.
   uint16_t slot_align_mask;
   bool soo_enabled;
-  bool is_hashtablez_enabled;
+  bool is_hashtablez_enabled : 1;
+  // True if `alignof(slot_type) > alignof(size_t)` or the allocator is not
+  // `std::allocator`. When true, the policy object is an instance of
+  // `CustomAllocPolicy`.
+  bool is_custom_alloc : 1;
   // 8 bytes
-  uint32_t alloc_offset;
   uint32_t key_size;
-  // 4 bytes
   uint32_t value_size;
 
   constexpr uint8_t soo_capacity() const {
@@ -640,18 +642,15 @@ template <class Fn, class T, bool kIsAbsl, size_t kSeedShift>
 size_t TypeErasedDerefAndApplyToSlotFn(const void* fn, void* slot_ptr,
                                        size_t seed) {
   const auto* f = static_cast<const Fn*>(fn);
-  const T* slot = *static_cast<T**>(slot_ptr);
+  const T* slot;
+  // We use memcpy to avoid a strict-aliasing violation when this is called from
+  // NodeHashMapPolicy::get_hash_slot_fn(). In that case, slot_ptr has type
+  // `std::pair<const T, mapped_type>**`, which is not safe to dereference as
+  // `const T**`. Note that it is safe to dereference `slot` afterwards because
+  // `IsLayoutCompatible` guarantees that `std::pair<const T, mapped_type>` is
+  // standard-layout.
+  std::memcpy(&slot, slot_ptr, sizeof(slot));
   return HashElement<Fn, kIsAbsl, kSeedShift>{*f, seed}(*slot);
-}
-
-// Type erased function to apply `Fn` to data inside of the `slot_ptr->first`.
-// The data is expected to have type `T`.
-template <class Fn, class T, bool kIsAbsl, size_t kSeedShift>
-size_t TypeErasedDerefAndApplyToSlotFirstFn(const void* fn, void* slot_ptr,
-                                            size_t seed) {
-  const auto* f = static_cast<const Fn*>(fn);
-  const T* slot = *static_cast<T**>(slot_ptr);
-  return HashElement<Fn, kIsAbsl, kSeedShift>{*f, seed}(slot->first);
 }
 
 }  // namespace container_internal
