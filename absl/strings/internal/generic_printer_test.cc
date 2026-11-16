@@ -86,7 +86,7 @@ struct AbslStringifiable {
 };
 
 auto IsUnprintable() {
-#ifdef GTEST_USES_SIMPLE_RE
+#if GTEST_USES_SIMPLE_RE
   return HasSubstr("unprintable value of size");
 #else
   return ContainsRegex(
@@ -95,7 +95,7 @@ auto IsUnprintable() {
 }
 
 auto HasExactlyNInstancesOf(int n, absl::string_view me) {
-#ifdef GTEST_USES_SIMPLE_RE
+#if GTEST_USES_SIMPLE_RE
   (void)n;
   return HasSubstr(me);
 #else
@@ -346,7 +346,7 @@ TEST(GenericPrinterTest, StreamAdapter) {
 
 TEST(GenericPrinterTest, NotStreamableVector) {
   std::vector<generic_logging_test::NotStreamable> v = {{}, {}, {}};
-#ifdef GTEST_USES_SIMPLE_RE
+#if GTEST_USES_SIMPLE_RE
   EXPECT_THAT(GenericPrintToString(v), HasSubstr("unprintable"));
 #else
   EXPECT_THAT(GenericPrintToString(v), MatchesRegex(".*(unprintable.*){3}.*"));
