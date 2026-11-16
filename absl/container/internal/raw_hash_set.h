@@ -2362,7 +2362,7 @@ struct InstantiateRawHashSet {
 // This is a 'struct' instead of 'using' in order to avoid eager evaluation for
 // callers that may be passing incomplete types.
 template <class T>
-struct AddConstRefIfExpensive
+struct AddConstRefIfExpensiveToMove
     : std::conditional_t<
           type_traits_internal::ShouldPreferPassByValueOverRRef<T>::value,
           type_identity<T>, std::add_lvalue_reference<std::add_const_t<T>>> {
@@ -2373,7 +2373,7 @@ struct AddConstRefIfExpensive
 template <class T, class Alloc = std::allocator<T>>
 using PreferredMoveParamType = typename std::conditional_t<
     type_traits_internal::IsAllocMoveSameAsCopy<T, Alloc>::value,
-    AddConstRefIfExpensive<T>, std::add_rvalue_reference<T>>::type;
+    AddConstRefIfExpensiveToMove<T>, std::add_rvalue_reference<T>>::type;
 
 // A SwissTable.
 //
@@ -3575,17 +3575,17 @@ class raw_hash_set {
   };
 
   template <typename... Args>
-  void construct(slot_type* slot, Args&&... args) {
+  void construct(slot_type* __restrict slot, Args&&... args) {
     ReentranceGuard guard(common());
     allocator_type alloc(char_alloc_ref());
     PolicyTraits::construct(&alloc, slot, std::forward<Args>(args)...);
   }
-  void destroy(slot_type* slot) {
+  void destroy(slot_type* __restrict slot) {
     ReentranceGuard guard(common());
     allocator_type alloc(char_alloc_ref());
     PolicyTraits::destroy(&alloc, slot);
   }
-  void transfer(slot_type* to, slot_type* from) {
+  void transfer(slot_type* __restrict to, slot_type* __restrict from) {
     ReentranceGuard guard(common());
     allocator_type alloc(char_alloc_ref());
     PolicyTraits::transfer(&alloc, to, from);
@@ -4029,20 +4029,20 @@ class raw_hash_set {
 
   // For string-like keys, we convert to string_view when calling find*_large()
   // operations to (a) avoid repeatedly (i) branching on SSO or (ii) calling
-  // strlen(), (b) share code between the string-like types, (c) avoid
-  // materializing string_view on the stack just to pass a reference to it. Note
-  // that we don't pass FindLargeKey to find*_small() to avoid unnecessarily
-  // constructing string_view for small empty tables. Note: we use
-  // type_identity_t and static_asserts to ensure that the key type in
-  // find*_large is FindLargeKey. (type_identity_t ensures that the template
-  // argument is not deduced and must be specified explicitly.)
-  // TODO(ezb): extend this to other types (e.g. small trivial types).
+  // strlen(), (b) share code between the string-like types. Note that we don't
+  // pass FindLargeKey to find*_small() to avoid unnecessarily constructing
+  // string_view for small empty tables. Note: we use type_identity_t and
+  // static_asserts to ensure that the key type in find*_large is FindLargeKey.
+  // (type_identity_t ensures that the template argument is not deduced and must
+  // be specified explicitly.)
   template <class K>
-  using FindLargeKey = std::conditional_t<
-      std::is_same_v<hasher, absl::container_internal::StringHash> &&
-          std::is_same_v<key_equal, absl::container_internal::StringEq> &&
-          std::is_convertible_v<const K&, absl::string_view>,
-      const absl::string_view, const K&>;
+  using FindLargeKey =
+      type_traits_internal::AddConstRefIfExpensiveToCopy<std::conditional_t<
+          std::is_same_v<hasher, absl::container_internal::StringHash> &&
+              std::is_same_v<key_equal, absl::container_internal::StringEq> &&
+              std::is_convertible_v<const absl::remove_cvref_t<K>&,
+                                    absl::string_view>,
+          absl::string_view, absl::remove_cvref_t<K>>>;
 
   // Prefetch the heap-allocated memory region to resolve potential TLB and
   // cache misses. This is intended to overlap with execution of calculating the
@@ -4159,8 +4159,8 @@ class raw_hash_set {
                                                    kSeedShift>();
   }
 
-  static void transfer_n_slots_fn(void* set, void* dst, void* src,
-                                  size_t count) {
+  static void transfer_n_slots_fn(void* set, void* __restrict dst,
+                                  void* __restrict src, size_t count) {
     auto* src_slot = to_slot(src);
     auto* dst_slot = to_slot(dst);
 
@@ -4178,7 +4178,7 @@ class raw_hash_set {
         PolicyTraits::element(static_cast<slot_type*>(const_cast<void*>(src))));
   }
 
-  static void destroy_slot_fn_impl(void* set, void* slot) {
+  static void destroy_slot_fn_impl(void* set, void* __restrict slot) {
     auto* h = static_cast<raw_hash_set*>(set);
     h->destroy(to_slot(slot));
   }
@@ -4192,8 +4192,8 @@ class raw_hash_set {
   // by GetKey + Hash for memcpyable types.
   // TODO(b/382423690): Try to type erase for big slots: sizeof(slot_type) > 16.
   static void transfer_unprobed_elements_to_next_capacity_fn(
-      CommonFields& common, const ctrl_t* old_ctrl, void* probed_storage,
-      void* old_slots, size_t old_capacity,
+      CommonFields& __restrict common, const ctrl_t* old_ctrl,
+      void* probed_storage, void* __restrict old_slots, size_t old_capacity,
       void (*encode_probed_element)(void* probed_storage, size_t hash,
                                     size_t source_offset)) {
     ABSL_ASSUME(old_capacity + 1 >= Group::kWidth);

@@ -254,9 +254,7 @@ using remove_cvref_t = std::remove_cvref_t<T>;
 // C++17 compatible implementation of std::remove_cvref which was added in
 // C++20.
 template <typename T>
-struct remove_cvref {
-  using type = std::remove_cv_t<std::remove_reference_t<T>>;
-};
+using remove_cvref = std::remove_cv<std::remove_reference_t<T>>;
 
 template <typename T>
 using remove_cvref_t = typename remove_cvref<T>::type;
@@ -273,9 +271,7 @@ using type_identity_t = std::type_identity_t<T>;
 //
 // Back-fill of C++20's `std::type_identity`.
 template <typename T>
-struct type_identity {
-  typedef T type;
-};
+using type_identity = std::enable_if<true, T>;
 
 // type_identity_t
 //
@@ -723,6 +719,17 @@ using ShouldPreferPassByValueOverRRef = ShouldStructurallyPreferPassByValue<
     std::conditional_t<std::is_trivially_move_constructible_v<T> &&
                            std::is_trivially_destructible_v<T>,
                        T, char[SHRT_MAX]>>;
+
+// As above, but for const-lvalue-reference.
+template <class T>
+using ShouldPreferPassByValueOverConstRef =
+    std::bool_constant<ShouldPreferPassByValueOverRRef<T>::value &&
+                       std::is_trivially_copy_constructible_v<T>>;
+
+template <class T>
+using AddConstRefIfExpensiveToCopy =
+    std::conditional_t<ShouldPreferPassByValueOverConstRef<T>::value, T,
+                       std::add_lvalue_reference_t<std::add_const_t<T>>>;
 
 }  // namespace type_traits_internal
 
