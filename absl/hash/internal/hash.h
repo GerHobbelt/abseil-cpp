@@ -283,7 +283,8 @@ class HashStateBase {
   //   state = H::combine(std::move(state), value2);
   //   state = H::combine(std::move(state), value3);
   template <typename T, typename... Ts>
-  static H combine(H state, const T& value, const Ts&... values);
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline static H combine(H state, const T& value,
+                                                       const Ts&... values);
   static H combine(H state) { return state; }
 
   // Combines a contiguous array of `size` elements into a hash state, returning
@@ -440,8 +441,8 @@ H hash_weakly_mixed_integer(H hash_state, WeaklyMixedInteger value) {
 // We use SFINAE to ensure that this overload only accepts bool, not types that
 // are convertible to bool.
 template <typename H, typename B>
-std::enable_if_t<std::is_same_v<B, bool>, H> AbslHashValue(H hash_state,
-                                                           B value) {
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline std::enable_if_t<std::is_same_v<B, bool>, H>
+AbslHashValue(H hash_state, B value) {
   // We use ~size_t{} instead of 1 so that all bits are different between
   // true/false instead of only 1.
   return H::combine(std::move(hash_state),
@@ -1395,9 +1396,10 @@ struct HashSelect {
     // The std::conditional_t<false, H, T> test is to enable SFINAE by making T
     // be a dependent type.
     template <typename H>
-    static H Invoke(H state, type_traits_internal::AddConstRefIfExpensiveToCopy<
-                                 std::conditional_t<false, H, T>>
-                                 value) {
+    ABSL_ATTRIBUTE_ALWAYS_INLINE static H Invoke(
+        H state, type_traits_internal::AddConstRefIfExpensiveToCopy<
+                     std::conditional_t<false, H, T>>
+                     value) {
       return AbslHashValue(std::move(state), value);
     }
   };
@@ -1630,23 +1632,6 @@ struct HashImpl {
 template <typename T>
 struct Hash
     : std::conditional_t<is_hashable<T>::value, HashImpl<T>, PoisonedHash> {};
-
-// Returns a canonical `absl::Hash` for `T`. Types with the exact same hash
-// implementation (such as `is_uniquely_represented` types of the same size)
-// return the same hasher type, which is useful for type erasure.
-template <typename T>
-constexpr auto CanonicalHasher() {
-  if constexpr (is_uniquely_represented<T>::value &&
-                FitsIn64BitsPowerOf2<T>::value) {
-    constexpr size_t N = sizeof(T);
-    return Hash<std::conditional_t<
-        N == 1, uint8_t,
-        std::conditional_t<N == 2, uint16_t,
-                           std::conditional_t<N == 4, uint32_t, uint64_t>>>>();
-  } else {
-    return Hash<T>();
-  }
-}
 
 template <typename T, typename... Ts>
 inline constexpr bool pack_contains_v = (std::is_same_v<T, Ts> || ...);
