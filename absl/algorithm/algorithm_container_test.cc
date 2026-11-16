@@ -2901,7 +2901,7 @@ template <typename Container, typename Output, typename UnaryOp,
 struct CanTransformUnary : std::false_type {};
 template <typename Container, typename Output, typename UnaryOp>
 struct CanTransformUnary<Container, Output, UnaryOp,
-                         absl::void_t<decltype(absl::c_transform(
+                         std::void_t<decltype(absl::c_transform(
                              std::declval<Container>(), std::declval<Output>(),
                              std::declval<UnaryOp>()))>> : std::true_type {};
 
@@ -2912,7 +2912,7 @@ template <typename Container1, typename Container2, typename Output,
           typename BinaryOp>
 struct CanTransformBinary<
     Container1, Container2, Output, BinaryOp,
-    absl::void_t<decltype(absl::c_transform(
+    std::void_t<decltype(absl::c_transform(
         std::declval<Container1>(), std::declval<Container2>(),
         std::declval<Output>(), std::declval<BinaryOp>()))>> : std::true_type {
 };
