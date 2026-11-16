@@ -14,13 +14,6 @@
 
 #include "absl/synchronization/mutex.h"
 
-#ifdef _WIN32
-#include <windows.h>
-
-#undef min
-#undef max
-#endif
-
 #include <algorithm>
 #include <atomic>
 #include <cstdlib>
@@ -45,6 +38,13 @@
 #include "absl/synchronization/internal/thread_pool.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+
+#ifdef _WIN32
+#include <windows.h>
+
+#undef min
+#undef max
+#endif
 
 #ifdef ABSL_HAVE_PTHREAD_GETSCHEDPARAM
 #include <pthread.h>
