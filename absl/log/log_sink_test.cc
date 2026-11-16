@@ -33,7 +33,9 @@ namespace {
 using ::absl::log_internal::DeathTestExpectedLogging;
 using ::absl::log_internal::DeathTestUnexpectedLogging;
 using ::absl::log_internal::DeathTestValidateExpectations;
+#if GTEST_HAS_DEATH_TEST
 using ::absl::log_internal::DiedOfFatal;
+#endif
 using ::testing::_anything_;
 using ::testing::AnyNumber;
 using ::testing::HasSubstr;

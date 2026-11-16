@@ -40,23 +40,33 @@
 
 #undef ABSL_INTERNAL_VERSION_HEADER_AVAILABLE
 
+#include <algorithm>
+#include <array>
+#include <bitset>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <deque>
+#include <forward_list>
 #include <functional>
 #include <iterator>
 #include <limits>
+#include <list>
+#include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <variant>
-#include <bitset>
+#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/base/internal/endian.h"
