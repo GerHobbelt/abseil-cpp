@@ -79,7 +79,6 @@ cc_library(
 
 cc_library(
     name = "hardening",
-    srcs = ["internal/hardening.cc"],
     hdrs = [
         "internal/hardening.h",
     ],
@@ -513,6 +512,7 @@ cc_library(
         "//absl/memory",
         "//absl/meta:type_traits",
         "//absl/strings",
+        "//absl/strings:string_view",
         "//absl/utility",
         "@googletest//:gtest",
     ],
@@ -1034,7 +1034,7 @@ cc_test(
     linkstatic = 1,
     deps = [
         ":core_headers",
-        "//absl/strings",
+        "//absl/strings:string_view",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],

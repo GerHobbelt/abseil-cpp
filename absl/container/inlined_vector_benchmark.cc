@@ -13,10 +13,14 @@
 // limitations under the License.
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/profiling/benchmark.h"
+#include "absl/base/attributes.h"
 #include "absl/base/internal/raw_logging.h"
 #include "absl/base/macros.h"
 #include "absl/container/inlined_vector.h"

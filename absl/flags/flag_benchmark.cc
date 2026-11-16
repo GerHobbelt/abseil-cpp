@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <vector>

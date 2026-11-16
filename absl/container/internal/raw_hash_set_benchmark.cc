@@ -19,7 +19,10 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
+#include <functional>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <random>
 #include <string>
@@ -32,9 +35,11 @@
 #include "absl/base/internal/raw_logging.h"
 #include "absl/container/internal/container_memory.h"
 #include "absl/container/internal/hash_function_defaults.h"
+#include "absl/container/internal/hashtable_control_bytes.h"
 #include "absl/container/internal/raw_hash_set.h"
 #include "absl/random/random.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN

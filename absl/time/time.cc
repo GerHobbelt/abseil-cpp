@@ -33,19 +33,23 @@
 
 #include "absl/time/time.h"
 
-#if defined(_MSC_VER)
-#include <winsock2.h>  // for timeval
-#endif
-
-#undef min
-#undef max
-
+#include <chrono>  // NOLINT(build/c++11)
+#include <cstdint>
 #include <cstring>
 #include <ctime>
 #include <limits>
 
+#include "absl/base/attributes.h"
+#include "absl/time/civil_time.h"
 #include "absl/time/internal/cctz/include/cctz/civil_time.h"
 #include "absl/time/internal/cctz/include/cctz/time_zone.h"
+
+#if defined(_MSC_VER)
+#include <winsock2.h>  // for timeval
+
+#undef min
+#undef max
+#endif
 
 namespace cctz = absl::time_internal::cctz;
 

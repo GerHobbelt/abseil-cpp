@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "absl/profiling/benchmark.h"
+#include "absl/base/optimization.h"
 #include "absl/profiling/internal/periodic_sampler.h"
 
 namespace absl {

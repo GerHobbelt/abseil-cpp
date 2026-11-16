@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 
 #include "absl/profiling/benchmark.h"

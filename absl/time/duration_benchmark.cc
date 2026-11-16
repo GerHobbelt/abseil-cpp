@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <ctime>
 #include <iterator>
+#include <limits>
 #include <string>
 
 #include "absl/base/attributes.h"
