@@ -351,9 +351,20 @@
 // Tells the ControlFlowIntegrity sanitizer to not instrument a given function.
 // See https://clang.llvm.org/docs/ControlFlowIntegrity.html for details.
 #if ABSL_HAVE_CPP_ATTRIBUTE(gnu::no_sanitize) && defined(__llvm__)
+#if defined(__clang__) && !defined(__apple_build_version__) && \
+    __clang_major__ >= 16
+#define ABSL_ATTRIBUTE_NO_SANITIZE_CFI [[gnu::no_sanitize("cfi", "kcfi")]]
+#else
 #define ABSL_ATTRIBUTE_NO_SANITIZE_CFI [[gnu::no_sanitize("cfi")]]
+#endif
 #elif ABSL_HAVE_ATTRIBUTE(no_sanitize) && defined(__llvm__)
+#if defined(__clang__) && !defined(__apple_build_version__) && \
+    __clang_major__ >= 16
+#define ABSL_ATTRIBUTE_NO_SANITIZE_CFI \
+  __attribute__((no_sanitize("cfi", "kcfi")))
+#else
 #define ABSL_ATTRIBUTE_NO_SANITIZE_CFI __attribute__((no_sanitize("cfi")))
+#endif
 #else
 #define ABSL_ATTRIBUTE_NO_SANITIZE_CFI
 #endif
@@ -415,6 +426,8 @@
 // indicating alignment. If data fall under different alignments then you might
 // get a compilation error indicating a `Section type conflict`.
 #define ABSL_ATTRIBUTE_SECTION_VARIABLE(name)
+#elif ABSL_HAVE_CPP_ATTRIBUTE(gnu::section)
+#define ABSL_ATTRIBUTE_SECTION_VARIABLE(name) [[gnu::section(#name)]]
 #else
 #define ABSL_ATTRIBUTE_SECTION_VARIABLE(name) __attribute__((section(#name)))
 #endif
