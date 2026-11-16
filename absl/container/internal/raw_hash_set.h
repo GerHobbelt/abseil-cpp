@@ -853,6 +853,12 @@ class HashtableInlineData {
   void decrement_size() { data_ -= kSizeOneNoMetadata; }
   // Returns true if the table is empty.
   bool empty() const { return data_ < kSizeOneNoMetadata; }
+  // Returns true if a small table (capacity <= 1) is empty.
+  bool empty_when_small() const {
+    ABSL_SWISSTABLE_ASSERT(is_small());
+    ABSL_SWISSTABLE_ASSERT(size() <= 1);
+    return (data_ & kSizeOneNoMetadata) == 0;
+  }
 
   // Returns true if an empty SOO table has already queried should_sample_soo().
   bool soo_has_tried_sampling() const {
@@ -1217,17 +1223,26 @@ constexpr size_t AlignUpTo(size_t offset, size_t align) {
   return (offset + align - 1) & (~align + 1);
 }
 
+// Same as `AlignUpTo(offset, align_mask + 1)`. `align_mask` must be one less
+// than a power of two. Taking the mask avoids negating the alignment (and with
+// BMI1 the computation is just `add` + `andn`).
+constexpr size_t AlignUpToMask(size_t offset, size_t align_mask) {
+  return (offset + align_mask) & ~align_mask;
+}
+
 // Helper class for computing offsets and allocation size of hash set fields.
 class RawHashSetLayout {
  public:
+  // `slot_align_mask` is `alignof(slot_type) - 1`.
   explicit RawHashSetLayout(size_t capacity, size_t slot_size,
-                            size_t slot_align, bool has_infoz,
+                            size_t slot_align_mask, bool has_infoz,
                             size_t blocked_element_count)
       : control_offset_(MetadataBeforeControlSize(has_infoz, capacity)),
         generation_offset_(control_offset_ - NumGenerationBytes()),
         slot_offset_(control_offset_ + NumControlBytes(capacity)) {
     ABSL_SWISSTABLE_ASSERT(IsValidCapacity(capacity));
-    size_t aligned_slot_offset = AlignUpTo(slot_offset_, slot_align);
+    size_t aligned_slot_offset =
+        AlignUpToMask(slot_offset_, slot_align_mask);
     size_t slot_array_padding = aligned_slot_offset - slot_offset_;
     slot_offset_ = aligned_slot_offset;
     ABSL_SWISSTABLE_ASSERT(
@@ -1244,7 +1259,7 @@ class RawHashSetLayout {
   // 0 -> 1 (`size == 0`) or 1 -> 3 (`size == 1`).
   static RawHashSetLayout CreateForSmallNonSooGrowth(size_t size,
                                                      size_t slot_size,
-                                                     size_t slot_align,
+                                                     size_t slot_align_mask,
                                                      bool has_infoz);
 
   // Returns precomputed offset from the start of the backing allocation of
@@ -1382,16 +1397,18 @@ class CommonFields : public CommonFieldsGenerationInfo {
 
   void set_control(ctrl_t* c) { heap_or_soo_.control().set(c); }
 
-  // Note: we can't use slots() because Qt defines "slots" as a macro.
   // Returns pointer to the slots of a table with explicit capacity that must be
   // equal to the actual capacity of the table.
   // Table must be large.
-  void* slot_array(size_t capacity) const {
-    ABSL_SWISSTABLE_ASSERT(capacity == this->capacity());
+  // Note: we can't use `slots()` because Qt defines `slots` as a macro.
+  // Note: we take `ctrl` as a parameter so that raw_hash_set can benefit from
+  // the separate storage assumption.
+  void* slot_array(ctrl_t* ctrl, size_t capacity) const {
+    ABSL_SWISSTABLE_ASSERT(ctrl == this->control());
     ABSL_ASSUME(capacity > kMaxSmallCapacity);
-    ctrl_t* ctrl = control();
     return ctrl + NumControlBytesForLargeTable(capacity);
   }
+  void* slot_array(size_t cap) const { return slot_array(control(), cap); }
   // Returns pointer to the single slot of a table with capacity 1.
   void* single_non_soo_slot() const {
     ABSL_SWISSTABLE_ASSERT(capacity() == 1);
@@ -1423,6 +1440,7 @@ class CommonFields : public CommonFieldsGenerationInfo {
     inline_data_.decrement_size();
   }
   bool empty() const { return inline_data_.empty(); }
+  bool empty_when_small() const { return inline_data_.empty_when_small(); }
   void set_soo_has_tried_sampling() {
     inline_data_.set_soo_has_tried_sampling();
   }
@@ -1570,7 +1588,8 @@ class CommonFields : public CommonFieldsGenerationInfo {
 
   // The size of the backing array allocation.
   size_t alloc_size(size_t slot_size, size_t slot_align) const {
-    return RawHashSetLayout(capacity(), slot_size, slot_align, has_infoz(),
+    return RawHashSetLayout(capacity(), slot_size,
+                            /*slot_align_mask=*/slot_align - 1, has_infoz(),
                             blocked_element_count())
         .alloc_size();
   }
@@ -2010,7 +2029,9 @@ struct PolicyFunctions {
 
   // 8  bytes
   uint32_t slot_size;
-  uint16_t slot_align;
+  // `alignof(slot_type) - 1`. Storing the mask instead of the alignment lets
+  // `AlignUpToMask` compute `(offset + mask) & ~mask` without negation.
+  uint16_t slot_align_mask;
   bool soo_enabled;
   bool is_hashtablez_enabled;
   // 8  bytes
@@ -2070,7 +2091,8 @@ using DestroySlotFn = void (*)(void* set, void* slot);
 // functions, so we do not want to include non-destructor related fields.
 struct DtorPolicy {
   uint32_t slot_size;
-  uint16_t slot_align;
+  // `alignof(slot_type) - 1`. See `PolicyFunctions::slot_align_mask`.
+  uint16_t slot_align_mask;
   DestroySlotFn destroy_slot;
 
   template <uint32_t kSlotSize, uint16_t kSlotAlign>
@@ -2089,15 +2111,17 @@ struct DtorPolicy {
   // to minimize the name length of static variables.
   template <uint32_t kSlotSize, uint16_t kSlotAlign>
   static const DtorPolicy& R() {
-    static constexpr DtorPolicy p = {kSlotSize, kSlotAlign,
-                                     /*destroy_slot=*/nullptr};
+    static constexpr DtorPolicy p = {
+        kSlotSize,
+        /*slot_align_mask=*/static_cast<uint16_t>(kSlotAlign - 1),
+        /*destroy_slot=*/nullptr};
     return p;
   }
   template <typename SetType>
   static const DtorPolicy& R() {
     static constexpr DtorPolicy p = {
         sizeof(typename SetType::slot_type),
-        alignof(typename SetType::slot_type),
+        /*slot_align_mask=*/alignof(typename SetType::slot_type) - 1,
         SetType::get_destroy_slot_fn(),
     };
     return p;
@@ -2519,18 +2543,15 @@ class raw_hash_set {
     return SizeToCapacity(MaxValidSize());
   }
 
-  // Whether `size` fits in the SOO capacity of this table.
-  bool fits_in_soo(size_t size) const {
-    return SooEnabled() && size <= SooCapacity();
-  }
   // Whether this table is in SOO mode or non-SOO mode.
   bool is_soo() const {
-    HashtableCapacity cap = maybe_invalid_capacity();
-    return cap.IsValid() && fits_in_soo(cap.capacity());
+    static_assert(SooCapacity() == kMaxSmallCapacity);
+    return SooEnabled() && maybe_invalid_capacity().is_small();
   }
-  bool is_full_soo() const { return is_soo() && !empty(); }
+  bool is_full_soo() const { return is_soo() && !empty_when_small(); }
 
   bool is_small() const { return common().is_small(); }
+  bool empty_when_small() const { return common().empty_when_small(); }
 
   // Give an early error when key_type is not hashable/eq.
   auto KeyTypeCanBeHashed(const Hash& h, const key_type& k) -> decltype(h(k));
@@ -3355,7 +3376,7 @@ class raw_hash_set {
     };
 
     if (src.is_small()) {
-      if (src.empty()) return;
+      if (src.empty_when_small()) return;
       if (insert_slot(src.single_slot()))
         src.erase_meta_only_small();
       return;
@@ -3622,7 +3643,9 @@ class raw_hash_set {
   // SOO functionality.
   template <class K>
   ABSL_ATTRIBUTE_ALWAYS_INLINE iterator find_small(const K& key) {
-    return empty() || !equal_to(key, single_slot()) ? end() : single_iterator();
+    return empty_when_small() || !equal_to(key, single_slot())
+               ? end()
+               : single_iterator();
   }
 
   template <class K>
@@ -3696,8 +3719,8 @@ class raw_hash_set {
         kIsDefaultAlloc && BackingArrayAlignment(alignof(slot_type)) ==
                                kStandardBackingArrayAlignment;
     if constexpr (SooEnabled()) {
-      if (is_small() &&
-          (PolicyTraits::template destroy_is_trivial<Alloc>() || empty())) {
+      if (is_small() && (PolicyTraits::template destroy_is_trivial<Alloc>() ||
+                         empty_when_small())) {
         return;
       }
     } else {
@@ -3859,7 +3882,7 @@ class raw_hash_set {
   find_or_prepare_insert_soo(const K& key) {
     bool force_sampling;
     slot_type* slot = single_slot();
-    if (empty()) {
+    if (empty_when_small()) {
       if (!should_sample_soo()) {
         common().set_full_soo();
         return {slot, true};
@@ -3889,7 +3912,7 @@ class raw_hash_set {
     if constexpr (SooEnabled()) {
       return find_or_prepare_insert_soo(key);
     }
-    if (!empty()) {
+    if (!empty_when_small()) {
       if (equal_to(key, single_slot())) {
         return {single_slot(), false};
       }
@@ -4100,15 +4123,18 @@ class raw_hash_set {
       // With this assumption, the second lookup avoids reloading capacity.
       // Note: for custom allocators, `this` may be part of the same allocation
       // as the control bytes so we cannot make this assumption.
-      // TODO(ezb): we could move this assumption into CommonFields::control()
+      // Note: we could move this assumption into CommonFields::control()
       // if we template the type-erased functions on whether the allocator is
-      // default or not.
+      // default or not, but it adds a lot of complexity, and we can avoid
+      // reloads in raw_hash_set.cc functions in other ways.
       ABSL_SWISSTABLE_ASSUME_SEPARATE_STORAGE(ctrl, this);
     }
     return ctrl;
   }
   slot_type* slot_array(size_t capacity) const {
-    return static_cast<slot_type*>(common().slot_array(capacity));
+    // Note: we don't use common().slot_array(capacity) here because it misses
+    // the separate storage assumption in raw_hash_set::control().
+    return static_cast<slot_type*>(common().slot_array(control(), capacity));
   }
   slot_type* soo_slot() {
     ABSL_SWISSTABLE_ASSERT(is_soo());
@@ -4121,8 +4147,8 @@ class raw_hash_set {
   }
   slot_type* single_slot() {
     ABSL_SWISSTABLE_ASSERT(is_small());
-    // Note: we don't use common().single_non_soo_slot() here because
-    // control() is more efficient (due to separate storage assume).
+    // Note: we don't use common().single_non_soo_slot() here because it misses
+    // the separate storage assumption in raw_hash_set::control().
     return SooEnabled() ? soo_slot() : to_slot(control());
   }
   const slot_type* single_slot() const {
@@ -4302,7 +4328,7 @@ class raw_hash_set {
         static_cast<uint32_t>(sizeof(key_type)),
         static_cast<uint32_t>(sizeof(value_type)),
         static_cast<uint32_t>(sizeof(slot_type)),
-        static_cast<uint16_t>(alignof(slot_type)),
+        /*slot_align_mask=*/static_cast<uint16_t>(alignof(slot_type) - 1),
         SooEnabled(),
         HashtablezForTableEnabled(),
         static_cast<uint32_t>(HasherOffset()),
