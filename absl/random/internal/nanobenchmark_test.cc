@@ -55,7 +55,7 @@ void MeasureDiv(const FuncInput (&inputs)[N]) {
   }
 }
 
-void RunAll(const int argc, char* argv[]) {
+void RunAll(const int argc, const char** argv) {
   // Avoid migrating between cores - important on multi-socket systems.
   int cpu = -1;
   if (argc == 2) {
