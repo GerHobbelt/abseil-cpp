@@ -199,6 +199,8 @@ absl_cc_test(
     absl::thread_pool
     absl::time
     GTest::gmock_main
+  SHARD_COUNT
+    25
 )
 
 absl_cc_test(
@@ -279,6 +281,8 @@ absl_cc_test(
     absl::thread_pool
     absl::time
     GTest::gmock_main
+  SHARD_COUNT
+    4
 )
 
 absl_cc_test(
