@@ -2884,23 +2884,28 @@ TYPED_TEST(SmallTableResizeTest, ResizeReduceSmallTables) {
   }
 }
 
+extern const char kLazyEmplaceKey[];
+
 TEST(Table, LazyEmplace) {
   StringTable t;
   bool called = false;
-  auto it = t.lazy_emplace("abc", [&](const StringTable::constructor& f) {
-    called = true;
-    f("abc", "ABC");
-  });
+  auto it =
+      t.lazy_emplace(kLazyEmplaceKey, [&](const StringTable::constructor& f) {
+        called = true;
+        f("abc", "ABC");
+      });
   EXPECT_TRUE(called);
   EXPECT_THAT(*it, Pair("abc", "ABC"));
   called = false;
-  it = t.lazy_emplace("abc", [&](const StringTable::constructor& f) {
+  it = t.lazy_emplace(kLazyEmplaceKey, [&](const StringTable::constructor& f) {
     called = true;
     f("abc", "DEF");
   });
   EXPECT_FALSE(called);
   EXPECT_THAT(*it, Pair("abc", "ABC"));
 }
+
+const char kLazyEmplaceKey[] = "abc";
 
 int decompose_constructed;
 int decompose_copy_constructed;
@@ -4396,7 +4401,7 @@ TEST(RawHashSamplerTest, SooTableRepeatedInsertEraseDoesNotOversample) {
   }
   std::vector<const HashtablezInfo*> infos =
       SampleSooMutation([](SooInt32Table& t) {
-        for (int i = 0; i < 10; ++i) {
+        for ([[maybe_unused]] int i = 0; i < 10; ++i) {
           t.insert(1);
           t.erase(1);
         }
@@ -4449,7 +4454,7 @@ TEST(RawHashSamplerTest, SooTableCopyDoesNotOversample) {
     CHECK_LT(sizeof(void*), 8) << "missing SOO coverage";
     GTEST_SKIP() << "not SOO on this platform";
   }
-  std::vector<const HashtablezInfo*> infos =
+  [[maybe_unused]] std::vector<const HashtablezInfo*> infos =
       SampleSooMutation([](SooInt32Table& t) {
         t.insert(1);
         t.erase(1);
@@ -4469,7 +4474,7 @@ TEST(RawHashSamplerTest, SooTableMoveDoesNotOversample) {
     CHECK_LT(sizeof(void*), 8) << "missing SOO coverage";
     GTEST_SKIP() << "not SOO on this platform";
   }
-  std::vector<const HashtablezInfo*> infos =
+  [[maybe_unused]] std::vector<const HashtablezInfo*> infos =
       SampleSooMutation([](SooInt32Table& t) {
         t.insert(1);
         t.erase(1);

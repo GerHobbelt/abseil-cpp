@@ -690,6 +690,7 @@ struct FlatHashMapPolicy : FlatHashMapPolicyBase {
   using DefaultHash = DefaultHashContainerHash<K>;
   using DefaultEq = DefaultHashContainerEq<K>;
   using DefaultAlloc = std::allocator<std::pair<const K, V>>;
+  using SlotEq = SlotEqFn<K, /*kDerefSlot=*/false>;
 
   template <class Allocator, class... Args>
   static void construct(Allocator* alloc, slot_type* slot, Args&&... args) {

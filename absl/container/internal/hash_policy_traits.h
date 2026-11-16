@@ -67,6 +67,30 @@ template <class Policy, class = void>
   struct ConstantIteratorsImpl<P, std::void_t<typename P::constant_iterators>>
       : P::constant_iterators {};
 
+  // Fallback slot equality functor using `Policy::apply` for custom layouts.
+  struct EqKeyNonTypeErased {
+    using SlotKeyType = const key_type;
+
+    template <class Eq, class SearchKey>
+    bool operator()(const Eq& eq, const void* slot,
+                    const SearchKey& key) const {
+      return Policy::apply(
+          EqualElement<SearchKey, Eq>{key, eq},
+          hash_policy_traits::element(
+              static_cast<slot_type*>(const_cast<void*>(slot))));
+    }
+  };
+
+  template <class P = Policy, class = void>
+  struct SlotEqImpl {
+    using type = EqKeyNonTypeErased;
+  };
+
+  template <class P>
+  struct SlotEqImpl<P, std::void_t<typename P::SlotEq>> {
+    using type = typename P::SlotEq;
+  };
+
  public:
   // The actual object stored in the hash table.
   using slot_type = typename Policy::slot_type;
@@ -85,6 +109,11 @@ template <class Policy, class = void>
   // containers.
   // Defaults to false if not provided by the policy.
   using constant_iterators = ConstantIteratorsImpl<>;
+
+  // Functor type for comparing keys with a slot.
+  // TODO(b/575748507): Require `SlotEq` for all policies and remove
+  // `SlotEqImpl` and `EqKeyNonTypeErased`.
+  using SlotEq = typename SlotEqImpl<>::type;
 
   // Returns the amount of memory owned by `slot`, exclusive of `sizeof(*slot)`.
   //

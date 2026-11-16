@@ -565,6 +565,7 @@ struct FlatHashSetPolicy {
   using DefaultHash = DefaultHashContainerHash<T>;
   using DefaultEq = DefaultHashContainerEq<T>;
   using DefaultAlloc = std::allocator<T>;
+  using SlotEq = SlotEqFn<T, /*kDerefSlot=*/false>;
 
   template <class Allocator, class... Args>
   static void construct(Allocator* alloc, slot_type* slot, Args&&... args) {

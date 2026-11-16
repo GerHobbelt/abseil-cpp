@@ -554,6 +554,7 @@ struct NodeHashSetPolicy
   using DefaultHash = DefaultHashContainerHash<T>;
   using DefaultEq = DefaultHashContainerEq<T>;
   using DefaultAlloc = std::allocator<T>;
+  using SlotEq = SlotEqFn<T, /*kDerefSlot=*/true>;
 
   template <class Allocator, class... Args>
   static T* new_element(Allocator* alloc, Args&&... args) {

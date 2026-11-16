@@ -648,6 +648,7 @@ class NodeHashMapPolicy
   using DefaultHash = DefaultHashContainerHash<Key>;
   using DefaultEq = DefaultHashContainerEq<Key>;
   using DefaultAlloc = std::allocator<std::pair<const Key, Value>>;
+  using SlotEq = SlotEqFn<Key, /*kDerefSlot=*/true>;
 
   template <class Allocator, class... Args>
   static value_type* new_element(Allocator* alloc, Args&&... args) {
