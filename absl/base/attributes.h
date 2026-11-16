@@ -88,8 +88,13 @@
 #if ABSL_HAVE_ATTRIBUTE(format) || (defined(__GNUC__) && !defined(__clang__))
 #define ABSL_PRINTF_ATTRIBUTE(string_index, first_to_check) \
   __attribute__((__format__(__printf__, string_index, first_to_check)))
+#if ABSL_HAVE_CPP_ATTRIBUTE(gnu::format)
+#define ABSL_SCANF_ATTRIBUTE(string_index, first_to_check) \
+  [[gnu::format(scanf, string_index, first_to_check)]]
+#else
 #define ABSL_SCANF_ATTRIBUTE(string_index, first_to_check) \
   __attribute__((__format__(__scanf__, string_index, first_to_check)))
+#endif
 #else
 #define ABSL_PRINTF_ATTRIBUTE(string_index, first_to_check)
 #define ABSL_SCANF_ATTRIBUTE(string_index, first_to_check)
@@ -99,9 +104,22 @@
 // ABSL_ATTRIBUTE_NOINLINE
 //
 // Forces functions to either inline or not inline. Introduced in gcc 3.1.
+//
+// Note that guarantees are ultimately toolchain-dependent. For example, MSVC
+// will not inline any function by default, meaning at least /Ob1 or a higher
+// levels of optimization is necessary.
 #if ABSL_HAVE_ATTRIBUTE(always_inline) || \
     (defined(__GNUC__) && !defined(__clang__))
 #define ABSL_ATTRIBUTE_ALWAYS_INLINE __attribute__((always_inline))
+#define ABSL_HAVE_ATTRIBUTE_ALWAYS_INLINE 1
+#elif defined(_MSC_VER) && \
+    (_MSC_VER >= 1937 ||   \
+     (_MSC_VER >= 1927 && ABSL_INTERNAL_CPLUSPLUS_LANG > 201703L))
+#define ABSL_ATTRIBUTE_ALWAYS_INLINE                                      \
+  _Pragma("warning(push)")                                                \
+      _Pragma("warning(error: 4649)") /* error on misplaced attributes */ \
+      [[msvc::forceinline]] /*                                         */ \
+      _Pragma("warning(pop)")
 #define ABSL_HAVE_ATTRIBUTE_ALWAYS_INLINE 1
 #else
 #define ABSL_ATTRIBUTE_ALWAYS_INLINE
@@ -109,6 +127,15 @@
 
 #if ABSL_HAVE_ATTRIBUTE(noinline) || (defined(__GNUC__) && !defined(__clang__))
 #define ABSL_ATTRIBUTE_NOINLINE __attribute__((noinline))
+#define ABSL_HAVE_ATTRIBUTE_NOINLINE 1
+#elif defined(_MSC_VER) && \
+    (_MSC_VER >= 1937 ||   \
+     (_MSC_VER >= 1927 && ABSL_INTERNAL_CPLUSPLUS_LANG > 201703L))
+#define ABSL_ATTRIBUTE_NOINLINE                                           \
+  _Pragma("warning(push)")                                                \
+      _Pragma("warning(error: 4649)") /* error on misplaced attributes */ \
+      [[msvc::noinline]] /*                                            */ \
+      _Pragma("warning(pop)")
 #define ABSL_HAVE_ATTRIBUTE_NOINLINE 1
 #else
 #define ABSL_ATTRIBUTE_NOINLINE
@@ -453,13 +480,17 @@
 // Example:
 //
 //   int foo() ABSL_ATTRIBUTE_HOT;
-#if ABSL_HAVE_ATTRIBUTE(hot) || (defined(__GNUC__) && !defined(__clang__))
+#if defined(__cplusplus) && ABSL_HAVE_CPP_ATTRIBUTE(gnu::hot)
+#define ABSL_ATTRIBUTE_HOT [[gnu::hot]]
+#elif ABSL_HAVE_ATTRIBUTE(hot) || (defined(__GNUC__) && !defined(__clang__))
 #define ABSL_ATTRIBUTE_HOT __attribute__((hot))
 #else
 #define ABSL_ATTRIBUTE_HOT
 #endif
 
-#if ABSL_HAVE_ATTRIBUTE(cold) || (defined(__GNUC__) && !defined(__clang__))
+#if defined(__cplusplus) && ABSL_HAVE_CPP_ATTRIBUTE(gnu::cold)
+#define ABSL_ATTRIBUTE_COLD [[gnu::cold]]
+#elif ABSL_HAVE_ATTRIBUTE(cold) || (defined(__GNUC__) && !defined(__clang__))
 #define ABSL_ATTRIBUTE_COLD __attribute__((cold))
 #else
 #define ABSL_ATTRIBUTE_COLD
@@ -681,26 +712,11 @@ struct [[deprecated("Use [[maybe_unused]] instead.")]] _absl_unused_macro;
 // GCC/Clang's `-Wdeprecated-declarations` option. Google's production toolchain
 // turns this warning off by default, instead relying on clang-tidy to report
 // new uses of deprecated code.
-#if ABSL_HAVE_ATTRIBUTE(deprecated)
-#if defined(__cplusplus) && defined(__clang__) && \
-    ABSL_HAVE_ATTRIBUTE(diagnose_if) && !defined(SWIG)
-struct [[deprecated(
-    "Use [[deprecated(...)]] instead.")]] _absl_deprecated_macro;
-// Trick: We use __attribute__((diagnose_if(...))) to refer to our own
-// deprecated symbol, which then causes a deprecation message to be emitted when
-// the macro is used. Since diagnose_if() isn't valid on every declaration, we
-// also suppress the warning regarding that.
-#define ABSL_DEPRECATED(message)                                             \
-  _Pragma("clang diagnostic push") /*                                     */ \
-      _Pragma("clang diagnostic ignored \"-Wignored-attributes\"")           \
-          __attribute__((diagnose_if(                                        \
-              sizeof(_absl_deprecated_macro*) == 0, "",                      \
-              "warning"))) /*                                             */ \
-          _Pragma("clang diagnostic pop") /*                              */ \
-      __attribute__((deprecated(message)))
-#else
-#define ABSL_DEPRECATED(message) __attribute__((deprecated(message)))
+#ifdef ABSL_DEPRECATED
+#error "ABSL_DEPRECATED should not be defined."
 #endif
+#if ABSL_HAVE_ATTRIBUTE(deprecated)
+#define ABSL_DEPRECATED(message) [[deprecated(message)]]
 #else
 #define ABSL_DEPRECATED(message)
 #endif
@@ -830,7 +846,7 @@ struct AbslInternal_YouForgotToExplicitlyInitializeAField {
 // Note that `ABSL_CONST_INIT` must not be used on a variable declared
 // constexpr.
 #if defined(__cpp_constinit) && __cpp_constinit >= 201907L
-#define ABSL_CONST_INIT constinit
+#define ABSL_CONST_INIT constinit  // NOLINT(clang-diagnostic-pre-c++20-compat)
 #elif ABSL_HAVE_CPP_ATTRIBUTE(clang::require_constant_initialization)
 #define ABSL_CONST_INIT [[clang::require_constant_initialization]]
 #else
