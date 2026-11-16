@@ -2241,8 +2241,8 @@ void ClearBackingArray(CommonFields& c, const PolicyFunctions& policy,
 // Destroys all full slots in the backing array.
 // REQUIRES: !is_small(c.capacity()).
 // REQUIRES: destroy_slot != nullptr.
-void DestroySlots(CommonFields& c, size_t slot_size,
-                  DestroySlotFn destroy_slot);
+ABSL_ATTRIBUTE_NOINLINE void DestroySlots(CommonFields& c, size_t slot_size,
+                                          DestroySlotFn destroy_slot);
 
 // Deallocates the backing array and unregister infoz if necessary.
 // REQUIRES: c.capacity > raw_hash_set::DefaultCapacity().
@@ -2384,36 +2384,12 @@ using IsAllocMoveSameAsCopy =
                                               Alloc>::template rebind_alloc<T>>,
         T, void>>>;
 
-template <class T>
-using ShouldStructurallyPreferPassByValue = std::bool_constant<
-    // Check if size is a power of 2, to ensure cheap calls.
-    absl::has_single_bit(sizeof(T)) &&
-    // Check if copying 1-2 registers is enough. We don't want (for example) 32
-    // one-byte values to move around, since that sometimes results in poor
-    // codegen.
-    alignof(T) * 2 >= sizeof(T) &&
-    sizeof(T) <= sizeof(std::pair<void*, size_t>)>;
-
-template <class T>
-using ShouldSemanticallyPreferPassByValue =
-    std::bool_constant<std::is_trivially_move_constructible_v<T> &&
-                       std::is_trivially_destructible_v<T>>;
-
-// Checks the given type to see if it is a good candidate for accepting by value
-// instead of by rvalue-reference. This includes both a semantic constraint
-// (to ensure correctness), as well as a structural constraint (to ensure
-// performance).
-template <class T>
-using ShouldPreferPassByValue =
-    std::bool_constant<ShouldSemanticallyPreferPassByValue<T>::value &&
-                       ShouldStructurallyPreferPassByValue<std::conditional_t<
-                           std::is_void_v<T>, char, T>>::value>;
-
 // This is a 'struct' instead of 'using' in order to avoid eager evaluation for
 // callers that may be passing incomplete types.
 template <class T>
 struct AddConstRefIfExpensive
-    : std::conditional<ShouldPreferPassByValue<T>::value, T, const T&> {
+    : std::conditional<type_traits_internal::ShouldPreferPassByValue<T>::value,
+                       T, const T&> {
   static_assert(std::is_same_v<remove_cvref_t<T>, T>,
                 "passed types must be unqualified");
 };
@@ -2577,6 +2553,8 @@ class raw_hash_set {
       typename std::allocator_traits<Alloc>::template rebind_alloc<char>;
   using SlotAllocTraits = typename std::allocator_traits<
       allocator_type>::template rebind_traits<slot_type>;
+  constexpr static bool kIsDefaultAlloc =
+      std::is_same_v<CharAlloc, std::allocator<char>>;
 
   static_assert(std::is_lvalue_reference_v<reference>,
                 "Policy::element() must return a reference");
@@ -3715,9 +3693,8 @@ class raw_hash_set {
       return;
     }
     constexpr bool kIsStandardBackingArrayAlignment =
-        std::is_same_v<CharAlloc, std::allocator<char>> &&
-        BackingArrayAlignment(alignof(slot_type)) ==
-            kStandardBackingArrayAlignment;
+        kIsDefaultAlloc && BackingArrayAlignment(alignof(slot_type)) ==
+                               kStandardBackingArrayAlignment;
     if constexpr (SooEnabled()) {
       if (is_small() &&
           (PolicyTraits::template destroy_is_trivial<Alloc>() || empty())) {
@@ -4015,8 +3992,6 @@ class raw_hash_set {
   template <class K>
   std::pair<slot_type*, bool> find_or_prepare_insert(const K& key) {
     AssertOnFind(key);
-    // TODO(ezb): add ABSL_SWISSTABLE_ASSUME_SEPARATE_STORAGE that the returned
-    // slot doesn't alias `this` for non-SOO tables with default allocators.
     return is_small() ? find_or_prepare_insert_small(key)
                       : find_or_prepare_insert_large<FindLargeKey<K>>(key);
   }
@@ -4045,6 +4020,19 @@ class raw_hash_set {
   // It is non-iterable, meaning that std::next(it) always points to end().
   iterator non_iterable_iterator_at_slot(slot_type* slot)
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    if constexpr (!SooEnabled() && kIsDefaultAlloc) {
+      // Assume that `slot` doesn't alias `this`. Example benefit: when a caller
+      // mutates an element via an iterator/reference returned by insert() or
+      // operator[], the compiler can prove that the store to the slot does not
+      // clobber CommonFields metadata (size, capacity, etc.) for subsequent
+      // operations on the same container.
+      // Example of benefitting user code:
+      //   m[k1] = v;
+      //   m[k2] = v;
+      // With this assumption, when the first lookup hits, the second lookup
+      // avoids reloading capacity after storing to `m[k1]`.
+      ABSL_SWISSTABLE_ASSUME_SEPARATE_STORAGE(slot, this);
+    }
     return {InsertIteratorControl(), slot, common().generation_ptr()};
   }
   iterator iterator_at(size_t i) ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -4101,7 +4089,7 @@ class raw_hash_set {
   ctrl_t* control() const {
     ABSL_SWISSTABLE_ASSERT(!is_soo());
     ctrl_t* ctrl = common().control();
-    if constexpr (std::is_same_v<CharAlloc, std::allocator<char>>) {
+    if constexpr (kIsDefaultAlloc) {
       // Assume that the control bytes don't alias `this`. Example benefit: when
       // a caller mutates an element via an iterator returned by find(), the
       // compiler can now prove that the store to the slot does not clobber
