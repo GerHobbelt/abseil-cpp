@@ -132,6 +132,14 @@ struct BasicStringHash {
   size_t operator()(std::basic_string_view<TChar> v) const {
     return absl::Hash<std::basic_string_view<TChar>>{}(v);
   }
+
+ private:
+  friend struct absl::hash_internal::HashWithSeed;
+
+  size_t hash_with_seed(std::basic_string_view<TChar> v, size_t seed) const {
+    return absl::hash_internal::HashWithSeed().hash(
+        absl::Hash<std::basic_string_view<TChar>>{}, v, seed);
+  }
 };
 
 template <typename TChar>
@@ -177,6 +185,15 @@ struct HashEq<T*> {
     template <class U>
     size_t operator()(const U& ptr) const {
       return absl::Hash<const T*>{}(HashEq::ToPtr(ptr));
+    }
+
+   private:
+    friend struct absl::hash_internal::HashWithSeed;
+
+    template <class U>
+    size_t hash_with_seed(const U& ptr, size_t seed) const {
+      return absl::hash_internal::HashWithSeed().hash(absl::Hash<const T*>{},
+                                                      HashEq::ToPtr(ptr), seed);
     }
   };
   struct Eq {
