@@ -22,7 +22,6 @@
 #include "absl/profiling/benchmark.h"
 #include "absl/base/attributes.h"
 #include "absl/base/internal/raw_logging.h"
-#include "absl/base/macros.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/str_cat.h"
 
