@@ -17,6 +17,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <vector>
 
 #include "absl/base/config.h"
 #include "absl/base/internal/raw_logging.h"
@@ -151,6 +153,9 @@ const uint8_t* RoundUp(const uint8_t* p) {
 // Return a newly created CRC32AcceleratedX86ARMCombined if we can use Intel's
 // or ARM's CRC acceleration for a given polynomial.  Return nullptr otherwise.
 CRCImpl* TryNewCRC32AcceleratedX86ARMCombined();
+
+// Return all possible hardware accelerated implementations. For testing only.
+std::vector<std::unique_ptr<CRCImpl>> NewCRC32AcceleratedX86ARMCombinedAll();
 
 }  // namespace crc_internal
 ABSL_NAMESPACE_END

@@ -255,6 +255,8 @@ TEST(CHECKTest, TestBinaryChecksWithStringComparison) {
   ABSL_TEST_CHECK_LT(a, "b");
 }
 
+#if GTEST_HAS_DEATH_TEST
+
 TEST(CHECKDeathTest, CheckWithCharStarAndStringPrintsTheCharStar) {
   std::string str = "B";
 
@@ -264,6 +266,8 @@ TEST(CHECKDeathTest, CheckWithCharStarAndStringPrintsTheCharStar) {
                R"re(Check failed: \"A\" == str \(A vs. B\))re");
 }
 
+#endif  // GTEST_HAS_DEATH_TEST
+
 #if defined(GTEST_USES_SIMPLE_RE) && GTEST_USES_SIMPLE_RE
 #define POINTER_VALUE_RE R"re(\w*)re"
 #else
@@ -271,6 +275,8 @@ TEST(CHECKDeathTest, CheckWithCharStarAndStringPrintsTheCharStar) {
 #endif
 
 #define POINTER_VS_POINTER_RE(lhs, rhs) "\\(" lhs " vs. " rhs "\\)"
+
+#if GTEST_HAS_DEATH_TEST
 
 template <typename CharT>
 void TestCharStarComparison() {
@@ -309,6 +315,8 @@ TEST(CHECKDeathTest, CheckWithCharStarStringification) {
   TestCharStarComparison<char32_t>();
 }
 
+#endif  // GTEST_HAS_DEATH_TEST
+
 // For testing using CHECK*() on anonymous enums.
 enum { CASE_A, CASE_B };
 
@@ -342,6 +350,8 @@ struct ExampleTypeThatHasNoStreamOperator {
   bool operator==(const bool& other) const { return x == other; }
 };
 
+#if GTEST_HAS_DEATH_TEST
+
 TEST(CHECKDeathTest, TestBinaryChecksWithUnprintable) {
   ExampleTypeThatHasNoStreamOperator a{true};
   ExampleTypeThatHasNoStreamOperator b{false};
@@ -351,8 +361,6 @@ TEST(CHECKDeathTest, TestBinaryChecksWithUnprintable) {
   EXPECT_DEATH(ABSL_TEST_CHECK_EQ(a, false),
                "Check failed: a == false \\(UNPRINTABLE vs. 0\\)");
 }
-
-#if GTEST_HAS_DEATH_TEST
 
 // Test logging of various char-typed values by failing CHECK*().
 TEST(CHECKDeathTest, TestComparingCharsValues) {

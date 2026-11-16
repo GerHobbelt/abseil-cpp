@@ -1158,6 +1158,7 @@ TEST_F(ParseDeathTest, ExitOnUnrecognizedFlagPrintsHelp) {
 
 // --------------------------------------------------------------------
 
+#if GTEST_HAS_DEATH_TEST
 TEST_F(ParseDeathTest, DisableFlagfileAndEnvParsing) {
   EXPECT_EXIT(
       ([]() {
@@ -1218,5 +1219,6 @@ TEST_F(ParseDeathTest, IsIndirectFlagExpansionEnabledWorks) {
       })(),
       testing::ExitedWithCode(0), "");
 }
+#endif // GTEST_HAS_DEATH_TEST
 
 }  // namespace

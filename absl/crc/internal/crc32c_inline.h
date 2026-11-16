@@ -29,10 +29,10 @@ namespace crc_internal {
 // CRC32C implementation optimized for small inputs.
 // Either computes crc and return true, or if there is
 // no hardware support does nothing and returns false.
-inline bool ExtendCrc32cInline(uint32_t* crc, const char* p, size_t n,
-                               uint32_t kCrc32Xor) {
+inline bool ExtendCrc32cInline(uint32_t* crc, const char* p, size_t n) {
 #if defined(ABSL_CRC_INTERNAL_HAVE_ARM_SIMD) || \
     defined(ABSL_CRC_INTERNAL_HAVE_X86_SIMD)
+  constexpr uint32_t kCrc32Xor = 0xffffffffU;
   *crc ^= kCrc32Xor;
   if (n & 1) {
     *crc = CRC32_u8(*crc, static_cast<uint8_t>(*p));
@@ -61,7 +61,6 @@ inline bool ExtendCrc32cInline(uint32_t* crc, const char* p, size_t n,
   static_cast<void>(crc);
   static_cast<void>(p);
   static_cast<void>(n);
-  static_cast<void>(kCrc32Xor);
   return false;
 #endif  // defined(ABSL_CRC_INTERNAL_HAVE_ARM_SIMD) ||
         // defined(ABSL_CRC_INTERNAL_HAVE_X86_SIMD)
