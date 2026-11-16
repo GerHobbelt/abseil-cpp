@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#define BENCHMARK_FAMILY_ID      "linked_hash_set"
+#include "absl/profiling/benchmark.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -23,7 +23,6 @@
 #include "absl/functional/function_ref.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "benchmark/benchmark.h"
 
 namespace {
 

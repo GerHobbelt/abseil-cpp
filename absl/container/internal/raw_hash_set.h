@@ -4538,6 +4538,7 @@ class raw_hash_set : public raw_hash_set_base {
   const CharAlloc& char_alloc_ref() const { return alloc_; }
 
  private:
+  // Offsets of `hash_` and `alloc_` relative to `common_`. They are stored in
   // `PolicyFunctions` so that type erased functions can access the hasher and
   // the allocator given only a `CommonFields&`.
   // `offsetof` on a non-standard-layout type (e.g. when `hasher` is

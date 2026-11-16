@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -23,7 +25,6 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
-#include "benchmark/benchmark.h"
 
 namespace {
 

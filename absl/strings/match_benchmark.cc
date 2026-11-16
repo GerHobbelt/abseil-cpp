@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
 
 #include "absl/base/internal/raw_logging.h"
 #include "absl/strings/match.h"
-#include "benchmark/benchmark.h"
 
 namespace {
 

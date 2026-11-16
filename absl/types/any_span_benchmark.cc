@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -26,7 +28,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/any_span.h"
 #include "absl/types/span.h"
-#include "benchmark/benchmark.h"
 
 ABSL_FLAG(uint64_t, benchmark_container_size, 2000,
           "The size of the containers to use for benchmarking.");

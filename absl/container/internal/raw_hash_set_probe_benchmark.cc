@@ -493,7 +493,7 @@ void RunForType(std::vector<Result>& results) {
 }  // namespace
 
 #if defined(BUILD_MONOLITHIC)
-#define main   abseil_raw_hash_Set_probe_benchmark_main
+#define main   abseil_raw_hash_set_probe_benchmark_main
 #endif
 
 extern "C"

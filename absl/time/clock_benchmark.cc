@@ -11,18 +11,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <ctime>
 
 #include "absl/profiling/benchmark.h"
 #include "absl/base/internal/cycleclock.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "benchmark/benchmark.h"
 
 #if !defined(_WIN32)
 #include <sys/time.h>
 #else
 #include <winsock2.h>
+
+#undef min
+#undef max
 #endif  // _WIN32
 
 namespace {
