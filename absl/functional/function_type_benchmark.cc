@@ -18,6 +18,7 @@
 
 #include "absl/profiling/benchmark.h"
 #include "absl/base/attributes.h"
+#include "absl/base/config.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/functional/function_ref.h"
 

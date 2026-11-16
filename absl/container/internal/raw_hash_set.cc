@@ -22,6 +22,7 @@
 #include <cstring>
 #include <memory>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <set>
 
@@ -102,20 +103,12 @@ bool ShouldRehashForBugDetection(size_t capacity) {
              .offset() < RehashProbabilityConstant();
 }
 
-// Find a non-deterministic hash for single group table.
-// Last two bits are used to find a position for a newly inserted element after
-// resize.
-// This function basically using H2 last bits to save on shift operation.
-size_t SingleGroupTableH1(size_t hash, PerTableSeed seed) {
-  return hash ^ seed.seed();
-}
-
 // Returns the offset of the new element after resize from capacity 1 to 3.
-size_t Resize1To3NewOffset(size_t hash, PerTableSeed seed) {
+size_t Resize1To3NewOffset(size_t hash) {
   // After resize from capacity 1 to 3, we always have exactly the slot with
   // index 1 occupied, so we need to insert either at index 0 or index 2.
   static_assert(SooSlotIndex() == 1);
-  return SingleGroupTableH1(hash, seed) & 2;
+  return hash & 2;
 }
 
 // Returns the address of the ith slot in slots where each slot occupies
@@ -263,7 +256,7 @@ void IterateOverFullSlotsImpl(const CommonFields& c, size_t slot_size, Fn cb) {
     return;
   }
   size_t remaining = c.size();
-  ABSL_ATTRIBUTE_UNUSED const size_t original_size_for_assert = remaining;
+  [[maybe_unused]] const size_t original_size_for_assert = remaining;
   while (remaining != 0) {
     for (uint32_t i : GroupFullEmptyOrDeleted(ctrl).MaskFull()) {
       ABSL_SWISSTABLE_ASSERT(IsFull(ctrl[i]) &&
@@ -328,9 +321,9 @@ void CommonFields::InitGrowthLeftNoDeleted(size_t growth_left,
     inline_data_.set_growth_info_lower_bound(
         GrowthInfoLowerBound(static_cast<uint8_t>(growth_left)));
   } else {
-    uint64_t lower_bound =
-        (std::min)(uint64_t{growth_left},
-                   GrowthInfoLowerBound::kMaxGrowthLeftLowerBound);
+    size_t lower_bound = (std::min)(
+        growth_left,
+        GrowthInfoLowerBound::kMaxGrowthLeftLowerBound);
     inline_data_.set_growth_info_lower_bound(
         GrowthInfoLowerBound(static_cast<uint8_t>(lower_bound)));
     SetGrowthInfoOverflow(growth_left - lower_bound);
@@ -369,9 +362,9 @@ GrowthInfoLowerBound CommonFields::RebalanceGrowthLeftLowerBound(
 
 ABSL_ATTRIBUTE_NOINLINE GrowthInfoLowerBound
 CommonFields::RebalanceGrowthLeftLowerBoundLargeCapacity() {
-  uint64_t overflow_growth_left = GetOverflowGrowthLeft();
-  uint64_t lower_bound_growth_left = GetGrowthLeftLowerBound();
-  uint64_t overflow_to_lower_bound_size =
+  size_t overflow_growth_left = GetOverflowGrowthLeft();
+  size_t lower_bound_growth_left = GetGrowthLeftLowerBound();
+  size_t overflow_to_lower_bound_size =
       (std::min)(overflow_growth_left,
                  GrowthInfoLowerBound::kMaxGrowthLeftLowerBound -
                      lower_bound_growth_left);
@@ -402,6 +395,41 @@ void CommonFields::set_infoz(HashtablezInfoHandle infoz) {
   void* dst = reinterpret_cast<char*>(control()) -
               MetadataBeforeControlSize(/*has_infoz=*/true, capacity());
   std::memcpy(dst, &infoz, sizeof(HashtablezInfoHandle));
+}
+
+namespace {
+void DeallocBackingArrayImpl(void* alloc, size_t capacity, ctrl_t* ctrl,
+                             size_t slot_size, size_t slot_align,
+                             bool has_infoz, size_t blocked_element_count,
+                             DeallocBackingArrayFn dealloc) {
+  RawHashSetLayout layout(capacity, slot_size, slot_align, has_infoz,
+                          blocked_element_count);
+  void* backing_array = ctrl - layout.control_offset();
+  // Unpoison before returning the memory to the allocator.
+  SanitizerUnpoisonMemoryRegion(backing_array, layout.alloc_size());
+  dealloc(alloc, backing_array, layout.alloc_size());
+}
+
+void DeallocBackingArrayImpl(CommonFields& c,
+                             const PolicyFunctions& __restrict policy,
+                             void* alloc) {
+  DeallocBackingArrayImpl(alloc, c.capacity(), c.control(), policy.slot_size,
+                          policy.slot_align, c.has_infoz(),
+                          c.blocked_element_count(), policy.dealloc);
+}
+
+}  // namespace
+
+void UnregisterAndDeallocBackingArray(CommonFields& c,
+                                      const DtorPolicy& __restrict policy,
+                                      DeallocBackingArrayFn dealloc,
+                                      void* alloc) {
+  size_t cap = c.capacity();  // capacity is already in register, so storing it
+                              // in a local variable before Unregister().
+  c.infoz().Unregister();
+  DeallocBackingArrayImpl(alloc, cap, c.control(), policy.slot_size,
+                          policy.slot_align, c.has_infoz(),
+                          c.blocked_element_count(), dealloc);
 }
 
 namespace {
@@ -769,9 +797,7 @@ void ClearBackingArrayNoReuse(CommonFields& c,
   c.infoz().RecordClearedReservation();
   c.infoz().RecordStorageChanged(0, policy.soo_capacity());
   c.infoz().Unregister();
-  (*policy.dealloc)(alloc, c.capacity(), c.control(), policy.slot_size,
-                    policy.slot_align, c.has_infoz(),
-                    c.blocked_element_count());
+  DeallocBackingArrayImpl(c, policy, alloc);
   c = policy.soo_enabled ? CommonFields{soo_tag_t{}}
                          : CommonFields{non_soo_tag_t{}};
 }
@@ -788,6 +814,36 @@ void DecrementSmallSize(CommonFields& c) {
   } else {
     c.decrement_size();
   }
+}
+
+void DestructSoo(CommonFields& c, const DtorPolicy& __restrict policy,
+                 DeallocBackingArrayFn dealloc, void* alloc) {
+  ABSL_SWISSTABLE_ASSERT(!c.is_small() || !c.empty());
+  if (c.is_small()) {
+    ABSL_SWISSTABLE_ASSERT(policy.destroy_slot != nullptr);
+    policy.destroy_slot(&c, c.soo_data());
+    return;
+  }
+  if (policy.destroy_slot != nullptr) {
+    DestroySlots(c, policy.slot_size, policy.destroy_slot);
+  }
+  UnregisterAndDeallocBackingArray(c, policy, dealloc, alloc);
+}
+
+void DestructNonSoo(CommonFields& c, const DtorPolicy& __restrict policy,
+                    DeallocBackingArrayFn dealloc, void* alloc) {
+  ABSL_SWISSTABLE_ASSERT(c.capacity() > 0);
+  if (policy.destroy_slot != nullptr) {
+    if (c.is_small()) {
+      if (!c.empty()) {
+        static_assert(kMaxSmallCapacity == 1);
+        policy.destroy_slot(&c, c.slot_array(/*capacity=*/1));
+      }
+    } else {
+      DestroySlots(c, policy.slot_size, policy.destroy_slot);
+    }
+  }
+  UnregisterAndDeallocBackingArray(c, policy, dealloc, alloc);
 }
 
 }  // namespace
@@ -855,14 +911,6 @@ void DestroySlots(CommonFields& c, size_t slot_size,
   }
 }
 
-void DeallocBackingArray(CommonFields& c, size_t slot_size, size_t slot_align,
-                         DeallocBackingArrayFn dealloc, void* alloc) {
-  const size_t cap = c.capacity();
-  c.infoz().Unregister();
-  dealloc(alloc, cap, c.control(), slot_size, slot_align, c.has_infoz(),
-          c.blocked_element_count());
-}
-
 template <bool kSooEnabled>
 void Clear(CommonFields& c, const PolicyFunctions& __restrict policy,
            DestroySlotFn destroy_slot, void* alloc) {
@@ -900,36 +948,23 @@ void Clear(CommonFields& c, const PolicyFunctions& __restrict policy,
   c.set_reservation_size(0);
 }
 
-void DestructSoo(CommonFields& c, size_t slot_size, size_t slot_align,
-                 DestroySlotFn destroy_slot, DeallocBackingArrayFn dealloc,
-                 void* alloc) {
-  ABSL_SWISSTABLE_ASSERT(!c.is_small() || !c.empty());
-  if (c.is_small()) {
-    ABSL_SWISSTABLE_ASSERT(destroy_slot != nullptr);
-    destroy_slot(&c, c.soo_data());
-    return;
+template <bool kSooEnabled>
+void Destruct(CommonFields& c, const DtorPolicy& __restrict policy,
+              DeallocBackingArrayFn dealloc, void* alloc) {
+  if constexpr (kSooEnabled) {
+    DestructSoo(c, policy, dealloc, alloc);
+  } else {
+    DestructNonSoo(c, policy, dealloc, alloc);
   }
-  if (destroy_slot != nullptr) {
-    DestroySlots(c, slot_size, destroy_slot);
-  }
-  DeallocBackingArray(c, slot_size, slot_align, dealloc, alloc);
 }
-
-void DestructNonSoo(CommonFields& c, size_t slot_size, size_t slot_align,
-                    DestroySlotFn destroy_slot, DeallocBackingArrayFn dealloc,
-                    void* alloc) {
-  ABSL_SWISSTABLE_ASSERT(c.capacity() > 0);
-  if (destroy_slot != nullptr) {
-    if (c.is_small()) {
-      if (!c.empty()) {
-        static_assert(kMaxSmallCapacity == 1);
-        destroy_slot(&c, c.slot_array(/*capacity=*/1));
-      }
-    } else {
-      DestroySlots(c, slot_size, destroy_slot);
-    }
-  }
-  DeallocBackingArray(c, slot_size, slot_align, dealloc, alloc);
+template <bool kSooEnabled>
+void Destruct(CommonFields& c, const DtorPolicy& __restrict policy,
+              DeallocBackingArrayFn dealloc) {
+  Destruct<kSooEnabled>(c, policy, dealloc, /*alloc=*/&c);
+}
+template <bool kSooEnabled>
+void Destruct(CommonFields& c, const DtorPolicy& __restrict policy) {
+  Destruct<kSooEnabled>(c, policy, kStandardDeallocBackingArrayFn);
 }
 
 namespace {
@@ -1678,7 +1713,7 @@ void* Grow1To3AndPrepareInsert(CommonFields& common,
   h2_t new_h2 = H2(new_hash);
   size_t orig_hash =
       policy.hash_slot(policy.hash_fn(common), old_slots, common.seed().seed());
-  size_t offset = Resize1To3NewOffset(new_hash, common.seed());
+  size_t offset = Resize1To3NewOffset(new_hash);
   InitializeThreeElementsControlBytes(H2(orig_hash), new_h2, offset, new_ctrl);
 
   void* old_element_target = NextSlot(new_slots, slot_size);
@@ -1688,11 +1723,11 @@ void* Grow1To3AndPrepareInsert(CommonFields& common,
   void* new_element_target_slot = SlotAddress(new_slots, offset, slot_size);
   SanitizerUnpoisonMemoryRegion(new_element_target_slot, slot_size);
 
-  policy.dealloc(alloc, kOldCapacity,
-                 // old_slots == old_ctrl in case of capacity == 1.
-                 static_cast<ctrl_t*>(old_slots),
-                 slot_size, slot_align, has_infoz,
-                 /*blocked_element_count=*/0);
+  DeallocBackingArrayImpl(alloc, kOldCapacity,
+                          // old_slots == old_ctrl in case of capacity == 1.
+                          static_cast<ctrl_t*>(old_slots), slot_size,
+                          slot_align, has_infoz,
+                          /*blocked_element_count=*/0, policy.dealloc);
   PrepareInsertCommon(common);
   ABSL_SWISSTABLE_ASSERT(common.size() == 2);
   common.InitGrowthLeftNoDeleted(kNewCapacity - 2, kNewCapacity);
@@ -1744,8 +1779,7 @@ void* GrowToNextCapacityAndPrepareInsert(
                                            new_capacity);
     // We put the new element either at the beginning or at the end of the
     // table with approximately equal probability.
-    offset =
-        SingleGroupTableH1(new_hash, common.seed()) & 1 ? 0 : new_capacity - 1;
+    offset = new_hash & 1 ? 0 : new_capacity - 1;
 
     ABSL_SWISSTABLE_ASSERT(IsEmpty(new_ctrl[offset]));
     SetCtrlInSingleGroupTable(common, offset, new_h2, policy.slot_size);
@@ -1764,8 +1798,8 @@ void* GrowToNextCapacityAndPrepareInsert(
     SetCtrlInLargeTable(common, find_info.offset, new_h2, policy.slot_size);
   }
   ABSL_SWISSTABLE_ASSERT(old_capacity > policy.soo_capacity());
-  (*policy.dealloc)(alloc, old_capacity, old_ctrl, slot_size, slot_align,
-                    has_infoz, old_blocked_element_count);
+  DeallocBackingArrayImpl(alloc, old_capacity, old_ctrl, slot_size, slot_align,
+                          has_infoz, old_blocked_element_count, policy.dealloc);
   PrepareInsertCommon(common);
   ResetGrowthLeft(new_capacity, common.size(), common);
 
@@ -2057,8 +2091,8 @@ void ResizeAllocatedTableWithSeedChange(
   ABSL_SWISSTABLE_ASSERT(old_capacity > 0);
   total_probe_length = FindNewPositionsAndTransferSlots(
       common, policy, old_ctrl, old_slots, old_capacity);
-  (*policy.dealloc)(alloc, old_capacity, old_ctrl, slot_size, slot_align,
-                    has_infoz, old_blocked_element_count);
+  DeallocBackingArrayImpl(alloc, old_capacity, old_ctrl, slot_size, slot_align,
+                          has_infoz, old_blocked_element_count, policy.dealloc);
   ResetGrowthLeft(new_capacity, common.size(), common);
 
   if (ABSL_PREDICT_FALSE(has_infoz)) {
@@ -2100,7 +2134,7 @@ void* GrowSooTableToNextCapacityAndPrepareInsert(
       policy.hash_fn(common), common.soo_data(), common.seed().seed()));
   const size_t new_hash = get_hash(common.seed().seed());
 
-  const size_t offset = Resize1To3NewOffset(new_hash, common.seed());
+  const size_t offset = Resize1To3NewOffset(new_hash);
   InitializeThreeElementsControlBytes(soo_slot_h2, H2(new_hash), offset,
                                       new_ctrl);
 
@@ -2402,18 +2436,41 @@ template void* GrowSooTableToNextCapacityAndPrepareInsert<
 static_assert(MaxSooSlotSize() == 8);
 #endif
 
-template void* AllocateBackingArray<BackingArrayAlignment(alignof(size_t)),
+template void* AllocateBackingArray<kStandardBackingArrayAlignment,
                                     std::allocator<char>>(void* alloc,
                                                           size_t n);
-template void DeallocateBackingArray<BackingArrayAlignment(alignof(size_t)),
-                                     std::allocator<char>>(
-    void* alloc, size_t capacity, ctrl_t* ctrl, size_t slot_size,
-    size_t slot_align, bool had_infoz, size_t blocked_element_count);
+template void DeallocateBackingArray<kStandardBackingArrayAlignment,
+                                     std::allocator<char>>(void* alloc,
+                                                           void* backing_array,
+                                                           size_t n);
 
-template void Clear<true>(CommonFields& c, const PolicyFunctions& policy,
-                          DestroySlotFn destroy_slot, void* alloc);
-template void Clear<false>(CommonFields& c, const PolicyFunctions& policy,
-                           DestroySlotFn destroy_slot, void* alloc);
+template void Clear</*kSooEnabled=*/true>(CommonFields& c,
+                                          const PolicyFunctions& policy,
+                                          DestroySlotFn destroy_slot,
+                                          void* alloc);
+template void Clear</*kSooEnabled=*/false>(CommonFields& c,
+                                           const PolicyFunctions& policy,
+                                           DestroySlotFn destroy_slot,
+                                           void* alloc);
+
+template void Destruct</*kSooEnabled=*/true>(CommonFields& c,
+                                             const DtorPolicy& policy,
+                                             DeallocBackingArrayFn dealloc,
+                                             void* alloc);
+template void Destruct</*kSooEnabled=*/true>(CommonFields& c,
+                                             const DtorPolicy& policy,
+                                             DeallocBackingArrayFn dealloc);
+template void Destruct</*kSooEnabled=*/true>(CommonFields& c,
+                                             const DtorPolicy& policy);
+template void Destruct</*kSooEnabled=*/false>(CommonFields& c,
+                                              const DtorPolicy& policy,
+                                              DeallocBackingArrayFn dealloc,
+                                              void* alloc);
+template void Destruct</*kSooEnabled=*/false>(CommonFields& c,
+                                              const DtorPolicy& policy,
+                                              DeallocBackingArrayFn dealloc);
+template void Destruct</*kSooEnabled=*/false>(CommonFields& c,
+                                              const DtorPolicy& policy);
 
 }  // namespace container_internal
 ABSL_NAMESPACE_END

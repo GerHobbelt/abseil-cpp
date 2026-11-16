@@ -26,6 +26,7 @@
 
 #include "absl/base/config.h"
 
+#include <algorithm>
 #include <string_view>
 
 #include "absl/base/attributes.h"
