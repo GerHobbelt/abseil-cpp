@@ -207,7 +207,7 @@ template <typename To, typename From>
 inline void ValidateDownCast(From* f) {
   // Assert only if RTTI is enabled and in debug mode or hardened asserts are
   // enabled.
-#if defined(ABSL_INTERNAL_HAS_RTTI) && \
+#if ABSL_INTERNAL_HAS_RTTI && \
     (!defined(NDEBUG) || (ABSL_OPTION_HARDENED == 1))
   // Suppress erroneous nonnull comparison warning on older GCC.
 #if defined(__GNUC__) && !defined(__clang__)

@@ -25,7 +25,7 @@ if (POLICY CMP0141)
   cmake_policy(SET CMP0141 NEW)
 endif (POLICY CMP0141)
 
-project(absl LANGUAGES CXX VERSION 20250512)
+project(absl LANGUAGES CXX VERSION 20261124)
 set(ABSL_SOVERSION "2505.0.0")
 include(CTest)
 
@@ -172,7 +172,17 @@ endif()
 add_subdirectory(absl)
 
 if(ABSL_ENABLE_INSTALL)
-  
+  # absl:lts-remove-begin(system installation is supported for LTS releases)
+  # We don't support system-wide installation
+  list(APPEND SYSTEM_INSTALL_DIRS "/usr/local" "/usr" "/opt/" "/opt/local" "c:/Program Files/${PROJECT_NAME}")
+  if(NOT DEFINED CMAKE_INSTALL_PREFIX OR CMAKE_INSTALL_PREFIX IN_LIST SYSTEM_INSTALL_DIRS)
+    message(WARNING "\
+  The default and system-level install directories are unsupported except in LTS \
+  releases of Abseil.  Please set CMAKE_INSTALL_PREFIX to install Abseil in your \
+  source or build tree directly.\
+    ")
+  endif()
+  # absl:lts-remove-end
 
   # install as a subdirectory only
   install(EXPORT ${PROJECT_NAME}Targets

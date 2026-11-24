@@ -2444,7 +2444,7 @@ TEST_P(CordTest, CompareRandomComparisons) {
                 coin_flip(rng) ? d : absl::Cord(std::string(d)), &rng);
   }
 }
-#endif
+#endif      // _LIBCPP_CHAR_TRAITS_REMOVE_BASE_SPECIALIZATION
 
 template <typename T1, typename T2>
 void CompareOperators() {

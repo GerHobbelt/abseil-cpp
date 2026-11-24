@@ -11,10 +11,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <iterator>
 #include <string>
 
-#include "absl/profiling/benchmark.h"
 #include "absl/time/civil_time.h"
 #include "absl/time/internal/test_util.h"
 #include "absl/time/time.h"

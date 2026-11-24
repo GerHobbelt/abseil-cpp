@@ -12,7 +12,7 @@ from conans.model.version import Version
 
 class AbseilConan(ConanFile):
     name = "abseil"
-    version = "20210114"
+    version = "20261124"
     url = "https://github.com/abseil/abseil-cpp"
     homepage = url
     author = "Abseil <abseil-io@googlegroups.com>"

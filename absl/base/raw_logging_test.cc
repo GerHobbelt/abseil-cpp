@@ -85,6 +85,7 @@ TEST(RawLoggingDeathTest, LogFatal) {
   EXPECT_DEATH_IF_SUPPORTED(ABSL_RAW_LOG(FATAL, "my dog has fleas"),
                             kExpectedDeathOutput);
 }
+
 #endif
 
 // Raw logging writes to STDERR_FILENO via write()/syscall on POSIX platforms,
@@ -140,6 +141,7 @@ TEST(InternalLog, CompilationTest) {
 }
 
 #if !defined(BUILD_MONOLITHIC)
+
 TEST(InternalLogDeathTest, FailingCheck) {
   EXPECT_DEATH_IF_SUPPORTED(ABSL_INTERNAL_CHECK(1 == 0, "explanation"),
                             kExpectedDeathOutput);
@@ -149,6 +151,7 @@ TEST(InternalLogDeathTest, LogFatal) {
   EXPECT_DEATH_IF_SUPPORTED(ABSL_INTERNAL_LOG(FATAL, "my dog has fleas"),
                             kExpectedDeathOutput);
 }
+
 #endif
 
 }  // namespace

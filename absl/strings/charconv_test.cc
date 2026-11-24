@@ -791,6 +791,7 @@ constexpr bool operator!=(const absl::from_chars_result& l,
   return !(l == r);
 }
 #endif
+
 // Check that the operator== for from_chars_result works as expected.
 //
 // EXPECT_TRUE and EXPECT_FALSE used intentionally to check operator== and

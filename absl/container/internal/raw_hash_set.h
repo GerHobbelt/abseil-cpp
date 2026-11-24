@@ -1139,10 +1139,6 @@ using CommonFieldsGenerationInfo = CommonFieldsGenerationInfoDisabled;
 using HashSetIteratorGenerationInfo = HashSetIteratorGenerationInfoDisabled;
 #endif
 
-#ifndef ABSL_MAX_TRUE_LOAD_FACTOR
-#define ABSL_MAX_TRUE_LOAD_FACTOR 0.975
-#endif
-
 // Returns the number of "cloned control bytes".
 //
 // This is the number of control bytes that are present both at the beginning
