@@ -14,6 +14,9 @@
 
 // SKIP_ABSL_INLINE_NAMESPACE_CHECK
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include <cstdio>
 #include <cstdlib>
 
