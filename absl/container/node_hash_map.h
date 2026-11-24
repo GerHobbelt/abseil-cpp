@@ -650,26 +650,6 @@ class NodeHashMapPolicy
   using DefaultAlloc = std::allocator<std::pair<const Key, Value>>;
   using SlotEq = SlotEqFn<Key, /*kDerefSlot=*/true>;
 
-  template <class Allocator, class... Args>
-  static value_type* new_element(Allocator* alloc, Args&&... args) {
-    using PairAlloc = typename std::allocator_traits<
-        Allocator>::template rebind_alloc<value_type>;
-    PairAlloc pair_alloc(*alloc);
-    value_type* res = std::allocator_traits<PairAlloc>::allocate(pair_alloc, 1);
-    std::allocator_traits<PairAlloc>::construct(pair_alloc, res,
-                                                std::forward<Args>(args)...);
-    return res;
-  }
-
-  template <class Allocator>
-  static void delete_element(Allocator* alloc, value_type* pair) {
-    using PairAlloc = typename std::allocator_traits<
-        Allocator>::template rebind_alloc<value_type>;
-    PairAlloc pair_alloc(*alloc);
-    std::allocator_traits<PairAlloc>::destroy(pair_alloc, pair);
-    std::allocator_traits<PairAlloc>::deallocate(pair_alloc, pair, 1);
-  }
-
   template <class F, class... Args>
   static decltype(absl::container_internal::DecomposePair(
       std::declval<F>(), std::declval<Args>()...))
@@ -678,17 +658,14 @@ class NodeHashMapPolicy
                                                    std::forward<Args>(args)...);
   }
 
-  static size_t element_space_used(const value_type*) {
-    return sizeof(value_type);
-  }
-
   static Value& value(value_type* elem) { return elem->second; }
   static const Value& value(const value_type* elem) { return elem->second; }
 
   template <class Hash, bool kIsAbsl, size_t kSeedShift>
   static constexpr HashSlotFn get_hash_slot_fn() {
     static_assert(memory_internal::OffsetOf<value_type>::kFirst == 0);
-    return GetTypeErasedDerefAndApplyToSlotFn<Hash, Key, kIsAbsl, kSeedShift>();
+    return GetTypeErasedApplyToSlotFn<Hash, Key, kIsAbsl, kSeedShift,
+                                      /*kDerefSlot=*/true>();
   }
 };
 }  // namespace container_internal
