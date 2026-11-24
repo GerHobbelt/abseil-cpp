@@ -116,8 +116,8 @@ TEST(IsDetectedTest, BasicUsage) {
 }
 
 TEST(VoidTTest, BasicUsage) {
-  StaticAssertTypeEq<void, absl::void_t<Dummy>>();
-  StaticAssertTypeEq<void, absl::void_t<Dummy, Dummy, Dummy>>();
+  StaticAssertTypeEq<void, std::void_t<Dummy>>();
+  StaticAssertTypeEq<void, std::void_t<Dummy, Dummy, Dummy>>();
 }
 
 TEST(TypeTraitsTest, TestRemoveCVRef) {
