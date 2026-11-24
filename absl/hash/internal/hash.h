@@ -65,6 +65,13 @@
 #include "absl/types/variant.h"
 #include "absl/utility/utility.h"
 
+#ifndef ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER   1
+#endif
+#ifndef ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER     1
+#endif
+
 #if defined(__cpp_lib_filesystem) && __cpp_lib_filesystem >= 201703L && \
     !defined(__XTENSA__)
 #include <filesystem>  // NOLINT
@@ -646,7 +653,7 @@ H AbslHashValue(H hash_state, const Path& path) {
 
 #endif  // ABSL_INTERNAL_STD_FILESYSTEM_PATH_HASH_AVAILABLE
 
-#ifdef ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#if ABSL_DEFINE_HASH_FOR_STD_CONTAINER
 
 // -----------------------------------------------------------------------------
 // AbslHashValue for Sequence Containers
@@ -842,7 +849,7 @@ std::enable_if_t<is_hashable<T>::value, H> AbslHashValue(
   return H::combine(std::move(hash_state), opt.get());
 }
 
-#ifdef ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+#if ABSL_DEFINE_HASH_FOR_STD_WRAPPER
 
 // AbslHashValue for hashing std::optional
 template <typename H, typename T>
