@@ -2330,6 +2330,10 @@ void ReserveTableToFitNewSize(CommonFields& common,
 // Requires: `n <= MaxValidCapacity()`.
 void Rehash(CommonFields& common, const PolicyFunctions& policy, size_t n);
 
+// Type erased version of GtlReclaimExcessCapacity.
+void ReclaimExcessCapacityImpl(CommonFields& common,
+                               const PolicyFunctions& policy);
+
 // Type erased version of copy constructor.
 void Copy(CommonFields& common, const PolicyFunctions& policy,
           const CommonFields& other,
@@ -3848,6 +3852,13 @@ class raw_hash_set : public raw_hash_set_base {
   size_t get_size() {
     return AllocSize(common().capacity(), sizeof(slot_type), alignof(slot_type),
                     true);
+  }
+
+  // Customization point for `gtl::ReclaimExcessCapacity`. Do not call this
+  // function directly; call `gtl::ReclaimExcessCapacity(container)` instead.
+  friend void GtlReclaimExcessCapacity(raw_hash_set& container) {
+    ReclaimExcessCapacityImpl(container.common(),
+                              container.GetPolicyFunctions());
   }
 
   // Extension API: support for heterogeneous keys.
