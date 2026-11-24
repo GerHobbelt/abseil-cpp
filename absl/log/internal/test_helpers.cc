@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+
 #include "absl/log/internal/test_helpers.h"
 
 #include <csignal>

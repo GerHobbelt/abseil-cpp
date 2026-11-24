@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <sstream>
 #include <string>
 
-#include "absl/profiling/benchmark.h"
 #include "absl/strings/internal/ostringstream.h"
 
 namespace {

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <array>
 #include <cstdint>
 #include <cstdio>
@@ -21,7 +23,6 @@
 #include <tuple>
 #include <utility>
 
-#include "absl/profiling/benchmark.h"
 #include "absl/random/log_uniform_int_distribution.h"
 #include "absl/random/random.h"
 #include "absl/strings/str_cat.h"

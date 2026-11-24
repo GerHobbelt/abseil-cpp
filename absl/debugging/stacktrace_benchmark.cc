@@ -13,13 +13,15 @@
 // limitations under the License.
 
 #include "absl/profiling/benchmark.h"
+
+#include <stddef.h>
+#include <stdint.h>
+
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/base/optimization.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/debugging/stacktrace.h"
-#include <stddef.h>
-#include <stdint.h>
 
 
 static bool g_enable_fixup = false;

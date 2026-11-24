@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -20,7 +22,6 @@
 #include <type_traits>
 #include <vector>
 
-#include "absl/profiling/benchmark.h"
 #include "absl/base/internal/raw_logging.h"
 #include "absl/random/distributions.h"
 #include "absl/random/random.h"

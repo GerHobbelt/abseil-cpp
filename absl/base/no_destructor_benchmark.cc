@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <cstdint>
 
-#include "absl/profiling/benchmark.h"
 #include "absl/base/internal/raw_logging.h"
 #include "absl/base/no_destructor.h"
 

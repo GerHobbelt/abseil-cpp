@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
 
-#include "absl/profiling/benchmark.h"
 #include "absl/crc/crc32c.h"
 #include "absl/crc/internal/crc32c.h"
 #include "absl/strings/string_view.h"

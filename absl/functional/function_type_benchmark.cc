@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <functional>
 #include <string>
 
-#include "absl/profiling/benchmark.h"
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/functional/any_invocable.h"
