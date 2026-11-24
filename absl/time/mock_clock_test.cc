@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include "absl/time/mock_clock.h"
 
 #include "gmock/gmock.h"

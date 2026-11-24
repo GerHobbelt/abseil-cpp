@@ -16,6 +16,9 @@
 // spinlock.  If the spinlock is working properly, all elements of the
 // array should be equal at the end of the test.
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include <algorithm>
 #include <chrono>  // NOLINT(build/c++11)
 #include <cstddef>

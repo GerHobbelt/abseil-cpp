@@ -14,6 +14,9 @@
 
 // Unit test for memutil.cc
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include "absl/strings/internal/memutil.h"
 
 #include <cstdlib>

@@ -14,6 +14,9 @@
 
 // Unit tests for all str_cat.h functions
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include "absl/strings/str_cat.h"
 
 #include <cstddef>

@@ -16,6 +16,9 @@
 // registered once per process, so this test lives in its own binary and must
 // not be linked together with another profiler.
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include <atomic>
 #include <cstdint>
 #include <thread>  // NOLINT(build/c++11)

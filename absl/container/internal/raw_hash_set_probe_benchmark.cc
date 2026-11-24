@@ -15,6 +15,8 @@
 // Generates probe length statistics for many combinations of key types and key
 // distributions, all using the default hash function for swisstable.
 
+#include "absl/profiling/benchmark.h"
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>

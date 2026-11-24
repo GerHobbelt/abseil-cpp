@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <vector>
 
-#include "absl/profiling/benchmark.h"
 #include "absl/base/optimization.h"
 #include "absl/numeric/bits.h"
 #include "absl/random/random.h"

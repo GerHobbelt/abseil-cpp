@@ -15,6 +15,9 @@
 // This file contains functions that remove a defined part from the string,
 // i.e., strip the string.
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include "absl/strings/strip.h"
 
 #include <cassert>

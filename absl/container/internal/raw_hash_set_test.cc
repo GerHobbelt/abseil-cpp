@@ -3356,7 +3356,7 @@ TEST(Table, ChurnTest) {
       arr[(arr_index+i) % hashTableSize] = rand(); 
       t.insert(arr[(arr_index+i) % hashTableSize]);
     }
-    printf("%zu %zu %zu %zu\n", t.capacity(), t.size(), RawHashSetTestOnlyAccess::CountTombstones(t), t.growth_left());
+    printf("%zu %zu %zu\n", t.capacity(), t.size(), RawHashSetTestOnlyAccess::CountTombstones(t));
     arr_index += (hashTableCap*1)/100;
   }
 }

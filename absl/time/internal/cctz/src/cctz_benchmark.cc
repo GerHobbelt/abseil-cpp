@@ -12,6 +12,8 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -20,7 +22,6 @@
 #include <string>
 #include <vector>
 
-#include "absl/profiling/benchmark.h"
 #include "absl/time/internal/cctz/include/cctz/civil_time.h"
 #include "absl/time/internal/cctz/include/cctz/time_zone.h"
 #include "absl/time/internal/cctz/src/test_time_zone_names.h"

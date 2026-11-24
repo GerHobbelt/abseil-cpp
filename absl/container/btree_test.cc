@@ -20,6 +20,9 @@
 // NOTE: There are more tests in btree_instantiate_test.cc that test
 // diverse value types.
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include "absl/container/btree_test.h"
 
 #include <algorithm>

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <stdint.h>
 
 #include <algorithm>
@@ -29,7 +31,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/profiling/benchmark.h"
 #include "absl/algorithm/container.h"
 #include "absl/base/config.h"
 #include "absl/base/internal/raw_logging.h"

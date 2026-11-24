@@ -37,6 +37,9 @@
 // infinity. The largest finite float and double values are approximately
 // 3.40e+38 and 1.80e+308.
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include <cstdint>
 #include <cstdio>
 #include <optional>

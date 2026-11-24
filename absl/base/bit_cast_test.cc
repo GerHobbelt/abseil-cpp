@@ -14,6 +14,9 @@
 
 // Unit test for bit_cast template.
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include <cstdint>
 #include <cstring>
 #include <iterator>

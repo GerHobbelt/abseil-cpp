@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 
-#include "absl/profiling/benchmark.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/internal/memutil.h"
 

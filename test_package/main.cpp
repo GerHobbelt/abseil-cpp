@@ -1,3 +1,7 @@
+
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include <string>
 #include <utility>
 #include <iostream>

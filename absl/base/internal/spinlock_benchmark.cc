@@ -15,6 +15,9 @@
 // See also //absl/synchronization:mutex_benchmark for a comparison of SpinLock
 // and Mutex performance under varying levels of contention.
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include "absl/profiling/benchmark.h"
 #include "absl/base/internal/raw_logging.h"
 #include "absl/base/internal/scheduling_mode.h"

@@ -31,6 +31,9 @@
 // accomplished by computing them using base64; the source string appears in the
 // binary but the target string is computed at runtime.
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include <stdio.h>
 
 #include <algorithm>

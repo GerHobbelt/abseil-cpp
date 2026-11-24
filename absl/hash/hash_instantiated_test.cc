@@ -16,6 +16,9 @@
 // on INSTANTIATE_TYPED_TEST_SUITE_P, require a large amount of memory to
 // compile. Put new tests in hash_test.cc, not this file.
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include "absl/hash/hash.h"
 
 #include <stddef.h>

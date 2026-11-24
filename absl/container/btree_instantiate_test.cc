@@ -21,6 +21,9 @@
 // NOTE: There are more tests in btree_test.cc.
 // The main reason to have this file separate is to improve build times.
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include <cstdint>
 #include <functional>
 #include <map>

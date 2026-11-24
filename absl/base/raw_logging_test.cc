@@ -16,6 +16,9 @@
 // Raw logging testing is covered by logging_unittest.cc, which is not as
 // portable as this test.
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include "absl/base/internal/raw_logging.h"
 
 #include <cstddef>

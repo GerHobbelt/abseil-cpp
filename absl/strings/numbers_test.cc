@@ -14,6 +14,9 @@
 
 // This file tests string processing functions related to numeric values.
 
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include "absl/strings/numbers.h"
 
 #include <sys/types.h>

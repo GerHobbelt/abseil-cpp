@@ -15,11 +15,12 @@
 // Every benchmark should have the same performance as the corresponding
 // headroom benchmark.
 
+#include "absl/profiling/benchmark.h"
+
 #include <cstddef>
 #include <cstdint>
 
 #include "absl/base/config.h"
-#include "absl/profiling/benchmark.h"
 #include "absl/base/internal/raw_logging.h"
 #include "absl/container/internal/layout.h"
 

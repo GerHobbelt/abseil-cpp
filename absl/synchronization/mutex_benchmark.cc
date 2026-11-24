@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <atomic>
 #include <cstdint>
 #include <limits>
 #include <mutex>  // NOLINT(build/c++11)
 #include <vector>
 
-#include "absl/profiling/benchmark.h"
 #include "absl/base/internal/cycleclock.h"
 #include "absl/base/internal/raw_logging.h"
 #include "absl/base/internal/spinlock.h"

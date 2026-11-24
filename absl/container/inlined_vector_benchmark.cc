@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/profiling/benchmark.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -19,7 +21,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/profiling/benchmark.h"
 #include "absl/base/attributes.h"
 #include "absl/base/internal/raw_logging.h"
 #include "absl/container/inlined_vector.h"

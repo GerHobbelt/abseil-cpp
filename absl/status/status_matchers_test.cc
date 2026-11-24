@@ -15,6 +15,10 @@
 // -----------------------------------------------------------------------------
 // File: status_matchers_test.cc
 // -----------------------------------------------------------------------------
+
+#define ABSL_DEFINE_HASH_FOR_STD_CONTAINER
+#define ABSL_DEFINE_HASH_FOR_STD_WRAPPER
+
 #include "absl/status/status_matchers.h"
 
 #include <string>
